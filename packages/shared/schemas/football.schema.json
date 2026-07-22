@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "northstar:football@1",
+  "title": "Football performance metrics",
+  "description": "Draft validation schema for PerformanceEntry.metrics when sport is football. Illustrative and incomplete. The data-engineering workstream owns the final field set.",
+  "type": "object",
+  "properties": {
+    "minutes": { "type": "integer", "minimum": 0, "maximum": 130 },
+    "goals": { "type": "integer", "minimum": 0 },
+    "assists": { "type": "integer", "minimum": 0 },
+    "xg": { "type": "number", "minimum": 0 },
+    "shots": { "type": "integer", "minimum": 0 },
+    "passes_completed": { "type": "integer", "minimum": 0 },
+    "distance_km": { "type": "number", "minimum": 0 }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "northstar:table_tennis@1",
+  "title": "Table tennis performance metrics",
+  "description": "Draft validation schema for PerformanceEntry.metrics when sport is table_tennis. Illustrative and incomplete. The data-engineering workstream owns the final field set.",
+  "type": "object",
+  "properties": {
+    "matches_played": { "type": "integer", "minimum": 0 },
+    "matches_won": { "type": "integer", "minimum": 0 },
+    "sets_won": { "type": "integer", "minimum": 0 },
+    "sets_lost": { "type": "integer", "minimum": 0 },
+    "avg_rally_length": { "type": "number", "minimum": 0 },
+    "service_points_won_pct": { "type": "number", "minimum": 0, "maximum": 1 }
+  },
+  "additionalProperties": true
+}

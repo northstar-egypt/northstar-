@@ -1,0 +1,12 @@
+{
+  "name": "@northstar/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared types and per-sport validation schemas, consumed by the web app.",
+  "types": "./src/index.ts",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schemas/*": "./schemas/*"
+  }
+}

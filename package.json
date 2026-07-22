@@ -1,0 +1,14 @@
+{
+  "name": "northstar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "National talent database and intelligence platform for Egyptian sports.",
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @northstar/web"
+  },
+  "comment": "The Python backend (apps/api) is not an npm workspace; it uses pip. See apps/api/README.md."
+}
