@@ -108,6 +108,30 @@ table, stop. It almost certainly belongs in the JSON metrics field with a schema
 - **Minors**: much of the youth data is about children. Privacy safeguards and consent
   tracking are first-class, not afterthoughts. See `docs/schema.md` (Consent, AuditLog).
 
+## Project tracking (keep this current)
+
+Progress is tracked on the **NorthStar Delivery** GitHub Project board:
+https://github.com/orgs/northstar-egypt/projects/1
+
+This board is reviewed by the team and the TA, so it is the record of project progress.
+Keep it in sync with reality as part of doing the work, not as an afterthought:
+
+- When a task is finished, move it to `Done`.
+- When you start something, move it to `In Progress`.
+- When new work is identified, add it with a short body saying what it is and why it matters.
+- Write titles and bodies so someone outside the day to day can understand them.
+
+Statuses available: `Backlog`, `This Week`, `In Progress`, `In Review`, `Done`.
+
+Requires the GitHub CLI authenticated with project scope (`gh auth login -s project`):
+
+```bash
+gh project item-list 1 --owner northstar-egypt
+gh project item-create 1 --owner northstar-egypt --title "..." --body "..."
+gh project item-edit --id <ITEM_ID> --project-id <PROJECT_ID> \
+  --field-id <STATUS_FIELD_ID> --single-select-option-id <OPTION_ID>
+```
+
 ## Running locally
 
 ```bash
