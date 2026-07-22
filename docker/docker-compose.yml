@@ -1,0 +1,77 @@
+# NorthStar local development stack.
+#
+# Run from the repo root:
+#   docker compose -f docker/docker-compose.yml up --build
+#
+# This file uses hard-coded development credentials on purpose so that a fresh clone boots
+# with zero configuration. These are local-only throwaway values, never used in production.
+# Application-level secrets (for example the FootyStats API key) go in a repo-root .env that
+# the app itself reads. See .env.example.
+#
+# Build contexts are relative to this file (the docker/ directory).
+
+services:
+  db:
+    image: postgres:16
+    container_name: northstar-db
+    environment:
+      POSTGRES_USER: northstar
+      POSTGRES_PASSWORD: northstar
+      POSTGRES_DB: northstar
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U northstar -d northstar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ../apps/api
+    container_name: northstar-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://northstar:northstar@db:5432/northstar
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      ENVIRONMENT: development
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source for hot reload during development.
+      - ../apps/api:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../apps/web
+    container_name: northstar-web
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source for hot reload, but keep the image's node_modules and .next.
+      - ../apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api
+
+  # Local LLM for the grounded natural-language assistant. Heavy, so it is behind a profile
+  # and off by default. Start it with:  docker compose ... --profile llm up
+  ollama:
+    image: ollama/ollama:latest
+    container_name: northstar-ollama
+    profiles: ["llm"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+volumes:
+  pgdata:
+  ollama-data:
