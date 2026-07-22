@@ -1,0 +1,16 @@
+# NorthStar API dependencies.
+# Boring, standard, pip-installable. Pinned to minor versions for reproducibility.
+# When you add a dependency, pin it and note why if it is not obvious.
+
+fastapi==0.115.*
+uvicorn[standard]==0.32.*
+sqlalchemy==2.0.*
+alembic==1.14.*
+psycopg[binary]==3.2.*        # PostgreSQL driver (psycopg 3)
+pydantic==2.9.*
+pydantic-settings==2.6.*      # env-driven config
+python-dotenv==1.0.*
+
+# TODO (security workstream): auth deps (JWT, password hashing) get added here.
+# TODO (data/ml workstreams): pandas, numpy, scikit-learn, etc. may live in their own
+#   requirements files under data/ and ml/ to keep the API image lean.

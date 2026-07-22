@@ -1,0 +1,3 @@
+# Alembic migration versions live here.
+# The first real migration is created by the data-engineering workstream once the ORM models
+# from docs/schema.md exist:  alembic revision --autogenerate -m "create core tables"
