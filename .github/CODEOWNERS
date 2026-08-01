@@ -1,0 +1,50 @@
+# Code owners for NorthStar
+#
+# Maps directories to the four workstream teams in the northstar-egypt org. When a pull
+# request touches a path below, GitHub automatically requests a review from the matching
+# team. This is about routing reviews to the people who know the area, not about locking
+# anyone out. Every team has write access to the whole repo.
+#
+# Teams: @northstar-egypt/data, @northstar-egypt/ml, @northstar-egypt/security,
+#        @northstar-egypt/app
+#
+# Rules are matched last to first, so the most specific rule that matches a file wins.
+# Only the version of this file on the default branch has any effect.
+# Docs: https://docs.github.com/articles/about-code-owners
+
+# Fallback owner for anything not matched below.
+*                               @northstar-egypt/data
+
+# Application: the Next.js web app.
+/apps/web/                      @northstar-egypt/app
+
+# Backend API. The core data layer lives here, so data engineering owns it by default.
+/apps/api/                      @northstar-egypt/data
+
+# The ORM models and migrations are the shared contract every track builds on. Changing
+# them affects everyone, so security reviews alongside data engineering (User, Consent,
+# and AuditLog live here).
+/apps/api/app/models/           @northstar-egypt/data @northstar-egypt/security
+/apps/api/alembic/              @northstar-egypt/data @northstar-egypt/security
+
+# Auth, RBAC, and audit logging routes belong to security once they exist.
+# TODO: narrow this to the specific auth router files as they are added.
+/apps/api/app/routers/          @northstar-egypt/data @northstar-egypt/security
+
+# Ingestion pipelines and migration notes.
+/data/                          @northstar-egypt/data
+
+# Model code and evaluation harnesses.
+/ml/                            @northstar-egypt/ml
+
+# Shared types and per-sport validation schemas. This is the contract between the data
+# layer, the ML track, and the frontend, so it gets the widest review.
+/packages/shared/               @northstar-egypt/data @northstar-egypt/ml @northstar-egypt/app
+
+# Docs are shared. The threat model is owned by security.
+/docs/                          @northstar-egypt/data
+/docs/threat-model.md           @northstar-egypt/security
+
+# Local dev infrastructure and CI.
+/docker/                        @northstar-egypt/data
+/.github/                       @northstar-egypt/data
