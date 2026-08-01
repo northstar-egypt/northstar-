@@ -1,13 +1,31 @@
 """ORM models for the shared core schema.
 
-Import every model module here so that Alembic autogenerate and metadata creation see them.
-The concrete tables from docs/schema.md (Player, Organization, Measurement,
-PerformanceEntry, User, Consent, AuditLog) are implemented by the data-engineering
-workstream. This file wires them into Base.metadata once they exist.
+Every model module is imported here so that Alembic autogenerate and metadata creation see
+the full set of tables on Base.metadata. The concrete tables come from docs/schema.md
+(shared core + JSON sport modules; see CLAUDE.md).
+
+Import order matters only in that all models must be imported before the mapper is configured;
+relationships use string references, so the modules themselves can be listed in any order.
 """
 
 from app.db import Base  # noqa: F401  (re-exported so Alembic env can import metadata)
+from app.models.audit_log import AuditLog
+from app.models.consent import Consent
+from app.models.measurement import Measurement
+from app.models.organization import Organization
+from app.models.performance_entry import PerformanceEntry
+from app.models.player import Player
+from app.models.player_organization import PlayerOrganization
+from app.models.user import User
 
-# TODO (data engineering): import model modules here as they are added, e.g.
-#   from app.models import player, organization, measurement, performance_entry
-# Each import must run so the table is registered on Base.metadata before migrations.
+__all__ = [
+    "Base",
+    "AuditLog",
+    "Consent",
+    "Measurement",
+    "Organization",
+    "PerformanceEntry",
+    "Player",
+    "PlayerOrganization",
+    "User",
+]
