@@ -104,9 +104,18 @@ table, stop. It almost certainly belongs in the JSON metrics field with a schema
 - **Ask before significant or irreversible choices** (a new core dependency, a schema
   change, an auth library). Two reasonable options means pause and ask.
 - **Secrets**: never commit real credentials. `.env.example` is committed; real `.env` is
-  gitignored.
+  gitignored. The FootyStats API key is the one that costs money if it leaks. This repo is
+  public, so a leaked key is scraped by bots within minutes. Rotate immediately if it happens.
 - **Minors**: much of the youth data is about children. Privacy safeguards and consent
   tracking are first-class, not afterthoughts. See `docs/schema.md` (Consent, AuditLog).
+- **No real player data in this repo, ever. Synthetic only.** This is a hard rule, not a
+  preference, and it is the single easiest way to cause real harm on this project. Real
+  academy spreadsheets, federation exports, scraped result sets, and database dumps stay on
+  your machine or in your local Postgres. They never become a commit, not even temporarily,
+  not even "just as a test fixture", not even in a branch you plan to delete. The repo is
+  public and git history is permanent: once it is pushed, it has been cloned, and you cannot
+  take it back. Test fixtures must come from `data/pipelines/synthetic`. See `.gitignore`,
+  which blocks the common data file types to make the mistake harder.
 
 ## Project tracking (keep this current)
 
