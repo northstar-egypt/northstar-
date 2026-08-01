@@ -196,6 +196,36 @@ ml/artifacts/
 ml/**/checkpoints/
 
 # ---------------------------------------------------------------------------
+# Player data. NEVER commit real data about real people, especially minors.
+#
+# This repo is public. Anything committed here is public permanently, and cannot be
+# taken back once it has been cloned. Real academy spreadsheets, exports, and database
+# dumps stay on your machine or in your local database. Only synthetic data generated
+# by data/pipelines/synthetic is safe, and even that belongs in the database, not in git.
+#
+# If you need a small fixture committed for tests, it must be synthetic, and it must
+# live under a path ending in .sample.csv or .sample.json so the intent is obvious.
+# ---------------------------------------------------------------------------
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.parquet
+*.sql
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+data/raw/
+data/exports/
+
+# Exceptions: synthetic test fixtures, and hand-written schema SQL that contains no
+# player data. Add files under these with `git add -f` if git still refuses them.
+!*.sample.csv
+!*.sample.json
+!data/migrations/**/*.sql
+
+# ---------------------------------------------------------------------------
 # Docker / local infra
 # ---------------------------------------------------------------------------
 .docker/
