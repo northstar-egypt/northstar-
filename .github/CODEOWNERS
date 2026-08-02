@@ -1,50 +1,27 @@
 # Code owners for NorthStar
 #
-# Maps directories to the four workstream teams in the northstar-egypt org. When a pull
-# request touches a path below, GitHub automatically requests a review from the matching
-# team. This is about routing reviews to the people who know the area, not about locking
-# anyone out. Every team has write access to the whole repo.
+# Every path in the repo is owned by @BModz. Combined with the branch protection rule on
+# `main` (one approving review, code owner review required), this means no change reaches
+# `main` without a review from @BModz. Teammates still push branches and open pull requests
+# freely, and they merge their own pull request once it is approved.
 #
-# Teams: @northstar-egypt/data, @northstar-egypt/ml, @northstar-egypt/security,
-#        @northstar-egypt/app
+# Why a single owner rather than the four workstream teams: the org is half populated (5 of
+# 9 people), several teams have one member or none, and a code owner cannot approve their
+# own pull request, so team ownership currently deadlocks more pull requests than it routes.
+# A single owner also keeps one person accountable for the shared core while the schema is
+# still moving.
 #
 # Rules are matched last to first, so the most specific rule that matches a file wins.
 # Only the version of this file on the default branch has any effect.
 # Docs: https://docs.github.com/articles/about-code-owners
 
-# Fallback owner for anything not matched below.
-*                               @northstar-egypt/data
+*                               @BModz
 
-# Application: the Next.js web app.
-/apps/web/                      @northstar-egypt/app
-
-# Backend API. The core data layer lives here, so data engineering owns it by default.
-/apps/api/                      @northstar-egypt/data
-
-# The ORM models and migrations are the shared contract every track builds on. Changing
-# them affects everyone, so security reviews alongside data engineering (User, Consent,
-# and AuditLog live here).
-/apps/api/app/models/           @northstar-egypt/data @northstar-egypt/security
-/apps/api/alembic/              @northstar-egypt/data @northstar-egypt/security
-
-# Auth, RBAC, and audit logging routes belong to security once they exist.
-# TODO: narrow this to the specific auth router files as they are added.
-/apps/api/app/routers/          @northstar-egypt/data @northstar-egypt/security
-
-# Ingestion pipelines and migration notes.
-/data/                          @northstar-egypt/data
-
-# Model code and evaluation harnesses.
-/ml/                            @northstar-egypt/ml
-
-# Shared types and per-sport validation schemas. This is the contract between the data
-# layer, the ML track, and the frontend, so it gets the widest review.
-/packages/shared/               @northstar-egypt/data @northstar-egypt/ml @northstar-egypt/app
-
-# Docs are shared. The threat model is owned by security.
-/docs/                          @northstar-egypt/data
-/docs/threat-model.md           @northstar-egypt/security
-
-# Local dev infrastructure and CI.
-/docker/                        @northstar-egypt/data
-/.github/                       @northstar-egypt/data
+# Note on review routing: because only the owner named on the matching rule is auto-requested,
+# reviews are no longer requested from the workstream teams automatically. Ask the relevant
+# team in the pull request when you want their eyes on it, for example @northstar-egypt/security
+# on anything touching User, Consent, AuditLog, or auth.
+#
+# TODO: when the remaining teammates join and each team has at least two members, revisit
+# whether to hand specific directories back to the teams. The previous per-directory mapping
+# is in the git history of this file (see the commit that introduced it, PR #2).

@@ -58,29 +58,46 @@ Web: http://localhost:3000. API: http://localhost:8000 (`/health`, `/health/db`)
 ## Who owns what
 
 Four teams in the `northstar-egypt` org, one per workstream, all with write access to the
-repo. `.github/CODEOWNERS` routes reviews to them automatically.
+repo. Team membership is what gives you push access, so joining a team is the first step for
+a new contributor.
 
-| Team | Owns |
+| Team | Area of responsibility |
 | --- | --- |
 | `@northstar-egypt/data` | `data/`, `apps/api/`, the models and migrations, docs, docker |
 | `@northstar-egypt/ml` | `ml/`, and `packages/shared` alongside the others |
 | `@northstar-egypt/security` | the threat model, and the models and migrations alongside data |
 | `@northstar-egypt/app` | `apps/web/` |
 
-Shared surfaces have more than one owner on purpose. The ORM models and migrations are the
-contract every track builds on, and `User`, `Consent`, and `AuditLog` live there, so security
-reviews them too. `packages/shared` is the contract between the data layer, ML, and the
-frontend, so all three review it.
+These are areas of responsibility, not merge rights. Review approval is separate: see below.
 
-Reviews are requested, not required. There is no branch protection rule on `main` yet. That
-is a call for the team to make once several people are contributing regularly.
+## How a change gets into main
+
+`main` is protected. Nobody pushes to it directly.
+
+1. Branch off `main`, do the work, push the branch. No approval is needed to push a branch.
+2. Open a pull request.
+3. Get an approving review from **@BModz**, who is the code owner of every path
+   (`.github/CODEOWNERS`). This is required, not advisory.
+4. Resolve every review conversation.
+5. Squash merge. Linear history is required, so merge commits are rejected. The branch is
+   deleted automatically.
+
+Other rules in force on `main`: one approving review required, code owner review required,
+approvals dismissed when new commits are pushed, conversation resolution required, no force
+pushes, no branch deletion. There are no required status checks yet, so if you ran tests, say
+so in the pull request description.
+
+Because only the code owner named on the matching rule is auto-requested, the workstream teams
+are no longer pulled into reviews automatically. Request them by hand when you want their eyes
+on something, for example `@northstar-egypt/security` on anything touching `User`, `Consent`,
+`AuditLog`, or auth. That is a judgement call, not a gate.
 
 ## Working agreement
 
 - Branch off `main`, one branch per task, named `feat/...`, `fix/...`, `chore/...`, or
   `docs/...`.
-- Open a pull request. Code owners get requested automatically. Do not merge your own work
-  on the shared core (models, migrations, `packages/shared`) without a second pair of eyes.
+- Open a pull request. @BModz is requested automatically and has to approve before it can
+  merge. Once it is approved, merge it yourself.
 - Conventional Commits for messages: `feat(api): ...`, `docs: ...`, `chore: ...`.
 - Move your task on the NorthStar Delivery board when you start it and when you finish it.
   The board is the record of progress that the team and the TA read.
