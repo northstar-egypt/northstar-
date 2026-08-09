@@ -1,0 +1,410 @@
+[
+  {
+    "id": "021ec065-c07e-4740-9281-bdf6b730e7fc",
+    "full_name": "Stephanie West",
+    "known_as": "Deborah",
+    "date_of_birth": "1993-11-17",
+    "sex": "female",
+    "nationality": [
+      "EG",
+      "PK"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "football",
+    "tier": "youth",
+    "position": "GK",
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 9837
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "baa5803a-64dc-47e2-b38a-2bf07930eae4",
+    "full_name": "Thomas Smith",
+    "known_as": "Brandon",
+    "date_of_birth": "1996-01-17",
+    "sex": "male",
+    "nationality": [
+      "EG",
+      "ET"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "football",
+    "tier": "diaspora",
+    "position": "GK",
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 1659
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "36679f05-275e-4809-b1e8-77fd012e9366",
+    "full_name": "Ashley Harris",
+    "known_as": "Mercedes",
+    "date_of_birth": "1993-04-18",
+    "sex": "male",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "football",
+    "tier": "diaspora",
+    "position": "GK",
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 1587
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "5c930e19-21e9-4c00-9fa4-5993b0c0fb2b",
+    "full_name": "John Vasquez",
+    "known_as": "Henry",
+    "date_of_birth": "1997-08-12",
+    "sex": "female",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "table_tennis",
+    "tier": null,
+    "position": null,
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 6477
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "0eb8e2f4-d7ff-41b0-9a3e-6edc16b598cb",
+    "full_name": "Robert Chan",
+    "known_as": "Jonathon",
+    "date_of_birth": "2007-07-29",
+    "sex": "male",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "football",
+    "tier": "diaspora",
+    "position": "DF",
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 7491
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "f2913371-06d1-46d3-abf7-15eecd94508d",
+    "full_name": "Emily Wall",
+    "known_as": "Morgan",
+    "date_of_birth": "2005-07-27",
+    "sex": "male",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "football",
+    "tier": "youth",
+    "position": "MF",
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 2735
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "1b7a742c-f401-4b52-9370-49cec426ffdd",
+    "full_name": "Alicia Sullivan",
+    "known_as": "James",
+    "date_of_birth": "2002-08-09",
+    "sex": "male",
+    "nationality": [
+      "EG",
+      "CY"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "table_tennis",
+    "tier": null,
+    "position": null,
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 1219
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "ed25b696-2cac-482b-9d56-63bb44aac8a2",
+    "full_name": "Diana Rhodes",
+    "known_as": "Scott",
+    "date_of_birth": "2005-11-06",
+    "sex": "male",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "football",
+    "tier": "diaspora",
+    "position": "MF",
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 6473
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "cf18767f-31a5-4add-a680-38e7d87c8123",
+    "full_name": "Anthony Rice",
+    "known_as": "Wyatt",
+    "date_of_birth": "1995-07-13",
+    "sex": "male",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "football",
+    "tier": "pro",
+    "position": "GK",
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 7626
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "5b76d9a7-2b65-46b3-9866-2bf25f758118",
+    "full_name": "Marilyn Taylor",
+    "known_as": "Emily",
+    "date_of_birth": "1992-08-11",
+    "sex": "female",
+    "nationality": [
+      "EG",
+      "LI"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "table_tennis",
+    "tier": null,
+    "position": null,
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 3259
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "bc97172e-1966-4a71-a947-70d9d3b62a1b",
+    "full_name": "Laura Jenkins",
+    "known_as": "Martin",
+    "date_of_birth": "1998-02-15",
+    "sex": "male",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "football",
+    "tier": "diaspora",
+    "position": "MF",
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 9528
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "da548931-aafa-46fd-bdec-c7f2e0756134",
+    "full_name": "Donald Ingram",
+    "known_as": "Stephanie",
+    "date_of_birth": "2001-05-28",
+    "sex": "male",
+    "nationality": [
+      "EG",
+      "CA"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "table_tennis",
+    "tier": null,
+    "position": null,
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 5446
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "3387d032-5e6d-44b6-a20b-ffa78304a4ee",
+    "full_name": "Tonya Clark",
+    "known_as": "Tony",
+    "date_of_birth": "2012-07-02",
+    "sex": "female",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "table_tennis",
+    "tier": null,
+    "position": null,
+    "is_minor": true,
+    "external_ids": {
+      "footystats": 8028
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "8cd9505e-a6a9-42c5-97b5-2aaf53d2093a",
+    "full_name": "Lance Meyers",
+    "known_as": "Bradley",
+    "date_of_birth": "2011-01-07",
+    "sex": "female",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "table_tennis",
+    "tier": null,
+    "position": null,
+    "is_minor": true,
+    "external_ids": {
+      "footystats": 1712
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "4131a222-f20d-49d2-8fc5-1ce194fd4f78",
+    "full_name": "Jennifer Smith",
+    "known_as": "Amanda",
+    "date_of_birth": "1997-05-18",
+    "sex": "female",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "table_tennis",
+    "tier": null,
+    "position": null,
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 4602
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "6e6287b3-63a7-4a0a-8605-a8807ea0954b",
+    "full_name": "Scott Williams",
+    "known_as": "Katherine",
+    "date_of_birth": "1993-10-29",
+    "sex": "male",
+    "nationality": [
+      "EG",
+      "PG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "football",
+    "tier": "diaspora",
+    "position": "ST",
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 6162
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "e1bbb9eb-cbe5-4bf3-b85f-8ab6a0f700d2",
+    "full_name": "Duane Sanchez",
+    "known_as": "Tyler",
+    "date_of_birth": "2005-12-10",
+    "sex": "female",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "table_tennis",
+    "tier": null,
+    "position": null,
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 4633
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "1fb61d4d-80e7-4ef5-b6c7-a92ad936d069",
+    "full_name": "Todd Smith",
+    "known_as": "Benjamin",
+    "date_of_birth": "2007-10-25",
+    "sex": "female",
+    "nationality": [
+      "EG",
+      "CU"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "football",
+    "tier": "youth",
+    "position": "GK",
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 7480
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "34e42a44-059d-46ec-a8f1-00c7efacc121",
+    "full_name": "Gloria Morris",
+    "known_as": "Patricia",
+    "date_of_birth": "1999-02-01",
+    "sex": "male",
+    "nationality": [
+      "EG",
+      "CD"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "football",
+    "tier": "youth",
+    "position": "DF",
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 2089
+    },
+    "status": "active",
+    "merged_into": null
+  },
+  {
+    "id": "73128087-7d34-458d-aba6-506c349d1538",
+    "full_name": "Melanie Blair",
+    "known_as": "Garrett",
+    "date_of_birth": "2001-03-19",
+    "sex": "male",
+    "nationality": [
+      "EG"
+    ],
+    "is_egypt_eligible": true,
+    "primary_sport": "table_tennis",
+    "tier": null,
+    "position": null,
+    "is_minor": false,
+    "external_ids": {
+      "footystats": 4512
+    },
+    "status": "active",
+    "merged_into": null
+  }
+]
