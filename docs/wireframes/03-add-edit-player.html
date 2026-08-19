@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframe: add and edit player</title>
+<link rel="stylesheet" href="wireframes.css">
+</head>
+<body>
+<div class="sheet">
+
+  <header class="doc-head">
+    <div class="crumb"><a href="index.html">Wireframes</a> / Screen 3</div>
+    <h1>Add and edit player, and log a measurement</h1>
+    <p class="purpose">
+      The only screen in the product that is designed for a phone first. A coach uses it standing
+      on a pitch, in sunlight, often with one hand, sometimes with no signal.
+    </p>
+    <div class="roles">
+      <span class="role">coach</span>
+      <span class="role">player (own profile)</span>
+      <span class="role off">scout</span>
+      <span class="role off">federation</span>
+    </div>
+  </header>
+
+  <div class="split">
+
+    <div>
+      <div class="frame phone">
+        <div class="frame-bar"><span class="dot"></span><span>Add player</span></div>
+        <div class="frame-body">
+
+          <div class="row between">
+            <span class="btn ghost">Cancel</span>
+            <span class="label">Step 1 of 2</span>
+          </div>
+
+          <div class="field">
+            <span class="label">Full name</span>
+            <div class="input" style="min-height:2.4rem">&nbsp;</div>
+          </div>
+
+          <div class="field">
+            <span class="label">Date of birth</span>
+            <div class="input" style="min-height:2.4rem">dd / mm / yyyy</div>
+          </div>
+
+          <div class="box soft" style="border-style:dashed;border-color:var(--note);padding:0.5rem 0.6rem">
+            <span class="label" style="color:var(--note)"><span class="m">1</span> This player is 13</span>
+            <span style="font-size:0.82rem;color:var(--ink-soft)">Guardian consent is required before this profile can be seen by scouts.</span>
+          </div>
+
+          <div class="field">
+            <span class="label">Position</span>
+            <div class="row tight">
+              <span class="chip strong">ST</span><span class="chip">CM</span><span class="chip">CB</span><span class="chip">GK</span><span class="chip">more</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="label">Nationality</span>
+            <div class="row tight">
+              <span class="chip strong">EGY &times;</span><span class="chip">add</span>
+            </div>
+          </div>
+
+          <div class="row between box soft" style="align-items:center">
+            <span style="font-size:0.85rem"><span class="m">2</span> Also eligible for Egypt</span>
+            <span class="chip strong">yes</span>
+          </div>
+
+          <div class="btn primary" style="justify-content:center;min-height:2.6rem">Continue</div>
+
+        </div>
+      </div>
+      <p class="caption">Add player, step 1. Identity only.</p>
+    </div>
+
+    <div>
+      <div class="frame phone">
+        <div class="frame-bar"><span class="dot"></span><span>Log measurement</span></div>
+        <div class="frame-body">
+
+          <div class="row tight" style="align-items:center">
+            <div class="ph avatar" style="width:2.4rem;height:2.4rem"></div>
+            <div class="col" style="gap:0">
+              <span style="font-weight:650">Youssef A.</span>
+              <span class="label">14y 2m &middot; ST</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="label">Measured on</span>
+            <div class="row tight">
+              <span class="chip strong"><span class="m">3</span> today</span><span class="chip">yesterday</span><span class="chip">pick</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="label">Height</span>
+            <div class="row tight" style="align-items:center">
+              <div class="input grow" style="min-height:2.6rem;font-size:1.2rem;color:var(--ink)">168</div>
+              <span class="chip strong">cm</span>
+            </div>
+            <span style="font-size:0.76rem;color:var(--ink-soft)">last: 166 cm, 24 days ago</span>
+          </div>
+
+          <div class="field">
+            <span class="label">Weight</span>
+            <div class="row tight" style="align-items:center">
+              <div class="input grow" style="min-height:2.6rem;font-size:1.2rem;color:var(--ink)">54</div>
+              <span class="chip strong">kg</span>
+            </div>
+          </div>
+
+          <div class="box" style="border-color:var(--note);border-style:dashed">
+            <span class="label" style="color:var(--note)"><span class="m">4</span> Check this</span>
+            <span style="font-size:0.82rem;color:var(--ink-soft)">
+              That is 12 cm of growth in 24 days. Save anyway, or correct it?
+            </span>
+            <div class="row tight"><span class="btn ghost">Correct</span><span class="btn">Save anyway</span></div>
+          </div>
+
+          <div class="row tight">
+            <span class="btn ghost grow" style="justify-content:center">Add another metric</span>
+          </div>
+
+          <div class="btn primary" style="justify-content:center;min-height:2.8rem"><span class="m" style="border-color:var(--paper);color:var(--paper);background:transparent">5</span> Save measurement</div>
+
+          <span style="font-size:0.76rem;color:var(--ink-soft);text-align:center">Saved offline. Will sync when you have signal.</span>
+
+        </div>
+      </div>
+      <p class="caption">Log measurement. Reached from the dashboard or from a profile.</p>
+    </div>
+
+  </div>
+
+  <section class="notes">
+    <h2>Annotations</h2>
+    <ol class="anno">
+      <li><strong>Minor status is computed and announced, not asked.</strong> The coach enters a date of birth and the interface immediately says what that means, in the same place, before they can move on. Nobody should be able to add a 13 year old without being told that consent is now required. This is the privacy rule made visible rather than buried in a policy page.</li>
+      <li><strong>Egypt eligibility is a first class toggle,</strong> because the diaspora tier is a headline feature and the flag is otherwise invisible data entry. A coach at an Egyptian academy will rarely touch it. A scout logging a dual national in Europe will use it constantly.</li>
+      <li><strong>The date defaults to today and is one tap to change.</strong> Almost every measurement is logged the day it is taken. Making the common case free is worth more here than anywhere else in the app.</li>
+      <li><strong>Validation is a question, never a block.</strong> The number is implausible, so the interface says so and offers a correction. It does not refuse to save. A coach who genuinely measured a 12 cm jump must be able to record it, because that is exactly the observation the late bloomer detector needs. What the interface must never do is let it through silently.</li>
+      <li><strong>The primary action is thumb sized and at the bottom,</strong> where a thumb actually reaches on a phone held one handed. Numeric fields open a numeric keypad, and the value is set in a larger type size than anything else on screen so it can be checked at arm's length in bright sun.</li>
+    </ol>
+  </section>
+
+  <section class="notes">
+    <h2>Data and API</h2>
+    <ul class="plain">
+      <li>Step 1 creates a <code>Player</code> and the <code>PlayerOrganization</code> row that links them to the coach's org. Those are one transaction, because a player with no affiliation is invisible to every screen in this product.</li>
+      <li>Step 2, not drawn, is consent capture when the player is a minor. It writes <code>Consent</code> rows per purpose.</li>
+      <li>Logging writes one <code>Measurement</code> row per metric, long format, with <code>source</code> set to <code>coach_logged</code> and <code>recorded_by</code> set to the signed in user.</li>
+      <li><code>confidence</code> is on the model as <code>measured</code> or <code>estimated</code> but is not on this form yet. The maturity models care about it, so it probably belongs here as a quiet toggle.</li>
+      <li>Every write appends to <code>AuditLog</code>, including the case where the coach saved a value the interface questioned. That before and after context is exactly what the integrity board reads later.</li>
+    </ul>
+  </section>
+
+  <section class="notes">
+    <h2>Open questions</h2>
+    <div class="open">
+      <span class="label">The offline claim</span>
+      <p style="margin:0">
+        The wireframe promises an offline save. That is the right behaviour for a pitchside tool
+        and the wrong thing to promise casually: it means a service worker, a local queue, conflict
+        handling on sync, and a story for what happens when the same measurement is entered twice
+        from two devices. Either the application track commits to building it, or the line comes
+        off the screen. Drawing it and not building it is the worst of the three options.
+      </p>
+    </div>
+    <ul class="plain">
+      <li>Which metrics beyond height and weight go on the quick form? The schema allows any metric, but a form with twenty fields will not get used pitchside.</li>
+      <li>Does the position chip set come from the sport module or a hard coded list? The schema flags <code>position</code> as a borderline field, so this screen inherits that open question.</li>
+      <li>Consent capture is drawn as step 2 but not designed. Who signs, on what device, and does a guardian signature need to be a stored document.</li>
+    </ul>
+  </section>
+
+  <footer class="docfoot">
+    <span><a href="index.html">Back to all screens</a></span>
+    <span>Next: <a href="04-player-profile.html">Player profile</a></span>
+  </footer>
+
+</div>
+</body>
+</html>
