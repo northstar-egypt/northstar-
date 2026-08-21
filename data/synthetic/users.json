@@ -1,0 +1,167 @@
+[
+  {
+    "id": "b9a62e47-252d-4447-87e7-f642599c9c91",
+    "email": "zachary15@example.net",
+    "password_hash": "argon2$fakehash$e2b196f89fef4c5fb0ad6f5a3c67d699",
+    "full_name": "Nicole Pierce",
+    "role": "scout",
+    "organization_id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "linked_player_id": null,
+    "is_active": true,
+    "last_login_at": "2026-04-12T14:06:50.397627+00:00"
+  },
+  {
+    "id": "d2478c05-6a48-45f7-9ac1-2b9e69bca86a",
+    "email": "bnguyen@example.com",
+    "password_hash": "argon2$fakehash$a97b80f6615b4a359356aa5e202d4ded",
+    "full_name": "Brenda Simpson",
+    "role": "scout",
+    "organization_id": "6e0d056a-0f4c-49cd-bcd0-72501b15ced1",
+    "linked_player_id": null,
+    "is_active": true,
+    "last_login_at": "2026-03-23T22:33:50.397627+00:00"
+  },
+  {
+    "id": "42e42de3-ba67-49a9-b095-4623b9495908",
+    "email": "jwright@example.net",
+    "password_hash": "argon2$fakehash$01b23324468b4a46a5793701c06abb7e",
+    "full_name": "Lauren Cortez",
+    "role": "player",
+    "organization_id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "linked_player_id": "baa5803a-64dc-47e2-b38a-2bf07930eae4",
+    "is_active": true,
+    "last_login_at": "2026-05-31T06:02:50.397627+00:00"
+  },
+  {
+    "id": "54ca0c70-2c3d-4731-b7d6-6d23184ed272",
+    "email": "ecooper@example.com",
+    "password_hash": "argon2$fakehash$52e9b7ba7ab645a4b892ab781a619869",
+    "full_name": "Scott Good",
+    "role": "coach",
+    "organization_id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "linked_player_id": null,
+    "is_active": true,
+    "last_login_at": "2026-08-12T07:08:50.397627+00:00"
+  },
+  {
+    "id": "c824a209-a39b-4fac-a240-369580d873ff",
+    "email": "vgomez@example.com",
+    "password_hash": "argon2$fakehash$734fbc755fa148de94475cf7a177ecb9",
+    "full_name": "Todd Costa",
+    "role": "scout",
+    "organization_id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "linked_player_id": null,
+    "is_active": true,
+    "last_login_at": "2026-03-10T09:46:50.397627+00:00"
+  },
+  {
+    "id": "a849f638-25f4-4218-8f33-f88284b7c21a",
+    "email": "anthony27@example.net",
+    "password_hash": "argon2$fakehash$cff86c1da9e544c4a66516c5c004c1d2",
+    "full_name": "Chase Torres",
+    "role": "coach",
+    "organization_id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "linked_player_id": null,
+    "is_active": true,
+    "last_login_at": "2026-05-03T18:48:50.397627+00:00"
+  },
+  {
+    "id": "bb5f64eb-4ffb-4c32-b032-3b5602250d98",
+    "email": "dgilmore@example.com",
+    "password_hash": "argon2$fakehash$266ba7f8ee864fe8806684bb4ec80c1a",
+    "full_name": "Jose Phillips",
+    "role": "player",
+    "organization_id": "f2188e6e-9cca-4b6d-a4ca-591de0265e02",
+    "linked_player_id": "3387d032-5e6d-44b6-a20b-ffa78304a4ee",
+    "is_active": true,
+    "last_login_at": "2026-08-01T04:28:50.397627+00:00"
+  },
+  {
+    "id": "db189d40-b70a-4e10-a0ca-0b348962243c",
+    "email": "emily86@example.com",
+    "password_hash": "argon2$fakehash$e87447f03e0e46f8a02d55641b779225",
+    "full_name": "Kristina Cain",
+    "role": "admin",
+    "organization_id": "f2188e6e-9cca-4b6d-a4ca-591de0265e02",
+    "linked_player_id": null,
+    "is_active": true,
+    "last_login_at": "2026-07-05T10:49:50.397627+00:00"
+  },
+  {
+    "id": "550dfe3a-6e57-47f7-8a8c-050b9d9638a7",
+    "email": "brandonjackson@example.com",
+    "password_hash": "argon2$fakehash$4388f707a9b84a568073a198cba017d2",
+    "full_name": "Gabriel Townsend",
+    "role": "coach",
+    "organization_id": "6e0d056a-0f4c-49cd-bcd0-72501b15ced1",
+    "linked_player_id": null,
+    "is_active": true,
+    "last_login_at": "2026-06-28T12:35:50.397627+00:00"
+  },
+  {
+    "id": "50324567-6f80-413a-9a9a-722a5c3c6f4e",
+    "email": "qryan@example.net",
+    "password_hash": "argon2$fakehash$69cd1a3aee4e49d4af4e2108662786fa",
+    "full_name": "Mr. Travis Chavez DDS",
+    "role": "player",
+    "organization_id": "6e0d056a-0f4c-49cd-bcd0-72501b15ced1",
+    "linked_player_id": "e1bbb9eb-cbe5-4bf3-b85f-8ab6a0f700d2",
+    "is_active": true,
+    "last_login_at": "2026-03-17T09:34:50.397627+00:00"
+  },
+  {
+    "id": "3926e60e-f605-422d-ad06-4dc170c3e874",
+    "email": "peter96@example.org",
+    "password_hash": "argon2$fakehash$522e8c4fb51c42868b30c0d653cccac6",
+    "full_name": "Samantha Salinas PhD",
+    "role": "scout",
+    "organization_id": null,
+    "linked_player_id": null,
+    "is_active": true,
+    "last_login_at": "2026-08-03T19:27:50.397627+00:00"
+  },
+  {
+    "id": "c50bb6ed-f788-42b7-87ad-fef6dfacf1eb",
+    "email": "jessicadixon@example.org",
+    "password_hash": "argon2$fakehash$da8917c98d5e4b78ae0a81fc9a36baf5",
+    "full_name": "Ashley Sanders",
+    "role": "coach",
+    "organization_id": null,
+    "linked_player_id": null,
+    "is_active": false,
+    "last_login_at": null
+  },
+  {
+    "id": "39ebfdee-d0d9-4ee0-9465-06a6a76301e0",
+    "email": "jesseosborn@example.net",
+    "password_hash": "argon2$fakehash$75c573757c94456ca9ae928931100a14",
+    "full_name": "Melissa Harris",
+    "role": "coach",
+    "organization_id": "6e0d056a-0f4c-49cd-bcd0-72501b15ced1",
+    "linked_player_id": null,
+    "is_active": true,
+    "last_login_at": "2026-03-29T14:31:50.397627+00:00"
+  },
+  {
+    "id": "2392d66c-167d-426d-99d5-79bc94860992",
+    "email": "jorgejackson@example.com",
+    "password_hash": "argon2$fakehash$01937aa827ea42b3b66b80a53729765e",
+    "full_name": "John Thomas",
+    "role": "scout",
+    "organization_id": "cdba6f99-4ccc-44fb-8fc1-c05d2882e9c3",
+    "linked_player_id": null,
+    "is_active": true,
+    "last_login_at": "2026-04-30T05:25:50.397627+00:00"
+  },
+  {
+    "id": "dd1f9721-d0c2-4a6f-ab1c-9c6fdd72804a",
+    "email": "patricia67@example.com",
+    "password_hash": "argon2$fakehash$1b8aa50849444c0497e7893f5ae7dd89",
+    "full_name": "Katie Jenkins",
+    "role": "player",
+    "organization_id": "6e0d056a-0f4c-49cd-bcd0-72501b15ced1",
+    "linked_player_id": "bc97172e-1966-4a71-a947-70d9d3b62a1b",
+    "is_active": true,
+    "last_login_at": "2026-04-27T06:37:50.397627+00:00"
+  }
+]
