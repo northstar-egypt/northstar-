@@ -1,0 +1,112 @@
+[
+  {
+    "id": "fbc75b4f-dc31-4452-9f87-43ce5abeb3ba",
+    "name": "Bermuda National Team",
+    "type": "national_team",
+    "sport": "table_tennis",
+    "country": "EG",
+    "parent_org_id": null,
+    "external_ids": {
+      "footystats": 341
+    }
+  },
+  {
+    "id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "name": "Sandersbury Youth Academy",
+    "type": "academy",
+    "sport": "table_tennis",
+    "country": "EG",
+    "parent_org_id": null,
+    "external_ids": {
+      "footystats": 895
+    }
+  },
+  {
+    "id": "3e9facab-2e8e-43e8-93d4-5ec34536faca",
+    "name": "Ethiopia Sports Federation",
+    "type": "federation",
+    "sport": null,
+    "country": "MA",
+    "parent_org_id": null,
+    "external_ids": {
+      "footystats": 278
+    }
+  },
+  {
+    "id": "6e0d056a-0f4c-49cd-bcd0-72501b15ced1",
+    "name": "Libyan Arab Jamahiriya National Team",
+    "type": "national_team",
+    "sport": "football",
+    "country": "MA",
+    "parent_org_id": null,
+    "external_ids": {
+      "footystats": 928
+    }
+  },
+  {
+    "id": "7260c9d3-fa00-43ad-bda7-459939a7d6d0",
+    "name": "Guernsey Sports Federation",
+    "type": "federation",
+    "sport": null,
+    "country": "SA",
+    "parent_org_id": null,
+    "external_ids": {
+      "footystats": 160
+    }
+  },
+  {
+    "id": "cc32ecfa-8463-4f93-8a45-19f1f80ece8e",
+    "name": "South Thomastown SC",
+    "type": "club",
+    "sport": "football",
+    "country": "LY",
+    "parent_org_id": null,
+    "external_ids": {
+      "footystats": 891
+    }
+  },
+  {
+    "id": "083075ef-6c75-4d24-b158-61113bb87fef",
+    "name": "Gibraltar Sports Federation",
+    "type": "federation",
+    "sport": null,
+    "country": "LY",
+    "parent_org_id": null,
+    "external_ids": {
+      "footystats": 385
+    }
+  },
+  {
+    "id": "f2188e6e-9cca-4b6d-a4ca-591de0265e02",
+    "name": "Mozambique Sports Federation",
+    "type": "federation",
+    "sport": null,
+    "country": "SD",
+    "parent_org_id": null,
+    "external_ids": {
+      "footystats": 898
+    }
+  },
+  {
+    "id": "14e4c7f3-5ad3-4f5e-b513-c09aa6309622",
+    "name": "North Samuel Youth Academy",
+    "type": "academy",
+    "sport": null,
+    "country": "SA",
+    "parent_org_id": "fbc75b4f-dc31-4452-9f87-43ce5abeb3ba",
+    "external_ids": {
+      "footystats": 770
+    }
+  },
+  {
+    "id": "cdba6f99-4ccc-44fb-8fc1-c05d2882e9c3",
+    "name": "Dominica National Team",
+    "type": "national_team",
+    "sport": "table_tennis",
+    "country": "EG",
+    "parent_org_id": null,
+    "external_ids": {
+      "footystats": 456
+    }
+  }
+]
