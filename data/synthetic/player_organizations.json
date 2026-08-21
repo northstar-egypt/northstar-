@@ -1,0 +1,353 @@
+[
+  {
+    "id": "4b862f52-1d6f-4db1-a4b4-478ee51c29d0",
+    "player_id": "021ec065-c07e-4740-9281-bdf6b730e7fc",
+    "organization_id": "3e9facab-2e8e-43e8-93d4-5ec34536faca",
+    "role": "youth_prospect",
+    "start_date": "2024-03-25",
+    "end_date": "2024-10-03",
+    "shirt_number": null
+  },
+  {
+    "id": "5b653601-e856-4fb0-902f-7b2fbb1b0472",
+    "player_id": "021ec065-c07e-4740-9281-bdf6b730e7fc",
+    "organization_id": "083075ef-6c75-4d24-b158-61113bb87fef",
+    "role": "player",
+    "start_date": "2024-10-13",
+    "end_date": null,
+    "shirt_number": 96
+  },
+  {
+    "id": "cef37a68-0ac0-4ce3-a03f-76d095747e96",
+    "player_id": "baa5803a-64dc-47e2-b38a-2bf07930eae4",
+    "organization_id": "7260c9d3-fa00-43ad-bda7-459939a7d6d0",
+    "role": "youth_prospect",
+    "start_date": "2022-08-02",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "ae1feef2-7714-4874-8540-b8152d05c921",
+    "player_id": "36679f05-275e-4809-b1e8-77fd012e9366",
+    "organization_id": "cc32ecfa-8463-4f93-8a45-19f1f80ece8e",
+    "role": "youth_prospect",
+    "start_date": "2023-10-01",
+    "end_date": "2024-01-28",
+    "shirt_number": null
+  },
+  {
+    "id": "20c706d8-136d-462d-af0e-a0bd5c0773bc",
+    "player_id": "36679f05-275e-4809-b1e8-77fd012e9366",
+    "organization_id": "cdba6f99-4ccc-44fb-8fc1-c05d2882e9c3",
+    "role": "trialist",
+    "start_date": "2024-02-19",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "8346654d-2dc5-435e-97e4-58c8903cfa41",
+    "player_id": "5c930e19-21e9-4c00-9fa4-5993b0c0fb2b",
+    "organization_id": "fbc75b4f-dc31-4452-9f87-43ce5abeb3ba",
+    "role": "player",
+    "start_date": "2023-03-03",
+    "end_date": "2024-06-01",
+    "shirt_number": 99
+  },
+  {
+    "id": "868f3a07-9a29-4af8-8d2f-3a5b00418b65",
+    "player_id": "5c930e19-21e9-4c00-9fa4-5993b0c0fb2b",
+    "organization_id": "cdba6f99-4ccc-44fb-8fc1-c05d2882e9c3",
+    "role": "youth_prospect",
+    "start_date": "2024-06-12",
+    "end_date": "2025-10-06",
+    "shirt_number": null
+  },
+  {
+    "id": "ace18e11-4792-4dba-a1f3-69ca7aa80d48",
+    "player_id": "5c930e19-21e9-4c00-9fa4-5993b0c0fb2b",
+    "organization_id": "fbc75b4f-dc31-4452-9f87-43ce5abeb3ba",
+    "role": "player",
+    "start_date": "2025-10-17",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "fa2c77bc-bfa9-403f-a2a4-fb7d9f318acd",
+    "player_id": "0eb8e2f4-d7ff-41b0-9a3e-6edc16b598cb",
+    "organization_id": "6e0d056a-0f4c-49cd-bcd0-72501b15ced1",
+    "role": "trialist",
+    "start_date": "2023-04-07",
+    "end_date": "2024-01-08",
+    "shirt_number": null
+  },
+  {
+    "id": "91affcb4-ea39-4484-94e2-a2079f84c640",
+    "player_id": "0eb8e2f4-d7ff-41b0-9a3e-6edc16b598cb",
+    "organization_id": "f2188e6e-9cca-4b6d-a4ca-591de0265e02",
+    "role": "youth_prospect",
+    "start_date": "2024-01-12",
+    "end_date": "2025-02-02",
+    "shirt_number": null
+  },
+  {
+    "id": "9f6d9033-b6ad-4fc0-99df-192850ba7d33",
+    "player_id": "0eb8e2f4-d7ff-41b0-9a3e-6edc16b598cb",
+    "organization_id": "083075ef-6c75-4d24-b158-61113bb87fef",
+    "role": "player",
+    "start_date": "2025-02-05",
+    "end_date": null,
+    "shirt_number": 87
+  },
+  {
+    "id": "4cc543cd-fdea-47f2-a3b9-1cb5a1f58b33",
+    "player_id": "f2913371-06d1-46d3-abf7-15eecd94508d",
+    "organization_id": "cdba6f99-4ccc-44fb-8fc1-c05d2882e9c3",
+    "role": "player",
+    "start_date": "2022-08-04",
+    "end_date": "2023-07-29",
+    "shirt_number": null
+  },
+  {
+    "id": "27f7df24-c6cc-4d95-bfd5-22f4ad492334",
+    "player_id": "f2913371-06d1-46d3-abf7-15eecd94508d",
+    "organization_id": "6e0d056a-0f4c-49cd-bcd0-72501b15ced1",
+    "role": "trialist",
+    "start_date": "2023-08-21",
+    "end_date": "2024-02-20",
+    "shirt_number": null
+  },
+  {
+    "id": "1af66231-dcd4-4311-9a23-259e6ee87d87",
+    "player_id": "f2913371-06d1-46d3-abf7-15eecd94508d",
+    "organization_id": "3e9facab-2e8e-43e8-93d4-5ec34536faca",
+    "role": "youth_prospect",
+    "start_date": "2024-03-14",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "262dac72-7fa1-442a-977b-c5715e8c6de7",
+    "player_id": "1b7a742c-f401-4b52-9370-49cec426ffdd",
+    "organization_id": "cdba6f99-4ccc-44fb-8fc1-c05d2882e9c3",
+    "role": "youth_prospect",
+    "start_date": "2023-10-28",
+    "end_date": "2024-11-01",
+    "shirt_number": null
+  },
+  {
+    "id": "92bcff82-b086-4eeb-93a5-f38770ea0f2b",
+    "player_id": "1b7a742c-f401-4b52-9370-49cec426ffdd",
+    "organization_id": "083075ef-6c75-4d24-b158-61113bb87fef",
+    "role": "player",
+    "start_date": "2024-12-01",
+    "end_date": null,
+    "shirt_number": 64
+  },
+  {
+    "id": "44e3f129-375f-4dff-84c3-4ce8e413517d",
+    "player_id": "ed25b696-2cac-482b-9d56-63bb44aac8a2",
+    "organization_id": "fbc75b4f-dc31-4452-9f87-43ce5abeb3ba",
+    "role": "youth_prospect",
+    "start_date": "2024-09-01",
+    "end_date": "2025-04-15",
+    "shirt_number": null
+  },
+  {
+    "id": "046da3c4-48c6-49f1-b0ff-c041c33233e6",
+    "player_id": "ed25b696-2cac-482b-9d56-63bb44aac8a2",
+    "organization_id": "14e4c7f3-5ad3-4f5e-b513-c09aa6309622",
+    "role": "player",
+    "start_date": "2025-04-26",
+    "end_date": "2025-12-09",
+    "shirt_number": 20
+  },
+  {
+    "id": "27c7a811-4575-419b-9232-f065a18e6891",
+    "player_id": "ed25b696-2cac-482b-9d56-63bb44aac8a2",
+    "organization_id": "6e0d056a-0f4c-49cd-bcd0-72501b15ced1",
+    "role": "player",
+    "start_date": "2025-12-13",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "15271dbb-fe9b-4a17-9523-71b5f985d29d",
+    "player_id": "cf18767f-31a5-4add-a680-38e7d87c8123",
+    "organization_id": "fbc75b4f-dc31-4452-9f87-43ce5abeb3ba",
+    "role": "trialist",
+    "start_date": "2025-03-04",
+    "end_date": "2025-12-20",
+    "shirt_number": null
+  },
+  {
+    "id": "d1a8e82a-cf47-44ab-a3dd-9566e4979cc4",
+    "player_id": "cf18767f-31a5-4add-a680-38e7d87c8123",
+    "organization_id": "6e0d056a-0f4c-49cd-bcd0-72501b15ced1",
+    "role": "player",
+    "start_date": "2026-01-13",
+    "end_date": null,
+    "shirt_number": 12
+  },
+  {
+    "id": "0dfc1eef-cc94-4aa9-af29-3b342c49dd2e",
+    "player_id": "5b76d9a7-2b65-46b3-9866-2bf25f758118",
+    "organization_id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "role": "player",
+    "start_date": "2023-02-16",
+    "end_date": null,
+    "shirt_number": 19
+  },
+  {
+    "id": "86e5870d-7f0f-4da5-a972-5e4742ab9926",
+    "player_id": "bc97172e-1966-4a71-a947-70d9d3b62a1b",
+    "organization_id": "083075ef-6c75-4d24-b158-61113bb87fef",
+    "role": "player",
+    "start_date": "2024-11-02",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "6900ee2e-66ab-4d34-97f1-685b9fc76f54",
+    "player_id": "da548931-aafa-46fd-bdec-c7f2e0756134",
+    "organization_id": "3e9facab-2e8e-43e8-93d4-5ec34536faca",
+    "role": "trialist",
+    "start_date": "2022-07-22",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "f47cfb23-7f97-49af-80b1-5a978943403c",
+    "player_id": "3387d032-5e6d-44b6-a20b-ffa78304a4ee",
+    "organization_id": "cdba6f99-4ccc-44fb-8fc1-c05d2882e9c3",
+    "role": "youth_prospect",
+    "start_date": "2023-11-06",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "5dc536d2-d351-452a-8603-c0d6dc7e8b2d",
+    "player_id": "8cd9505e-a6a9-42c5-97b5-2aaf53d2093a",
+    "organization_id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "role": "youth_prospect",
+    "start_date": "2023-04-29",
+    "end_date": "2023-08-24",
+    "shirt_number": null
+  },
+  {
+    "id": "b7a4bf6c-d0cd-41fc-bd52-4d65708c713d",
+    "player_id": "8cd9505e-a6a9-42c5-97b5-2aaf53d2093a",
+    "organization_id": "f2188e6e-9cca-4b6d-a4ca-591de0265e02",
+    "role": "trialist",
+    "start_date": "2023-09-17",
+    "end_date": "2024-07-10",
+    "shirt_number": null
+  },
+  {
+    "id": "bdc6fd7f-bb0d-498a-bdba-4fd91bfa7042",
+    "player_id": "8cd9505e-a6a9-42c5-97b5-2aaf53d2093a",
+    "organization_id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "role": "trialist",
+    "start_date": "2024-07-16",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "522047e6-59df-4ac0-ad99-89d3d7439415",
+    "player_id": "4131a222-f20d-49d2-8fc5-1ce194fd4f78",
+    "organization_id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "role": "youth_prospect",
+    "start_date": "2023-02-21",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "0906f5c2-4c30-4f71-8df8-c57ef4e98d2c",
+    "player_id": "6e6287b3-63a7-4a0a-8605-a8807ea0954b",
+    "organization_id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "role": "player",
+    "start_date": "2024-10-16",
+    "end_date": null,
+    "shirt_number": 99
+  },
+  {
+    "id": "a609ce08-7fdf-4324-ba03-1125c42a605a",
+    "player_id": "e1bbb9eb-cbe5-4bf3-b85f-8ab6a0f700d2",
+    "organization_id": "f2188e6e-9cca-4b6d-a4ca-591de0265e02",
+    "role": "player",
+    "start_date": "2023-01-21",
+    "end_date": "2024-01-02",
+    "shirt_number": null
+  },
+  {
+    "id": "dc66e9f0-eca7-4c8f-b519-20cf6a19921c",
+    "player_id": "e1bbb9eb-cbe5-4bf3-b85f-8ab6a0f700d2",
+    "organization_id": "cc32ecfa-8463-4f93-8a45-19f1f80ece8e",
+    "role": "player",
+    "start_date": "2024-01-20",
+    "end_date": "2024-08-01",
+    "shirt_number": 16
+  },
+  {
+    "id": "21986ffa-f12c-4379-8c62-526e3142b143",
+    "player_id": "e1bbb9eb-cbe5-4bf3-b85f-8ab6a0f700d2",
+    "organization_id": "69861162-a38b-4b8b-907a-2952ae5dff68",
+    "role": "trialist",
+    "start_date": "2024-08-18",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "f0b29b0d-5036-47eb-a10f-131bc280da7b",
+    "player_id": "1fb61d4d-80e7-4ef5-b6c7-a92ad936d069",
+    "organization_id": "cdba6f99-4ccc-44fb-8fc1-c05d2882e9c3",
+    "role": "player",
+    "start_date": "2024-08-24",
+    "end_date": "2025-07-07",
+    "shirt_number": 32
+  },
+  {
+    "id": "b6964acc-86c8-434e-9d60-03c06395c804",
+    "player_id": "1fb61d4d-80e7-4ef5-b6c7-a92ad936d069",
+    "organization_id": "cc32ecfa-8463-4f93-8a45-19f1f80ece8e",
+    "role": "player",
+    "start_date": "2025-08-06",
+    "end_date": "2026-08-27",
+    "shirt_number": null
+  },
+  {
+    "id": "b10f2c78-e4fd-4d1a-8632-d69117511091",
+    "player_id": "1fb61d4d-80e7-4ef5-b6c7-a92ad936d069",
+    "organization_id": "7260c9d3-fa00-43ad-bda7-459939a7d6d0",
+    "role": "player",
+    "start_date": "2026-09-22",
+    "end_date": null,
+    "shirt_number": 87
+  },
+  {
+    "id": "5d32842d-2f21-4583-8088-df7b183d8912",
+    "player_id": "34e42a44-059d-46ec-a8f1-00c7efacc121",
+    "organization_id": "f2188e6e-9cca-4b6d-a4ca-591de0265e02",
+    "role": "trialist",
+    "start_date": "2025-01-11",
+    "end_date": null,
+    "shirt_number": null
+  },
+  {
+    "id": "41a224d0-7c60-4e3c-9d3f-edbfac65dc35",
+    "player_id": "73128087-7d34-458d-aba6-506c349d1538",
+    "organization_id": "3e9facab-2e8e-43e8-93d4-5ec34536faca",
+    "role": "youth_prospect",
+    "start_date": "2023-11-04",
+    "end_date": "2024-06-20",
+    "shirt_number": null
+  },
+  {
+    "id": "5a24859b-f78f-4172-89ab-b47a46fed486",
+    "player_id": "73128087-7d34-458d-aba6-506c349d1538",
+    "organization_id": "cc32ecfa-8463-4f93-8a45-19f1f80ece8e",
+    "role": "player",
+    "start_date": "2024-07-19",
+    "end_date": null,
+    "shirt_number": null
+  }
+]
