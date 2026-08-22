@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframe: coach dashboard</title>
+<link rel="stylesheet" href="wireframes.css">
+</head>
+<body>
+<div class="sheet">
+
+  <header class="doc-head">
+    <div class="crumb"><a href="index.html">Wireframes</a> / Screen 2</div>
+    <h1>Coach dashboard</h1>
+    <p class="purpose">
+      The coach's home. Answers one question on arrival: who needs my attention today. Everything
+      else on the page is secondary to that.
+    </p>
+    <div class="roles">
+      <span class="role">coach</span>
+      <span class="role off">scout</span>
+      <span class="role off">federation</span>
+      <span class="role off">player</span>
+    </div>
+  </header>
+
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>northstar.app/dashboard</span></div>
+    <div class="frame-body">
+
+      <div class="nav">
+        <span class="brand">NorthStar</span>
+        <div class="nav-links">
+          <span class="here">Squad</span><span>Log</span><span>Compare</span><span>Search</span>
+        </div>
+        <div class="row tight" style="align-items:center">
+          <span class="chip">Zamalek Academy</span>
+          <div class="ph avatar" style="width:1.7rem;height:1.7rem">me</div>
+        </div>
+      </div>
+
+      <div class="row between">
+        <div class="col" style="gap:0.1rem">
+          <span style="font-size:1.2rem;font-weight:700">Under 15 squad</span>
+          <span class="label">24 players &middot; last updated 3 days ago</span>
+        </div>
+        <div class="row tight">
+          <span class="btn"><span class="m">1</span> Log a session</span>
+          <span class="btn primary">Add player</span>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="box filled stat"><span class="label">Squad size</span><span class="big">24</span></div>
+        <div class="box filled stat"><span class="label"><span class="m">2</span> Overdue measurement</span><span class="big">6</span></div>
+        <div class="box filled stat"><span class="label">Flags to review</span><span class="big">2</span></div>
+        <div class="box filled stat"><span class="label">Consent missing</span><span class="big">3</span></div>
+      </div>
+
+      <div class="box soft" style="border-style:dashed;border-color:var(--note)">
+        <span class="label" style="color:var(--note)"><span class="m">3</span> Needs you first</span>
+        <div class="row tight">
+          <span class="chip strong">6 players not measured in 90 days</span>
+          <span class="chip strong">3 minors without guardian consent</span>
+          <span class="chip strong">2 growth anomalies</span>
+        </div>
+      </div>
+
+      <div class="row between">
+        <span class="label">Squad</span>
+        <div class="row tight">
+          <span class="chip">position</span><span class="chip">age group</span><span class="chip">sort: attention</span>
+        </div>
+      </div>
+
+      <div class="scroller">
+        <table class="wf">
+          <thead>
+            <tr><th></th><th>Player</th><th>Pos</th><th>Age</th><th>Height</th><th>Last logged</th><th>Trend</th><th>Flags</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div class="ph avatar" style="width:1.8rem;height:1.8rem"></div></td>
+              <td style="color:var(--ink);font-weight:600">Youssef A.</td><td>ST</td><td>14</td><td>168 cm</td>
+              <td>4 days</td>
+              <td><div class="ph" style="min-height:1.4rem;width:4rem"><span class="m">4</span></div></td>
+              <td><span class="chip strong">late bloomer</span></td>
+            </tr>
+            <tr>
+              <td><div class="ph avatar" style="width:1.8rem;height:1.8rem"></div></td>
+              <td style="color:var(--ink);font-weight:600">Karim M.</td><td>CB</td><td>15</td><td>176 cm</td>
+              <td style="color:var(--note);font-weight:600">104 days</td>
+              <td><div class="ph" style="min-height:1.4rem;width:4rem"></div></td>
+              <td><span class="chip">consent</span></td>
+            </tr>
+            <tr>
+              <td><div class="ph avatar" style="width:1.8rem;height:1.8rem"></div></td>
+              <td style="color:var(--ink);font-weight:600">Omar H.</td><td>CM</td><td>14</td><td>161 cm</td>
+              <td>11 days</td>
+              <td><div class="ph" style="min-height:1.4rem;width:4rem"></div></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td colspan="8" style="text-align:center;color:var(--mid);border:none;padding-top:0.6rem">21 more rows</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+  <p class="caption">Desktop. On a phone the table collapses to stacked cards, each showing name, age, days since last log, and flags only.</p>
+
+  <section class="notes">
+    <h2>Annotations</h2>
+    <ol class="anno">
+      <li><strong>Two verbs, not a menu.</strong> A coach opens this app to do one of two things: record something that just happened, or add someone new. Those are the only two buttons at this level. Everything else is navigation.</li>
+      <li><strong>Overdue is the metric that earns its place.</strong> Squad size never changes and tells the coach nothing. Days since last measurement is the number that decides whether the growth curves are worth anything, so it is promoted to the top and drives the default sort.</li>
+      <li><strong>The attention strip is a queue, not a notification.</strong> Each chip filters the table below rather than opening somewhere else. A coach with nothing outstanding sees this strip empty, which is a real and good state, not a bug.</li>
+      <li><strong>The trend cell is a sparkline of the last six measurements.</strong> It exists so a coach can spot a flat line without opening a profile. It is not interactive and it carries no axis. If it cannot be made legible at this size it should be cut rather than shrunk further.</li>
+    </ol>
+  </section>
+
+  <section class="notes">
+    <h2>Data and API</h2>
+    <ul class="plain">
+      <li><code>Player</code> joined through <code>PlayerOrganization</code>, filtered to the coach's own organization, with the affiliation still open. Scoping happens in the API, never in the frontend.</li>
+      <li>Days since last log comes from the most recent <code>Measurement</code> per player. That is a per player aggregate, so the endpoint should return it rather than the frontend fetching measurements for 24 players.</li>
+      <li>The sparkline needs the last six <code>height_cm</code> values per player. Worth deciding whether that ships with the list or loads after, because it is the one thing on this page that could make it slow.</li>
+      <li>Flags come from the ML layer, read only here.</li>
+      <li>Consent state comes from <code>Consent</code>, filtered to purposes that matter for a minor.</li>
+    </ul>
+  </section>
+
+  <section class="notes">
+    <h2>Open questions</h2>
+    <ul class="plain">
+      <li>A coach at a club with several age groups needs a squad switcher. Right now the org is a single chip in the nav. Does <code>PlayerOrganization</code> carry enough to group by age band, or does the coach just filter by age?</li>
+      <li>What counts as overdue? Ninety days is drawn here because it is plausible, not because anyone decided it. It probably differs between a youth academy and a professional club.</li>
+      <li>Should a coach see ML flags at all, or only the federation? Showing a coach that their own player is flagged for a suspicious jump is either useful transparency or an invitation to game the detector. This is a real tension and the security and ML tracks should settle it.</li>
+    </ul>
+  </section>
+
+  <footer class="docfoot">
+    <span><a href="index.html">Back to all screens</a></span>
+    <span>Next: <a href="03-add-edit-player.html">Add and edit player</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

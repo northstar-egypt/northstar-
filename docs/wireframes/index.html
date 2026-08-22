@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NorthStar wireframes</title>
+<link rel="stylesheet" href="wireframes.css">
+</head>
+<body>
+<div class="sheet">
+
+  <header class="doc-head">
+    <div class="crumb">Application workstream &middot; Wireframes</div>
+    <h1>NorthStar screen wireframes</h1>
+    <p class="purpose">
+      Eight screens, drawn before any of them is built, so the team can argue about what belongs
+      on a page while it is still cheap to change. These are greyscale on purpose. Layout,
+      hierarchy, and content are under review here. Colour, typography, and spacing are not
+      decided yet.
+    </p>
+  </header>
+
+  <section class="notes">
+    <h2>How to read these</h2>
+    <ul class="plain">
+      <li><strong>Solid boxes</strong> are real interface elements: buttons, inputs, cards, rows.</li>
+      <li><strong>Dashed hatched boxes</strong> are generated content: a chart, a photo, a forecast, a model output. The shape is a claim about the space it needs, not about how it looks.</li>
+      <li><strong>Numbered markers</strong> point to the annotation list underneath each wireframe. That is where the reasoning lives.</li>
+      <li>Every screen page ends with the data it needs, the access rules that apply, and the open questions the app track cannot answer alone.</li>
+    </ul>
+  </section>
+
+  <section class="notes">
+    <h2>The screens</h2>
+    <div class="scroller">
+      <table class="wf">
+        <thead>
+          <tr><th>Screen</th><th>Who it is for</th><th>What it is for</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><a href="01-login.html">Login</a></td><td>Everyone</td><td>Authenticate, then route to the right home screen by role.</td></tr>
+          <tr><td><a href="02-coach-dashboard.html">Coach dashboard</a></td><td>Coach</td><td>The squad at a glance, and who is overdue for a measurement.</td></tr>
+          <tr><td><a href="03-add-edit-player.html">Add and edit player</a></td><td>Coach</td><td>Mobile-first logging, done pitchside on a phone.</td></tr>
+          <tr><td><a href="04-player-profile.html">Player profile</a></td><td>Coach, scout, federation, player</td><td>The crown jewel. Everything known about one player over time.</td></tr>
+          <tr><td><a href="05-scout-search.html">Scout search</a></td><td>Scout, federation</td><td>Describe a player in plain language, or filter precisely.</td></tr>
+          <tr><td><a href="06-comparison.html">Comparison</a></td><td>Scout, coach, federation</td><td>Two or three players side by side, adjusted for age.</td></tr>
+          <tr><td><a href="07-federation-oversight.html">Federation oversight</a></td><td>Federation</td><td>Coverage and data quality across the whole country.</td></tr>
+          <tr><td><a href="08-integrity-board.html">Integrity board</a></td><td>Federation, admin</td><td>Work queue for fraud, duplicate, and anomaly flags.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="notes">
+    <h2>Who sees what</h2>
+    <p class="purpose">
+      A first pass at visibility, drawn from the role intent in <code>docs/schema.md</code>. The
+      security workstream owns the final rules, and this table is an input to that conversation,
+      not a decision. The point of writing it down now is that the screens cannot be laid out
+      until we know which parts of them some people will never see.
+    </p>
+    <div class="scroller">
+      <table class="wf">
+        <thead>
+          <tr><th>Screen</th><th>Coach</th><th>Scout</th><th>Federation</th><th>Player</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Login</td><td>yes</td><td>yes</td><td>yes</td><td>yes</td></tr>
+          <tr><td>Coach dashboard</td><td>own org only</td><td>no</td><td>no</td><td>no</td></tr>
+          <tr><td>Add and edit player</td><td>own org only</td><td>no</td><td>no</td><td>own profile only</td></tr>
+          <tr><td>Player profile</td><td>own org, full</td><td>consent gated</td><td>full, read only</td><td>own only</td></tr>
+          <tr><td>Scout search</td><td>no</td><td>yes</td><td>yes</td><td>no</td></tr>
+          <tr><td>Comparison</td><td>own org only</td><td>consent gated</td><td>yes</td><td>no</td></tr>
+          <tr><td>Federation oversight</td><td>no</td><td>no</td><td>yes</td><td>no</td></tr>
+          <tr><td>Integrity board</td><td>no</td><td>no</td><td>yes</td><td>no</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="open">
+      <div class="label">Consent gated means</div>
+      <p style="margin:0">
+        A scout viewing a minor sees the profile only if a valid <code>scouting_visibility</code>
+        consent record exists for that player. Otherwise the profile is withheld. What "withheld"
+        looks like is an open question: hide the player from search results entirely, or show a
+        locked card that says consent is required. The second is more honest and lets a coach
+        chase the consent. The first leaks less. This needs a decision from the security track.
+      </p>
+    </div>
+  </section>
+
+  <section class="notes">
+    <h2>Principles these follow</h2>
+    <ul class="plain">
+      <li><strong>Mobile first where it matters.</strong> Coach logging happens pitchside on a phone, in the sun, possibly with one hand. That screen is drawn at phone width first and desktop second. The analysis screens are the other way round.</li>
+      <li><strong>Uncertainty is shown, never hidden.</strong> Any forecast on screen carries its uncertainty band. A number the model is unsure about must not look like a number it is sure about.</li>
+      <li><strong>A flag is a claim, not a verdict.</strong> Everywhere the system flags something, the interface says why, and offers a human the ability to disagree. The audit log records both.</li>
+      <li><strong>The database is the source of truth for the assistant.</strong> Where an AI summary appears, it phrases what the data already says. It never introduces a number that is not on the screen already.</li>
+    </ul>
+  </section>
+
+  <footer class="docfoot">
+    <span>Application workstream. See <code>docs/project-status.md</code> for what comes next.</span>
+    <span>Greyscale on purpose.</span>
+  </footer>
+
+</div>
+</body>
+</html>
