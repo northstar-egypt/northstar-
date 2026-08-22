@@ -1,36 +1,26 @@
-import { HealthCheck } from "./health-check";
+"use client";
+
+/**
+ * Entry point. Sends a signed in user to the home screen for their role and everyone else to
+ * the login page. See `homeFor` in lib/auth.ts for the routing table.
+ */
+
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { homeFor, useAuth } from "@/lib/auth";
 
 export default function Home() {
+  const { user, ready } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!ready) return;
+    router.replace(user ? homeFor(user.role) : "/login");
+  }, [ready, user, router]);
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 p-8">
-      <div className="text-center">
-        <h1 className="text-5xl font-bold tracking-tight">NorthStar</h1>
-        <p className="mt-3 max-w-md text-balance text-slate-400">
-          A national talent database and intelligence platform for Egyptian
-          sports. Foundation stage.
-        </p>
-      </div>
-
-      <HealthCheck />
-
-      <div className="flex gap-4 text-sm text-slate-500">
-        <a
-          className="underline hover:text-slate-300"
-          href="http://localhost:8000/docs"
-          target="_blank"
-          rel="noreferrer"
-        >
-          API docs
-        </a>
-        <a
-          className="underline hover:text-slate-300"
-          href="https://github.com"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Repo
-        </a>
-      </div>
+    <main className="flex min-h-screen items-center justify-center text-sm text-slate-500">
+      Loading
     </main>
   );
 }
