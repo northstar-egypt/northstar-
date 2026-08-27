@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframe: player profile</title>
+<link rel="stylesheet" href="wireframes.css">
+</head>
+<body>
+<div class="sheet">
+
+  <header class="doc-head">
+    <div class="crumb"><a href="index.html">Wireframes</a> / Screen 4</div>
+    <h1>Player profile</h1>
+    <p class="purpose">
+      The crown jewel, and the screen the whole system exists to produce. Everything the platform
+      knows about one player, over time, with the model's uncertainty shown rather than hidden.
+      Four roles see this page and they do not all see the same thing.
+    </p>
+    <div class="roles">
+      <span class="role">coach (own org)</span>
+      <span class="role">scout (consent gated)</span>
+      <span class="role">federation</span>
+      <span class="role">player (own)</span>
+    </div>
+  </header>
+
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>northstar.app/players/&hellip;</span></div>
+    <div class="frame-body">
+
+      <div class="nav">
+        <span class="brand">NorthStar</span>
+        <div class="nav-links"><span>Squad</span><span>Log</span><span>Compare</span><span>Search</span></div>
+        <div class="ph avatar" style="width:1.7rem;height:1.7rem">me</div>
+      </div>
+
+      <!-- identity header -->
+      <div class="row" style="align-items:flex-start">
+        <div class="ph avatar" style="width:5rem;height:5rem"></div>
+        <div class="col grow" style="gap:0.3rem">
+          <div class="row between">
+            <div class="col" style="gap:0.1rem">
+              <span style="font-size:1.5rem;font-weight:700;line-height:1.1">Youssef Abdelrahman</span>
+              <span class="label">Zamalek Academy &middot; Under 15 &middot; ST</span>
+            </div>
+            <div class="row tight">
+              <span class="btn ghost">Compare</span>
+              <span class="btn">Log measurement</span>
+            </div>
+          </div>
+          <div class="row tight">
+            <span class="chip strong">14y 2m</span>
+            <span class="chip">168 cm</span>
+            <span class="chip">54 kg</span>
+            <span class="chip">EGY</span>
+            <span class="chip strong"><span class="m">1</span> minor</span>
+            <span class="chip strong">youth tier</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- flags -->
+      <div class="box" style="border-color:var(--note);border-style:dashed">
+        <span class="label" style="color:var(--note)"><span class="m">2</span> What the models are saying</span>
+        <div class="row tight">
+          <span class="chip strong">late bloomer, confidence medium</span>
+          <span class="chip strong">breakout candidate</span>
+        </div>
+        <span style="font-size:0.82rem;color:var(--ink-soft)">
+          Growth is tracking two years behind the population curve for his age while output holds steady. Why this was flagged &rsaquo;
+        </span>
+      </div>
+
+      <!-- growth + forecast -->
+      <div class="split">
+        <div class="box">
+          <div class="row between"><span class="label">Height over time</span><span class="chip">3 years</span></div>
+          <div class="ph chart tall"><span class="m">3</span> growth curve, with population band behind it and a forecast tail carrying an uncertainty cone</div>
+        </div>
+        <div class="box">
+          <div class="row between"><span class="label">Maturity</span><span class="chip">estimated</span></div>
+          <div class="ph chart tall"><span class="m">4</span> predicted adult height with error range, and where he sits against peers of the same maturity rather than the same age</div>
+        </div>
+      </div>
+
+      <!-- percentiles -->
+      <div class="box">
+        <span class="label"><span class="m">5</span> Against his age group</span>
+        <div class="grid-2">
+          <div class="col" style="gap:0.15rem"><span style="font-size:0.8rem">Height</span><div class="ph" style="min-height:1.3rem">38th percentile</div></div>
+          <div class="col" style="gap:0.15rem"><span style="font-size:0.8rem">Sprint 10m</span><div class="ph" style="min-height:1.3rem">71st percentile</div></div>
+          <div class="col" style="gap:0.15rem"><span style="font-size:0.8rem">Goals per 90</span><div class="ph" style="min-height:1.3rem">84th percentile</div></div>
+          <div class="col" style="gap:0.15rem"><span style="font-size:0.8rem">Minutes played</span><div class="ph" style="min-height:1.3rem">55th percentile</div></div>
+        </div>
+      </div>
+
+      <!-- performance, sport specific -->
+      <div class="box">
+        <div class="row between">
+          <span class="label"><span class="m">6</span> Performance, football</span>
+          <div class="row tight"><span class="chip strong">season</span><span class="chip">match by match</span></div>
+        </div>
+        <div class="scroller">
+          <table class="wf">
+            <thead><tr><th>Period</th><th>Mins</th><th>Goals</th><th>Assists</th><th>xG</th><th>Shots</th><th>Source</th></tr></thead>
+            <tbody>
+              <tr><td>2025 to 2026</td><td>1140</td><td>14</td><td>5</td><td>9.8</td><td>61</td><td>coach logged</td></tr>
+              <tr><td>2024 to 2025</td><td>980</td><td>7</td><td>3</td><td>7.1</td><td>44</td><td>coach logged</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <span style="font-size:0.78rem;color:var(--ink-soft)">Goals are running ahead of expected goals. That gap is what the sustainability flag watches.</span>
+      </div>
+
+      <!-- assistant -->
+      <div class="box soft">
+        <span class="label"><span class="m">7</span> Summary</span>
+        <div class="ph" style="min-height:3.5rem">generated summary, three or four sentences, built only from the numbers already on this page</div>
+        <span style="font-size:0.76rem;color:var(--ink-soft)">Generated from this player's record. Not a scouting opinion.</span>
+      </div>
+
+      <!-- provenance -->
+      <div class="box soft">
+        <div class="row between">
+          <span class="label"><span class="m">8</span> Where this data came from</span>
+          <span class="chip">full history</span>
+        </div>
+        <div class="row tight">
+          <span class="chip">42 measurements, coach logged</span>
+          <span class="chip">2 season aggregates</span>
+          <span class="chip">consent on file: storage, analytics</span>
+          <span class="chip strong">scouting visibility: not granted</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <p class="caption">Desktop, coach view. A scout sees the same page with the log and edit actions gone. A player sees their own with the flags section hidden.</p>
+
+  <section class="notes">
+    <h2>Annotations</h2>
+    <ol class="anno">
+      <li><strong>Minor status sits in the identity row, not in a settings tab.</strong> Anyone looking at this page should know within a second that they are looking at a child's record. It changes what they are allowed to do with what they see.</li>
+      <li><strong>Flags explain themselves or they do not ship.</strong> A chip that says "late bloomer" and nothing else is an accusation with no evidence. Every flag carries a plain sentence saying what triggered it, and a link to the fuller reasoning. This is also the pattern the integrity board reuses.</li>
+      <li><strong>The growth curve is three things in one frame:</strong> the player's measured history, the population band for his age and sex behind it, and the forecast ahead of it drawn as a widening cone rather than a line. A forecast drawn as a line is a lie about how confident the model is.</li>
+      <li><strong>Maturity is the idea that makes this product different from a spreadsheet.</strong> A 14 year old who is short for his age but two years behind on maturity is not a short player, he is an early one. Comparing him to peers by maturity rather than by birthday is the whole late bloomer thesis, so it gets equal weight with the growth curve, not a footnote.</li>
+      <li><strong>Percentiles, not raw ranks.</strong> A coach cares whether this player is unusual, and against whom. The comparison group is stated on the panel, because a percentile without a stated population is meaningless.</li>
+      <li><strong>This block is the sport module made visible.</strong> The columns come from the football schema. Load a table tennis player and the same panel renders matches, sets, rally length, and service points won, from the same JSON field and the same component. If this section needs a rewrite to add a sport, the architecture failed.</li>
+      <li><strong>The summary is labelled as generated and grounded.</strong> It rephrases numbers that are already on the page. It never introduces a figure the reader cannot check by scrolling up, and the label under it says so plainly.</li>
+      <li><strong>Provenance is on the page, not hidden in an admin view.</strong> Where the data came from, how much of it there is, and what consent exists all determine how much anyone should trust the rest of the screen. Note the last chip: scouting visibility has not been granted, which is exactly why a scout would not be reading this page at all.</li>
+    </ol>
+  </section>
+
+  <section class="notes">
+    <h2>Data and API</h2>
+    <ul class="plain">
+      <li><code>Player</code>, plus the current <code>PlayerOrganization</code> for the club line.</li>
+      <li>All <code>Measurement</code> rows for the growth chart and percentiles. This is the one screen that genuinely needs the full time series.</li>
+      <li><code>PerformanceEntry</code> rows, with <code>metrics</code> rendered according to <code>schema_ref</code>. The component picks its columns from the schema, not from a hard coded list.</li>
+      <li>Forecast, maturity estimate, percentile positions, and flags all come from the ML layer, which writes them back to the database. The frontend reads, never computes.</li>
+      <li><code>Consent</code> rows drive both the provenance chips and whether a scout is served this page at all.</li>
+      <li>Viewing writes an <code>AuditLog</code> entry. Who looked at a minor's profile is exactly the kind of thing the audit log exists for.</li>
+    </ul>
+  </section>
+
+  <section class="notes">
+    <h2>Open questions</h2>
+    <div class="open">
+      <span class="label">Four roles, one page, or four pages</span>
+      <p style="margin:0">
+        This is the biggest unresolved decision on the screen. One page that hides sections by role
+        is less code and one source of truth, but it risks a bug where a hidden section is still in
+        the payload and a scout can read it in the network tab. Separate endpoints per role are
+        safer and more work. The safe rule regardless: the API must not send a field the current
+        role may not see, so hiding is a layout concern only, never the enforcement.
+      </p>
+    </div>
+    <ul class="plain">
+      <li>What does a scout see when consent is missing? A locked page, or no page. Same question as the search screen, and it should be answered once for both.</li>
+      <li>The forecast is drawn as a cone. The ML track has not picked a model yet, so what the band actually represents, a confidence interval or a prediction interval, is undecided. The label on the chart depends on that answer.</li>
+      <li>Can a player dispute a flag on their own profile? The integrity board assumes a federation reviewer. A player who believes a fraud flag is wrong currently has no route, and that is a fairness gap worth naming.</li>
+      <li>Photos of minors. The wireframe shows an avatar. Whether we store player photographs at all is a privacy decision nobody has taken, and the honest default is not to.</li>
+    </ul>
+  </section>
+
+  <footer class="docfoot">
+    <span><a href="index.html">Back to all screens</a></span>
+    <span>Next: <a href="05-scout-search.html">Scout search</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

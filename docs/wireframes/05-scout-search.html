@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframe: scout search</title>
+<link rel="stylesheet" href="wireframes.css">
+</head>
+<body>
+<div class="sheet">
+
+  <header class="doc-head">
+    <div class="crumb"><a href="index.html">Wireframes</a> / Screen 5</div>
+    <h1>Scout search</h1>
+    <p class="purpose">
+      Two ways to ask the same question. Describe the player you want in plain language, or filter
+      on fields precisely. The screen has to make both feel like one tool rather than two.
+    </p>
+    <div class="roles">
+      <span class="role">scout</span>
+      <span class="role">federation</span>
+      <span class="role off">coach</span>
+      <span class="role off">player</span>
+    </div>
+  </header>
+
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>northstar.app/search</span></div>
+    <div class="frame-body">
+
+      <div class="nav">
+        <span class="brand">NorthStar</span>
+        <div class="nav-links"><span class="here">Search</span><span>Compare</span><span>Saved</span></div>
+        <div class="ph avatar" style="width:1.7rem;height:1.7rem">me</div>
+      </div>
+
+      <div class="box">
+        <span class="label"><span class="m">1</span> Describe what you are looking for</span>
+        <div class="input" style="min-height:2.6rem;color:var(--ink)">
+          left footed striker under 16, small for his age but scoring well
+        </div>
+        <div class="row between">
+          <span style="font-size:0.78rem;color:var(--ink-soft)">or use the filters below</span>
+          <span class="btn primary">Search</span>
+        </div>
+      </div>
+
+      <div class="box soft">
+        <span class="label"><span class="m">2</span> How this was read</span>
+        <div class="row tight">
+          <span class="chip strong">position: ST</span>
+          <span class="chip strong">age: under 16</span>
+          <span class="chip strong">height percentile: low</span>
+          <span class="chip strong">goals per 90: high</span>
+          <span class="chip">left footed: no data</span>
+        </div>
+      </div>
+
+      <div class="row" style="align-items:flex-start">
+
+        <div class="col" style="flex:0 0 13rem">
+          <div class="box">
+            <span class="label">Filters</span>
+            <div class="field"><span class="label">Sport</span><div class="row tight"><span class="chip strong">football</span><span class="chip">table tennis</span></div></div>
+            <div class="field"><span class="label">Tier</span><div class="row tight"><span class="chip">pro</span><span class="chip strong">youth</span><span class="chip">diaspora</span></div></div>
+            <div class="field"><span class="label">Age</span><div class="input">12 to 16</div></div>
+            <div class="field"><span class="label">Position</span><div class="input">ST</div></div>
+            <div class="field"><span class="label">Country</span><div class="input">any</div></div>
+            <div class="field"><span class="label">Egypt eligible</span><div class="row tight"><span class="chip strong">yes</span><span class="chip">any</span></div></div>
+            <div class="field"><span class="label">Flags</span><div class="row tight"><span class="chip">late bloomer</span><span class="chip">breakout</span></div></div>
+            <span class="btn ghost" style="justify-content:center">Reset</span>
+          </div>
+        </div>
+
+        <div class="col grow">
+          <div class="row between">
+            <span class="label">31 players</span>
+            <div class="row tight"><span class="chip strong">sort: relevance</span><span class="chip">save this search</span></div>
+          </div>
+
+          <div class="box">
+            <div class="row" style="align-items:flex-start">
+              <div class="ph avatar"></div>
+              <div class="col grow" style="gap:0.25rem">
+                <div class="row between">
+                  <span style="font-weight:650">Youssef A.</span>
+                  <span class="chip strong"><span class="m">3</span> 94% match</span>
+                </div>
+                <span class="label">Zamalek Academy &middot; ST &middot; 14y 2m &middot; 168 cm</span>
+                <div class="row tight">
+                  <span class="chip">late bloomer</span><span class="chip">0.9 goals per 90</span><span class="chip">38th pct height</span>
+                </div>
+              </div>
+              <div class="ph" style="width:6rem;min-height:3rem">trend</div>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="row" style="align-items:flex-start">
+              <div class="ph avatar"></div>
+              <div class="col grow" style="gap:0.25rem">
+                <div class="row between">
+                  <span style="font-weight:650">Player name withheld</span>
+                  <span class="chip">88% match</span>
+                </div>
+                <span class="label">Ismaily Academy &middot; ST &middot; 15y</span>
+                <div class="box soft" style="border-style:dashed;border-color:var(--note);padding:0.4rem 0.55rem">
+                  <span style="font-size:0.8rem;color:var(--ink-soft)">
+                    <span class="m">4</span> This player is a minor and has not consented to scouting visibility.
+                    <span style="text-decoration:underline">Request access through the academy</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="box soft" style="align-items:center;color:var(--mid)">29 more results</div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+  <p class="caption">Desktop. On a phone the filter column becomes a sheet behind a Filters button.</p>
+
+  <section class="notes">
+    <h2>Annotations</h2>
+    <ol class="anno">
+      <li><strong>The language box is the front door, filters are the back one.</strong> A scout thinks in sentences, not in field names. But natural language alone is unpredictable, so the filters stay visible and stay authoritative. Neither is hidden behind a tab.</li>
+      <li><strong>The interpretation strip is the most important element on this screen.</strong> It shows what the sentence was turned into, as editable chips. Without it the scout cannot tell a real absence of results from a misread query. Note the last chip: the system says plainly that it has no data on footedness rather than quietly dropping that part of the request.</li>
+      <li><strong>A match percentage needs a stated basis or it should be a rank instead.</strong> If this number comes from embedding similarity, it is a similarity score and should say so on hover. A bare percentage invites a scout to read precision that is not there.</li>
+      <li><strong>Consent gating shown as a locked card, not a silent omission.</strong> This is one of two possible answers to the open question on the index page, drawn here so the team can react to something concrete. The argument for it: a scout who cannot see a player still learns that a matching player exists, and there is a legitimate route to ask. The argument against: that is itself a disclosure about a minor. The team has to choose, and the alternative is that this card simply does not appear.</li>
+    </ol>
+  </section>
+
+  <section class="notes">
+    <h2>Data and API</h2>
+    <ul class="plain">
+      <li>The sentence goes to the API, which turns it into filters plus an embedding similarity query. The parsing happens server side so the frontend never needs to know how it works.</li>
+      <li>Structured filters map to <code>Player</code> columns and to derived values the ML layer has written back, such as percentile positions and flags.</li>
+      <li>Similarity ranking depends on the embedding store, which the ML track has explicitly deferred until they pick a model. Until then this screen can ship on filters alone, with the language box disabled and labelled as coming.</li>
+      <li>Results must be filtered for consent and role inside the API. A withheld player must arrive at the frontend already stripped of the fields the scout may not see, not merely marked as hidden.</li>
+      <li>Each search writes <code>search.run</code> to <code>AuditLog</code>, with the query. That record is what makes it possible to notice a scout systematically probing minors' records.</li>
+    </ul>
+  </section>
+
+  <section class="notes">
+    <h2>Open questions</h2>
+    <ul class="plain">
+      <li>Does a saved search notify the scout when a new player matches it? That is a genuinely useful feature and a genuinely uncomfortable one when the subjects are children. Worth a deliberate decision rather than drifting into it.</li>
+      <li>Table tennis results in the same list as football. The card shows height and goals per 90, which mean nothing for a table tennis player. Either the card is sport aware, or search is scoped to one sport at a time. The second is simpler and probably right.</li>
+      <li>What is the default scope for a scout with no filters set? Everything they are allowed to see is a lot of rows and not a useful starting point.</li>
+    </ul>
+  </section>
+
+  <footer class="docfoot">
+    <span><a href="index.html">Back to all screens</a></span>
+    <span>Next: <a href="06-comparison.html">Comparison</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

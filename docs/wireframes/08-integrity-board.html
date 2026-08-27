@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframe: integrity board</title>
+<link rel="stylesheet" href="wireframes.css">
+</head>
+<body>
+<div class="sheet">
+
+  <header class="doc-head">
+    <div class="crumb"><a href="index.html">Wireframes</a> / Screen 8</div>
+    <h1>Integrity board</h1>
+    <p class="purpose">
+      A work queue, not a dashboard. Every fraud, duplicate, and anomaly flag the models raise
+      arrives here and a human decides. This is also the screen that produces the labelled
+      outcomes the detectors are graded against, so its design has consequences for the ML track.
+    </p>
+    <div class="roles">
+      <span class="role">federation</span>
+      <span class="role">admin</span>
+      <span class="role off">coach</span>
+      <span class="role off">scout</span>
+      <span class="role off">player</span>
+    </div>
+  </header>
+
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>northstar.app/integrity</span></div>
+    <div class="frame-body">
+
+      <div class="nav">
+        <span class="brand">NorthStar</span>
+        <div class="nav-links"><span>Oversight</span><span class="here">Integrity</span><span>Search</span></div>
+        <div class="ph avatar" style="width:1.7rem;height:1.7rem">me</div>
+      </div>
+
+      <div class="row between">
+        <div class="col" style="gap:0.1rem">
+          <span style="font-size:1.2rem;font-weight:700">14 open flags</span>
+          <span class="label">oldest has been waiting 9 days</span>
+        </div>
+        <div class="row tight">
+          <span class="chip strong">open</span><span class="chip">confirmed</span><span class="chip">dismissed</span><span class="chip">all</span>
+        </div>
+      </div>
+
+      <div class="row tight">
+        <span class="chip strong"><span class="m">1</span> fraud 6</span>
+        <span class="chip strong">duplicate 5</span>
+        <span class="chip strong">anomaly 3</span>
+      </div>
+
+      <div class="row" style="align-items:flex-start">
+
+        <!-- queue -->
+        <div class="col" style="flex:0 0 15rem">
+          <div class="box" style="border-color:var(--line);border-width:2px">
+            <div class="row between"><span class="chip strong">duplicate</span><span class="label">2d</span></div>
+            <span style="font-weight:650;font-size:0.9rem">Ahmed S. &times; 2 records</span>
+            <span class="label">Delta Youth FC</span>
+          </div>
+          <div class="box soft">
+            <div class="row between"><span class="chip">fraud</span><span class="label">4d</span></div>
+            <span style="font-weight:600;font-size:0.9rem">Mostafa K.</span>
+            <span class="label">self submitted, table tennis</span>
+          </div>
+          <div class="box soft">
+            <div class="row between"><span class="chip">anomaly</span><span class="label">9d</span></div>
+            <span style="font-weight:600;font-size:0.9rem">Hassan Y.</span>
+            <span class="label">Ismaily Academy</span>
+          </div>
+          <div class="box soft" style="align-items:center;color:var(--mid);font-size:0.82rem">11 more</div>
+        </div>
+
+        <!-- detail -->
+        <div class="col grow">
+          <div class="box">
+            <div class="row between">
+              <div class="col" style="gap:0.1rem">
+                <span style="font-size:1.05rem;font-weight:700">Possible duplicate record</span>
+                <span class="label">raised 2 days ago by the duplicate detector</span>
+              </div>
+              <span class="chip strong"><span class="m">2</span> confidence 0.91</span>
+            </div>
+
+            <div class="box soft" style="border-style:dashed;border-color:var(--note)">
+              <span class="label" style="color:var(--note)"><span class="m">3</span> Why this was raised</span>
+              <span style="font-size:0.85rem;color:var(--ink-soft)">
+                Same date of birth, names match closely, both at Delta Youth FC, affiliations
+                overlap, and eleven measurement dates coincide.
+              </span>
+            </div>
+
+            <div class="split">
+              <div class="box">
+                <span class="label">Record A</span>
+                <span style="font-weight:650">Ahmed Sayed</span>
+                <span style="font-size:0.82rem;color:var(--ink-soft)">created 12 Mar 2025 &middot; 34 measurements &middot; coach logged</span>
+              </div>
+              <div class="box">
+                <span class="label">Record B</span>
+                <span style="font-weight:650">Ahmed S. Ibrahim</span>
+                <span style="font-size:0.82rem;color:var(--ink-soft)">created 2 Sep 2025 &middot; 8 measurements &middot; bulk import</span>
+              </div>
+            </div>
+
+            <div class="ph" style="min-height:5rem"><span class="m">4</span> field by field diff of the two records, differences marked</div>
+
+            <div class="row between" style="border-top:1px solid var(--light);padding-top:0.7rem">
+              <span class="label"><span class="m">5</span> Decision</span>
+              <div class="row tight">
+                <span class="btn ghost">Not a duplicate</span>
+                <span class="btn">Needs more information</span>
+                <span class="btn primary">Merge B into A</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <span class="label"><span class="m">6</span> Reason, recorded with the decision</span>
+              <div class="input" style="min-height:2.2rem">&nbsp;</div>
+            </div>
+          </div>
+
+          <div class="box soft">
+            <span class="label"><span class="m">7</span> History</span>
+            <div class="scroller">
+              <table class="wf">
+                <thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead>
+                <tbody>
+                  <tr><td>2 days ago</td><td>system</td><td>flag raised, confidence 0.91</td></tr>
+                  <tr><td>1 day ago</td><td>N. Farouk</td><td>opened, no decision</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+  <p class="caption">Desktop. Queue on the left, one case at a time on the right.</p>
+
+  <section class="notes">
+    <h2>Annotations</h2>
+    <ol class="anno">
+      <li><strong>Three flag types, one queue.</strong> Fraud, duplicate, and anomaly are different models with different evidence, but they are the same job for the person doing the reviewing: look, decide, move on. Splitting them into three screens would triple the navigation and halve the throughput.</li>
+      <li><strong>Confidence is shown as the model's number, not converted into words.</strong> A reviewer who sees 0.91 on a case they then dismiss learns something about the detector. A reviewer who only ever sees "high" learns nothing, and the ML track loses the feedback.</li>
+      <li><strong>Evidence before verdict.</strong> The reasons the flag was raised are the first thing in the panel, above the buttons. A reviewer must be able to disagree with the model, which means they need to see what it actually matched on rather than a score alone.</li>
+      <li><strong>The diff is the actual work.</strong> For a duplicate this is the whole decision, and it needs to show which record has more history, because that determines which one survives the merge. The schema supports this directly through <code>merged_into</code>.</li>
+      <li><strong>Three outcomes, not two.</strong> "Needs more information" is a real state: the reviewer has to ring the academy. Without it, cases that cannot be decided today get dismissed to clear the queue, which quietly poisons the labelled data the detectors are scored against.</li>
+      <li><strong>A reason is captured with every decision.</strong> This is the screen's second job. Each decision plus its reason is a labelled example, and labelled examples are what precision and recall are computed from. A dismissal with no reason is a lost training signal.</li>
+      <li><strong>History is visible on the case,</strong> so two reviewers do not both work the same flag, and so a decision can be revisited later with its context intact.</li>
+    </ol>
+  </section>
+
+  <section class="notes">
+    <h2>Data and API</h2>
+    <ul class="plain">
+      <li>There is no flag table in the schema. <code>docs/schema.md</code> defines eight tables and none of them hold a raised flag with a status and a reviewer decision. This screen cannot be built until that exists, and it is the largest single gap the wireframing exercise found.</li>
+      <li>Merging writes <code>merged_into</code> on the losing <code>Player</code> and sets its status to <code>merged</code>. The schema already supports this, which is a good sign that the dedup thinking was done early.</li>
+      <li>Every decision appends to <code>AuditLog</code> with the reviewer, the outcome, and the reason.</li>
+      <li>The reviewer needs to reach the underlying player profiles from here, and those views are themselves audited.</li>
+    </ul>
+  </section>
+
+  <section class="notes">
+    <h2>Open questions</h2>
+    <div class="open">
+      <span class="label">The missing table</span>
+      <p style="margin:0">
+        A flag needs at minimum: what raised it, which model and version, the target player, a
+        type, a confidence, the evidence, a status, the reviewer, the decision, the reason, and
+        timestamps. That is a real table and it belongs in the shared core, because the ML track
+        writes it, the application track reads it, and the security track audits it. Proposing it
+        is a change to the data contract, which the repository's conventions say goes through a
+        pull request that flags the affected workstreams. This wireframe is the argument for it.
+      </p>
+    </div>
+    <ul class="plain">
+      <li>Is a merge reversible? It should be, and that is easier to design now than to retrofit.</li>
+      <li>Does the flagged player or their coach get told? Being flagged for fraud without ever knowing is hard to defend, and telling people immediately makes the flag easier to game. This needs a policy, not a default.</li>
+      <li>Who reviews a flag against a player at the reviewer's own organization? An academy officer clearing flags on their own academy's records is a conflict of interest the role model does not currently prevent.</li>
+      <li>Do dismissed flags come back if new data arrives? If the detector reruns nightly it will raise the same case forever unless dismissal is remembered.</li>
+    </ul>
+  </section>
+
+  <footer class="docfoot">
+    <span><a href="index.html">Back to all screens</a></span>
+    <span>Last screen</span>
+  </footer>
+
+</div>
+</body>
+</html>

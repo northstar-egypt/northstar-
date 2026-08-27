@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframe: federation oversight</title>
+<link rel="stylesheet" href="wireframes.css">
+</head>
+<body>
+<div class="sheet">
+
+  <header class="doc-head">
+    <div class="crumb"><a href="index.html">Wireframes</a> / Screen 7</div>
+    <h1>Federation oversight</h1>
+    <p class="purpose">
+      The national view. Not a scouting tool. This screen answers whether the country's talent
+      data is any good: who is covered, who is missing, and which academies are actually keeping
+      records.
+    </p>
+    <div class="roles">
+      <span class="role">federation</span>
+      <span class="role">admin</span>
+      <span class="role off">coach</span>
+      <span class="role off">scout</span>
+      <span class="role off">player</span>
+    </div>
+  </header>
+
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>northstar.app/oversight</span></div>
+    <div class="frame-body">
+
+      <div class="nav">
+        <span class="brand">NorthStar</span>
+        <div class="nav-links"><span class="here">Oversight</span><span>Integrity</span><span>Search</span></div>
+        <div class="row tight" style="align-items:center">
+          <span class="chip">Egyptian FA</span>
+          <div class="ph avatar" style="width:1.7rem;height:1.7rem">me</div>
+        </div>
+      </div>
+
+      <div class="row between">
+        <div class="col" style="gap:0.1rem">
+          <span style="font-size:1.2rem;font-weight:700">Football, national coverage</span>
+          <span class="label">All tiers &middot; season 2025 to 2026</span>
+        </div>
+        <div class="row tight"><span class="chip strong">football</span><span class="chip">table tennis</span><span class="btn ghost">Export</span></div>
+      </div>
+
+      <div class="grid-3">
+        <div class="box filled stat"><span class="label">Players tracked</span><span class="big">1,284</span></div>
+        <div class="box filled stat"><span class="label">Academies reporting</span><span class="big">37</span></div>
+        <div class="box filled stat"><span class="label"><span class="m">1</span> Stale over 90 days</span><span class="big">22%</span></div>
+        <div class="box filled stat"><span class="label">Open flags</span><span class="big">14</span></div>
+      </div>
+
+      <div class="split">
+        <div class="box">
+          <span class="label"><span class="m">2</span> Coverage by governorate</span>
+          <div class="ph chart tall">map or ranked bar list, players tracked per governorate against population</div>
+          <span style="font-size:0.78rem;color:var(--ink-soft)">Where the gaps are matters more than where the totals are.</span>
+        </div>
+        <div class="box">
+          <span class="label">Players by age and tier</span>
+          <div class="ph chart tall">stacked distribution, pro and youth and diaspora</div>
+        </div>
+      </div>
+
+      <div class="box">
+        <div class="row between">
+          <span class="label"><span class="m">3</span> Academies, by data quality</span>
+          <div class="row tight"><span class="chip strong">sort: least current</span><span class="chip">all governorates</span></div>
+        </div>
+        <div class="scroller">
+          <table class="wf">
+            <thead><tr><th>Academy</th><th>Governorate</th><th>Players</th><th>Last submission</th><th>Median staleness</th><th>Consent complete</th><th>Flags</th></tr></thead>
+            <tbody>
+              <tr><td style="color:var(--ink);font-weight:600">Delta Youth FC</td><td>Beheira</td><td>41</td><td style="color:var(--note);font-weight:600">118 days</td><td>134 days</td><td>52%</td><td>3</td></tr>
+              <tr><td style="color:var(--ink);font-weight:600">Ismaily Academy</td><td>Ismailia</td><td>63</td><td>21 days</td><td>29 days</td><td>88%</td><td>1</td></tr>
+              <tr><td style="color:var(--ink);font-weight:600">Zamalek Academy</td><td>Cairo</td><td>96</td><td>4 days</td><td>11 days</td><td>94%</td><td>2</td></tr>
+              <tr><td colspan="7" style="text-align:center;color:var(--mid);border:none;padding-top:0.5rem">34 more</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="box soft">
+        <span class="label"><span class="m">4</span> Diaspora watchlist</span>
+        <div class="row tight">
+          <span class="chip strong">28 Egypt eligible players abroad</span>
+          <span class="chip">6 uncapped and under 21</span>
+          <span class="chip">3 new this month</span>
+        </div>
+        <span style="font-size:0.78rem;color:var(--ink-soft)">The only place in the product where this list exists as a national asset rather than as search results.</span>
+      </div>
+
+    </div>
+  </div>
+  <p class="caption">Desktop only. This is a sit down and read screen, used at a desk.</p>
+
+  <section class="notes">
+    <h2>Annotations</h2>
+    <ol class="anno">
+      <li><strong>Staleness is the headline number, not player count.</strong> A federation can grow the player count by onboarding one large academy and learn nothing. The share of records that have gone stale is the number that says whether the database can be trusted, so it is promoted to the top row.</li>
+      <li><strong>Coverage against population, not raw totals.</strong> Cairo will always have the most tracked players. The interesting fact is a governorate with two million people and eleven tracked players, and only a normalised view surfaces that. This is the screen where the national mission is either visible or it is not.</li>
+      <li><strong>The academy table is sorted by the worst first, deliberately.</strong> A federation officer opens this to find who needs a phone call. Sorting by size would put the well run academies at the top and bury the problem.</li>
+      <li><strong>The diaspora watchlist earns its own block</strong> because tracking Egypt eligible players abroad is a stated reason the project exists and nobody currently does it. Everywhere else in the product diaspora players are just search results. Here they are a list somebody is responsible for.</li>
+    </ol>
+  </section>
+
+  <section class="notes">
+    <h2>Data and API</h2>
+    <ul class="plain">
+      <li>Nearly all aggregates, computed server side. This screen should never pull player rows to count them in the browser.</li>
+      <li><code>Organization</code> with counts and recency derived from <code>PlayerOrganization</code> and <code>Measurement</code>.</li>
+      <li>Consent completeness per academy comes from <code>Consent</code>, and is a genuinely useful lever: it is the number that gets an academy to chase signatures.</li>
+      <li>The governorate view needs a location on <code>Organization</code>. The schema has <code>country</code> only. Either a region column is added, or this panel cannot be built as drawn. Worth raising with the data track early because it is a small migration if caught now.</li>
+      <li>Export writes an <code>AuditLog</code> entry. A national data export is exactly the action that should leave a trace.</li>
+    </ul>
+  </section>
+
+  <section class="notes">
+    <h2>Open questions</h2>
+    <div class="open">
+      <span class="label">A missing column</span>
+      <p style="margin:0">
+        Coverage by governorate is drawn here because it is the most compelling thing this screen
+        can show, and the schema cannot currently produce it. <code>Organization</code> stores an
+        ISO country code and nothing finer. This is the clearest example of wireframing paying for
+        itself: the gap surfaced before anyone wrote the endpoint. Adding a region field is cheap
+        now and awkward once there is data.
+      </p>
+    </div>
+    <ul class="plain">
+      <li>What can a federation user do here, or is it read only? Read only is the safer default and matches the role intent in the schema, but then "oversight" means observation without a lever.</li>
+      <li>Should an academy be able to see its own row and how it compares? Transparency helps, and a public league table of academies is a political object the federation may not want.</li>
+      <li>Export format and scope. A national export of minors' data is the highest risk action in the entire product and should probably be restricted well beyond the federation role.</li>
+    </ul>
+  </section>
+
+  <footer class="docfoot">
+    <span><a href="index.html">Back to all screens</a></span>
+    <span>Next: <a href="08-integrity-board.html">Integrity board</a></span>
+  </footer>
+
+</div>
+</body>
+</html>
