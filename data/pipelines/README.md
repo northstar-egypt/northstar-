@@ -24,5 +24,5 @@ against the per-sport JSON schemas in `packages/shared/schemas`.
 - Normalize to the shared core (see `docs/schema.md`) before writing.
 - Never write unvalidated data. Record source and validation outcome on every row.
 - Keep credentials in the environment, never in code. See `.env.example`.
-- Heavy Python deps (pandas, Playwright, Faker) belong in a requirements file here, kept
-  separate from the API image so the API stays lean. TODO: add `requirements.txt`.
+- Heavy Python deps (pandas, Playwright, Faker) live in `requirements.txt` here, kept
+  separate from the API image so the API stays lean.
