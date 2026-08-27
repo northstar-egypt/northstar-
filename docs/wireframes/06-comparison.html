@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframe: comparison</title>
+<link rel="stylesheet" href="wireframes.css">
+</head>
+<body>
+<div class="sheet">
+
+  <header class="doc-head">
+    <div class="crumb"><a href="index.html">Wireframes</a> / Screen 6</div>
+    <h1>Comparison</h1>
+    <p class="purpose">
+      Two or three players side by side. The point of this screen is not the columns, it is the
+      toggle at the top that switches between comparing by birthday and comparing by maturity.
+      Those two views can rank the same players in opposite orders.
+    </p>
+    <div class="roles">
+      <span class="role">scout</span>
+      <span class="role">coach (own org)</span>
+      <span class="role">federation</span>
+      <span class="role off">player</span>
+    </div>
+  </header>
+
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>northstar.app/compare</span></div>
+    <div class="frame-body">
+
+      <div class="nav">
+        <span class="brand">NorthStar</span>
+        <div class="nav-links"><span>Search</span><span class="here">Compare</span><span>Saved</span></div>
+        <div class="ph avatar" style="width:1.7rem;height:1.7rem">me</div>
+      </div>
+
+      <div class="row between">
+        <span style="font-size:1.15rem;font-weight:700">Comparing 3 players</span>
+        <div class="row tight">
+          <span class="chip strong"><span class="m">1</span> by age</span>
+          <span class="chip">by maturity</span>
+        </div>
+      </div>
+
+      <div class="box soft" style="border-style:dashed;border-color:var(--note)">
+        <span style="font-size:0.83rem;color:var(--ink-soft)">
+          <span class="m">2</span> Comparing by chronological age. Youssef is 18 months behind the
+          other two in maturity, so his numbers here understate him. Switch to maturity to see it.
+        </span>
+      </div>
+
+      <div class="grid-3" style="grid-template-columns:repeat(3,1fr)">
+        <div class="box">
+          <div class="row tight" style="align-items:center">
+            <div class="ph avatar" style="width:2.2rem;height:2.2rem"></div>
+            <div class="col" style="gap:0"><span style="font-weight:650;font-size:0.9rem">Youssef A.</span><span class="label">14y 2m &middot; ST</span></div>
+          </div>
+        </div>
+        <div class="box">
+          <div class="row tight" style="align-items:center">
+            <div class="ph avatar" style="width:2.2rem;height:2.2rem"></div>
+            <div class="col" style="gap:0"><span style="font-weight:650;font-size:0.9rem">Karim M.</span><span class="label">14y 5m &middot; ST</span></div>
+          </div>
+        </div>
+        <div class="box" style="border-style:dashed;align-items:center;justify-content:center;color:var(--mid)">
+          <span class="m">3</span> add a third
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="box">
+          <span class="label">Growth curves, overlaid</span>
+          <div class="ph chart tall">one chart, one line per player, population band behind</div>
+        </div>
+        <div class="box">
+          <span class="label">Output over time</span>
+          <div class="ph chart tall">goals per 90 by season, per player</div>
+        </div>
+      </div>
+
+      <div class="box">
+        <span class="label"><span class="m">4</span> Side by side</span>
+        <div class="scroller">
+          <table class="wf">
+            <thead><tr><th>Metric</th><th>Youssef A.</th><th>Karim M.</th><th>Difference</th></tr></thead>
+            <tbody>
+              <tr><td>Height</td><td>168 cm (38th)</td><td style="color:var(--ink);font-weight:600">176 cm (72nd)</td><td>8 cm</td></tr>
+              <tr><td>Predicted adult height</td><td>182 cm &plusmn; 4</td><td>181 cm &plusmn; 4</td><td><span class="chip">overlapping</span></td></tr>
+              <tr><td>Goals per 90</td><td style="color:var(--ink);font-weight:600">0.90</td><td>0.64</td><td>0.26</td></tr>
+              <tr><td>xG per 90</td><td>0.71</td><td>0.66</td><td>0.05</td></tr>
+              <tr><td>Sprint 10m</td><td style="color:var(--ink);font-weight:600">1.78 s</td><td>1.84 s</td><td>0.06 s</td></tr>
+              <tr><td>Maturity offset</td><td style="color:var(--ink);font-weight:600">-1.5 years</td><td>+0.2 years</td><td>1.7 years</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <span style="font-size:0.78rem;color:var(--ink-soft)">
+          <span class="m">5</span> Predicted adult height differs by 1 cm and both estimates carry
+          4 cm of error, so this row is not a difference. It is drawn as overlapping rather than
+          as a winner.
+        </span>
+      </div>
+
+    </div>
+  </div>
+  <p class="caption">Desktop. Comparison is not offered on phones. Three columns of numbers do not survive a 375 pixel screen, and pretending otherwise produces a worse tool than sending the user to a profile.</p>
+
+  <section class="notes">
+    <h2>Annotations</h2>
+    <ol class="anno">
+      <li><strong>The age and maturity toggle is the screen.</strong> Comparing two 14 year olds where one is 18 months behind in maturity is comparing a child to an adolescent. Every academy that cuts players in the wrong month does it because they only ever saw the first view. Putting the second view one tap away is the product's argument, made operable.</li>
+      <li><strong>The banner explains what the current view distorts.</strong> Not a tooltip, not a footnote. A scout who never reads it still gets the sentence in their eyeline before they read the table.</li>
+      <li><strong>Two players minimum, three maximum.</strong> Four columns of numbers stop being a comparison and start being a spreadsheet, and the point of this screen is a judgement, not a data dump.</li>
+      <li><strong>Emphasis marks the higher value, it does not declare a winner.</strong> Higher is not better for sprint time, and the interface has to know that per metric rather than assuming bigger wins.</li>
+      <li><strong>Where the error bars overlap, the interface says so instead of ranking.</strong> This is the single most important honesty rule on the screen. Two forecasts that differ by less than their uncertainty are not different, and drawing one as better would be the exact failure mode this whole product is supposed to fix.</li>
+    </ol>
+  </section>
+
+  <section class="notes">
+    <h2>Data and API</h2>
+    <ul class="plain">
+      <li>Two or three <code>Player</code> records with their full <code>Measurement</code> series and <code>PerformanceEntry</code> rows.</li>
+      <li>Maturity offset and predicted adult height with error come from the ML layer. Without them the maturity toggle cannot exist, so this screen is partly blocked on that track.</li>
+      <li>Percentiles must be computed against a stated population and the same population for every player in the comparison, otherwise the columns are not comparable at all.</li>
+      <li>Every player in the comparison passes the same consent and role checks as the profile screen. Comparison must not become a way to read a record that the profile page would have withheld.</li>
+      <li>Metric direction, whether higher or lower is better, has to come from metric definitions rather than being hard coded in the frontend. That belongs in <code>packages/shared</code>.</li>
+    </ul>
+  </section>
+
+  <section class="notes">
+    <h2>Open questions</h2>
+    <ul class="plain">
+      <li>Can you compare across sports? Almost certainly not, and the interface should refuse rather than render a table of nulls.</li>
+      <li>Can you compare across tiers, a youth player against a professional? Interesting for a scout, misleading without heavy caveats.</li>
+      <li>Maturity offset needs a defined method. Skeletal age is not available, so it will be estimated from growth velocity and parental data we do not collect. The ML track owns this and the label on the row depends on what they choose.</li>
+      <li>Should a comparison be shareable as a link? Useful for a scouting report, and a quiet way for a minor's data to travel outside the platform.</li>
+    </ul>
+  </section>
+
+  <footer class="docfoot">
+    <span><a href="index.html">Back to all screens</a></span>
+    <span>Next: <a href="07-federation-oversight.html">Federation oversight</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

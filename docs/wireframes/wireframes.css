@@ -1,0 +1,406 @@
+/*
+ * Shared styles for the NorthStar wireframes.
+ *
+ * These are wireframes, not a design. The palette is deliberately greyscale so that nobody
+ * mistakes a colour choice here for a decision. Layout, hierarchy, and what appears on each
+ * screen are the things under review. Typography, colour, and spacing come later, when the
+ * application track builds the real screens with Tailwind and shadcn/ui.
+ *
+ * One convention worth knowing: dashed boxes are placeholders for content that is generated
+ * (a chart, a photo, a model output). Solid boxes are real interface elements.
+ */
+
+:root {
+  --line: #2b2b2b;
+  --mid: #8a8a8a;
+  --light: #c9c9c9;
+  --fill: #ededed;
+  --fill-soft: #f6f6f6;
+  --paper: #ffffff;
+  --ink: #1c1c1c;
+  --ink-soft: #5c5c5c;
+  --note: #b45309;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #f2f2f0;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.sheet {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* ---------- document header ---------- */
+
+.doc-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border-bottom: 2px solid var(--line);
+  padding-bottom: 1rem;
+}
+
+.crumb {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.crumb a { color: inherit; }
+
+h1 {
+  margin: 0;
+  font-size: 1.9rem;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.purpose {
+  margin: 0;
+  max-width: 44rem;
+  color: var(--ink-soft);
+}
+
+.roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.role {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  padding: 0.15rem 0.5rem;
+  border-radius: 2px;
+}
+
+.role.off {
+  border-color: var(--light);
+  color: var(--light);
+  text-decoration: line-through;
+}
+
+/* ---------- the frame that holds a wireframe ---------- */
+
+.frame {
+  background: var(--paper);
+  border: 2px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.frame-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--fill-soft);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--mid);
+  border-radius: 50%;
+}
+
+.frame-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.frame.phone { max-width: 22rem; margin: 0 auto; }
+
+.caption {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  text-align: center;
+  margin: 0.5rem 0 0;
+}
+
+/* ---------- wireframe primitives ---------- */
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.7rem;
+  background: var(--fill-soft);
+}
+
+.nav-links { display: flex; gap: 0.9rem; flex-wrap: wrap; font-size: 0.82rem; }
+.nav-links span { color: var(--ink-soft); }
+.nav-links span.here { color: var(--ink); font-weight: 650; border-bottom: 2px solid var(--line); }
+
+.brand { font-weight: 700; letter-spacing: 0.02em; }
+
+.row { display: flex; gap: 0.7rem; flex-wrap: wrap; }
+.row.tight { gap: 0.4rem; }
+.row.between { justify-content: space-between; align-items: center; }
+.col { display: flex; flex-direction: column; gap: 0.7rem; }
+.grow { flex: 1; min-width: 0; }
+
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.7rem; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.7rem; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+
+@media (max-width: 640px) {
+  .split { grid-template-columns: 1fr; }
+}
+
+.box {
+  border: 1px solid var(--line);
+  padding: 0.6rem 0.7rem;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 2.2rem;
+}
+
+.box.filled { background: var(--fill); }
+.box.soft { background: var(--fill-soft); }
+
+/* dashed means: generated content lives here */
+.ph {
+  border: 1px dashed var(--mid);
+  background: repeating-linear-gradient(
+    45deg,
+    var(--fill-soft),
+    var(--fill-soft) 7px,
+    var(--fill) 7px,
+    var(--fill) 14px
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  padding: 0.6rem;
+  min-height: 4rem;
+}
+
+.ph.tall { min-height: 9rem; }
+.ph.chart { min-height: 7rem; }
+.ph.avatar { width: 4rem; height: 4rem; border-radius: 50%; flex: none; min-height: 0; font-size: 0.62rem; }
+
+.label {
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.input {
+  border: 1px solid var(--mid);
+  background: var(--paper);
+  padding: 0.4rem 0.55rem;
+  font-size: 0.85rem;
+  color: var(--mid);
+  min-height: 1.9rem;
+}
+
+.btn {
+  border: 1px solid var(--line);
+  background: var(--fill);
+  padding: 0.35rem 0.8rem;
+  font-size: 0.82rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn.primary { background: var(--line); color: var(--paper); }
+.btn.ghost { background: transparent; border-color: var(--mid); color: var(--ink-soft); }
+
+.chip {
+  border: 1px solid var(--mid);
+  border-radius: 999px;
+  padding: 0.08rem 0.55rem;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.chip.strong { border-color: var(--line); color: var(--ink); font-weight: 600; }
+
+.stat { display: flex; flex-direction: column; gap: 0.1rem; }
+.stat .big { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+
+table.wf {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+table.wf th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 500;
+  border-bottom: 1px solid var(--line);
+  padding: 0.3rem 0.5rem 0.3rem 0;
+}
+
+table.wf td {
+  padding: 0.4rem 0.5rem 0.4rem 0;
+  border-bottom: 1px solid var(--light);
+  color: var(--ink-soft);
+}
+
+.scroller { overflow-x: auto; }
+
+/* a numbered annotation marker, placed next to the thing it describes */
+.m {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+  border: 1px solid var(--note);
+  color: var(--note);
+  border-radius: 50%;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  background: var(--paper);
+}
+
+/* ---------- prose blocks below the wireframe ---------- */
+
+section.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  border-bottom: 1px solid var(--light);
+  padding-bottom: 0.3rem;
+}
+
+ol.anno, ul.plain {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  counter-reset: anno;
+}
+
+ol.anno li {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  gap: 0.6rem;
+  align-items: start;
+  font-size: 0.9rem;
+}
+
+ol.anno li::before {
+  counter-increment: anno;
+  content: counter(anno);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1px solid var(--note);
+  color: var(--note);
+  border-radius: 50%;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  margin-top: 0.15rem;
+}
+
+ul.plain li {
+  padding-left: 1rem;
+  position: relative;
+  font-size: 0.9rem;
+}
+
+ul.plain li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.6rem;
+  width: 5px;
+  height: 5px;
+  background: var(--mid);
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--fill);
+  padding: 0.05em 0.3em;
+}
+
+.open {
+  border-left: 3px solid var(--note);
+  background: #fdf6ec;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.88rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.open .label { color: var(--note); }
+
+footer.docfoot {
+  border-top: 1px solid var(--light);
+  padding-top: 1rem;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+footer.docfoot a { color: inherit; }

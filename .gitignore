@@ -157,6 +157,11 @@ eggs/
 .eggs/
 lib/
 lib64/
+# The Python build rule above is greedy: `lib/` matches any directory named lib at any depth,
+# including the frontend's source at apps/web/lib. Re-include it explicitly. Without this the
+# app's data layer is silently missing from a fresh clone and the build fails for everyone but
+# the author.
+!apps/web/lib/
 parts/
 sdist/
 var/
