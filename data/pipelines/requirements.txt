@@ -1,0 +1,27 @@
+# Dependencies for data/pipelines: the ingestion adapters and the synthetic data
+# generator.
+#
+# This file pulls in apps/api/requirements.txt rather than restating its pins.
+# The generator builds rows as SQLAlchemy model instances imported from apps/api
+# (see data/pipelines/synthetic/orm.py), so it needs that environment exactly and
+# not a second copy of it that can drift out of sync. Importing app.db also
+# reaches app.config, which is why pydantic-settings has to be present.
+#
+# The API image is unaffected by anything below. apps/api/Dockerfile installs
+# only its own requirements.txt, so pandas, Playwright and a browser runtime
+# never reach it.
+
+-r ../../apps/api/requirements.txt
+
+# Pinned exactly, rather than to a minor version as the API does: the synthetic
+# generator is meant to be reproducible from a seed, and a Faker or pandas
+# upgrade can change what a given seed produces.
+pandas==2.2.3
+faker==24.0.0
+
+# 1.42.0 pins greenlet==3.0.3, which has no Python 3.13 wheel and falls back to a
+# source build that needs MSVC. 1.55.0 asks for a greenlet range instead.
+playwright==1.55.0
+
+# Runs the generator's test suite: pytest data/pipelines/synthetic
+pytest==8.3.*
