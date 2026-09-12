@@ -253,3 +253,8 @@ Thumbs.db
 !.vscode/extensions.json
 *.swp
 *~
+
+# Synthetic data output. Deterministic from the seed in
+# data/pipelines/synthetic/config.py, so it is regenerated rather than committed:
+#     python -m data.pipelines.synthetic.generate
+data/pipelines/synthetic/out/
