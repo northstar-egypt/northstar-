@@ -9,7 +9,7 @@ A JSON export is still available, because the ML track needs data before anyone
 has Postgres running. It is derived from the ORM instances by walking the
 mapper's column attributes, so the keys in the file are the model's attribute
 names by construction. There is no second, hand-maintained list of field names to
-drift out of sync — which is exactly how `audit_logs.json` ended up with a
+drift out of sync, which is exactly how `audit_logs.json` ended up with a
 `metadata` key that `AuditLog(**row)` could not accept.
 """
 

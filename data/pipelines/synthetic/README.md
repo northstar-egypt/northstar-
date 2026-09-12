@@ -13,18 +13,18 @@ No real player data, ever. Everything here is fabricated.
 From the repository root, with the virtual environment active:
 
 ```bash
-pip install faker sqlalchemy "psycopg[binary]" pytest
+pip install -r data/pipelines/requirements.txt
 python -m data.pipelines.synthetic.generate
 ```
 
-Those four belong in `data/pipelines/requirements.txt`, which is still on the
-open PR for the pipeline requirements. Once that merges, they get pinned there
-and the install becomes `pip install -r data/pipelines/requirements.txt`.
-`psycopg` is needed even for a JSON-only run, because importing `app.db`
-constructs an Engine.
+That requirements file pulls in `apps/api/requirements.txt`, which is what this
+pipeline needs: the generators build rows as SQLAlchemy models imported from
+`apps/api`. So SQLAlchemy, `psycopg` and `pydantic-settings` all arrive with it,
+and they are needed even for a JSON-only run, because importing `app.db` reaches
+`app.config` and constructs an Engine.
 
 That writes JSON files plus `ground_truth.json` to
-`data/pipelines/synthetic/out/`. There is no order to run things in — one command
+`data/pipelines/synthetic/out/`. There is no order to run things in. One command
 builds everything, because the generators depend on each other and the
 orchestration lives in `dataset.py`.
 
@@ -51,7 +51,7 @@ Useful flags:
 ## Why the output is not committed
 
 The dataset is a deterministic function of the seed, so committing it would just
-be committing something anyone can regenerate in three seconds — and a committed
+be committing something anyone can regenerate in three seconds, and a committed
 file drifts out of date the moment a generator changes, with no way to tell.
 `out/` is gitignored. Everyone runs the bare command, gets byte-identical data
 from the default seed, and model scores stay comparable across machines.
@@ -73,7 +73,7 @@ y_true = ground_truth.label_vectors(gt, player_ids)["fraud"]
 ```
 
 Three label sets, keyed by player id: `late_bloomer`, `fraud`, `duplicate`.
-Labelling is closed-world — **every player not in a label set is a true negative
+Labelling is closed-world. **Every player not in a label set is a true negative
 for that detector**, so recall is a real number rather than a lower bound.
 
 For a duplicate detector scored on pairs rather than players,
@@ -81,8 +81,8 @@ For a duplicate detector scored on pairs rather than players,
 detector that works row by row, `gt["flagged_performance_entry_ids"]` lists the
 performance entries that were planted as implausible.
 
-`gt["cases"]` carries the detail behind each label — how many years an age was
-understated, how large a late bloomer's height deficit was at 14, which
+`gt["cases"]` carries the detail behind each label. It records how many years an
+age was understated, how large a late bloomer's height deficit was at 14, which
 variations a duplicate cluster differs by. That is what makes error analysis
 possible: "we miss the fraud cases understated by under two years" is a more
 useful finding than one F1 number.
@@ -171,9 +171,9 @@ the flip is a one-line change when `docs/schema.md` settles it.
 pytest data/pipelines/synthetic
 ```
 
-Each test is named after the property it protects — `test_adults_do_not_grow`,
+Each test is named after the property it protects, for example `test_adults_do_not_grow`,
 `test_tier_is_consistent_with_age`, `test_minors_consent_requires_a_named_guardian`,
-`test_no_overlapping_active_affiliations` — so a failure says which invariant
+`test_no_overlapping_active_affiliations`, so a failure says which invariant
 broke rather than that something changed. The suite also checks that the planted
 signals are really present in the data, on the principle that a label asserting a
 signal nobody planted is worse than no label at all.

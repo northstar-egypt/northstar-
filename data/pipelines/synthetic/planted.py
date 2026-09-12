@@ -9,8 +9,8 @@ The design principle throughout is **generate causally, then label**. A planted
 age-fraud case is not "a normal player with the height column nudged up". It is a
 player whose body and performance were generated from their true age, with a
 younger date of birth recorded against them. Every downstream signal a detector
-might use — biometric outlier for stated age, dominance over the stated age
-group, a maturity profile that does not fit the cohort — appears on its own,
+might use, biometric outlier for stated age, dominance over the stated age
+group, a maturity profile that does not fit the cohort, appears on its own,
 because the underlying lie is real. Labelling a hand-nudged column teaches a
 detector to find the nudge; labelling a real inconsistency teaches it to find the
 inconsistency.
