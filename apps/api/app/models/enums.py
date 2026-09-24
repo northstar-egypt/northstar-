@@ -84,6 +84,41 @@ class UserRole(StrEnum):
     ADMIN = "admin"
 
 
+class FlagType(StrEnum):
+    """What a flag claims. One queue, three kinds of claim.
+
+    Fraud, duplicate and anomaly are different models with different evidence, but they are
+    the same job for the person reviewing: look, decide, move on. `late_bloomer` is here too
+    and is not an integrity concern at all; it surfaces on the player profile rather than on
+    the integrity board, and the board filters by type.
+    """
+
+    LATE_BLOOMER = "late_bloomer"
+    FRAUD = "fraud"
+    DUPLICATE = "duplicate"
+    ANOMALY = "anomaly"
+    BREAKOUT = "breakout"
+    CONSENT = "consent"
+
+
+class FlagStatus(StrEnum):
+    OPEN = "open"
+    CONFIRMED = "confirmed"
+    DISMISSED = "dismissed"
+    NEEDS_INFO = "needs_info"
+
+
+class FlagAction(StrEnum):
+    """Entries in a flag's append-only history."""
+
+    RAISED = "raised"
+    CONFIRMED = "confirmed"
+    DISMISSED = "dismissed"
+    NEEDS_INFO = "needs_info"
+    REOPENED = "reopened"
+    COMMENTED = "commented"
+
+
 class ConsentPurpose(StrEnum):
     DATA_STORAGE = "data_storage"
     ANALYTICS = "analytics"
