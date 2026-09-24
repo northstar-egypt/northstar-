@@ -3,6 +3,10 @@
 # Run from the repo root:
 #   docker compose -f docker/docker-compose.yml up --build
 #
+# That brings up Postgres, the API, the web app, and a one-shot `seed` container that
+# migrates the database and fills it with the synthetic dataset, so the screens have
+# something to show on the first boot.
+#
 # This file uses hard-coded development credentials on purpose so that a fresh clone boots
 # with zero configuration. These are local-only throwaway values, never used in production.
 # Application-level secrets (for example the FootyStats API key) go in a repo-root .env that
@@ -44,6 +48,24 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # Brings an empty database up to something worth looking at: migrations, the synthetic
+  # dataset, and a detector run that fills the integrity board. Runs once and exits.
+  #
+  # It will not overwrite a database that already has players, so restarting the stack does
+  # not throw away a reviewer's decisions. To start over, take the volume with it:
+  #   docker compose -f docker/docker-compose.yml down -v
+  seed:
+    build:
+      context: ..
+      dockerfile: docker/seed.Dockerfile
+    container_name: northstar-seed
+    environment:
+      DATABASE_URL: postgresql+psycopg://northstar:northstar@db:5432/northstar
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
 
   web:
     build:
