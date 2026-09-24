@@ -11,6 +11,7 @@ relationships use string references, so the modules themselves can be listed in 
 from app.db import Base  # noqa: F401  (re-exported so Alembic env can import metadata)
 from app.models.audit_log import AuditLog
 from app.models.consent import Consent
+from app.models.flag import Flag, FlagEvent
 from app.models.measurement import Measurement
 from app.models.organization import Organization
 from app.models.performance_entry import PerformanceEntry
@@ -22,6 +23,8 @@ __all__ = [
     "Base",
     "AuditLog",
     "Consent",
+    "Flag",
+    "FlagEvent",
     "Measurement",
     "Organization",
     "PerformanceEntry",

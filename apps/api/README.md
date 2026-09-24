@@ -42,12 +42,35 @@ The API comes up on http://localhost:8000. `GET /docs` has the interactive docum
 | `POST /search` | scout search, filters only |
 | `GET /compare?players=a,b` | two to four players side by side |
 | `GET /oversight?sport=football` | federation aggregates, counts only |
+| `GET /integrity/flags` | the review queue: fraud, duplicate and anomaly |
+| `POST /integrity/flags/{id}/decision` | record a decision, with its reason |
 | `GET /dev/identities` | development only, accounts the role switcher can act as |
 
-Write endpoints (`POST /players`, `POST /players/{id}/measurements`) and the integrity board
-are not built. The integrity board is blocked on a Flag table that does not exist yet; see
-`app/services/flags.py`, which explains what is missing and why the flag lists come back
-empty rather than being computed per request.
+Write endpoints for player data (`POST /players`, `POST /players/{id}/measurements`) are not
+built yet.
+
+## Flags
+
+Flags come from the `flag` table, written by a batch job, not computed inside a request. A
+flag has state (open, confirmed, dismissed, needs_info, plus who decided and why), the
+detectors read the JSON export rather than the database, and running three detectors over the
+whole population inside a page load is the wrong shape at any scale.
+
+To populate them:
+
+```bash
+python -m data.pipelines.synthetic.generate --database-url $DATABASE_URL --truncate
+python -m ml.write_flags
+```
+
+Safe to rerun. Every flag carries a `dedupe_key`, so a case already raised is recognised
+rather than duplicated and a case a reviewer dismissed is not raised again. See
+`docs/schema.md` for what that key does and does not cover.
+
+Deciding a flag writes three things: the new status, an append-only `flag_event` saying who
+decided what and why, and an `audit_log` row. The reason is required, and that is not
+bureaucracy: each decision plus its reason is a labelled example, and labelled examples are
+what the detectors' precision and recall are computed from.
 
 ## Authentication: there is none yet
 

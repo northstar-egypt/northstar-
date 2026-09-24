@@ -232,6 +232,62 @@ One player can have multiple consent records over time and per purpose.
 The application must check relevant consent before exposing a minor's profile to scouts.
 That enforcement is an access-control concern; this table is the record it reads.
 
+## Flag
+
+A claim one of the models made about a player, and the case a reviewer works on. Added after
+the wireframing exercise, which found this to be the largest single gap in the schema: the
+ML track writes flags, the application track reads them, and the security track audits the
+decisions, so it belongs in the shared core rather than inside any one workstream.
+
+| Field             | Type          | Notes                                                        |
+| ----------------- | ------------- | ------------------------------------------------------------ |
+| id                | UUID PK       |                                                              |
+| player_id         | UUID FK       | To Player. Cascades on delete.                               |
+| type              | text          | `late_bloomer` / `fraud` / `duplicate` / `anomaly` / `breakout` / `consent`. |
+| status            | text          | `open` / `confirmed` / `dismissed` / `needs_info`.           |
+| confidence        | float, null   | 0 to 1. Null when the detector is a rule with no calibrated probability, which is currently all of them. |
+| reason            | text          | The sentence shown to a reviewer, written for a coach to read. Not optional. |
+| evidence          | JSONB         | What the detector matched on. Shape differs per flag type, like `PerformanceEntry.metrics`. |
+| detector_name     | text          | Which detector raised it.                                    |
+| detector_version  | text          | Which version. A score computed later has to say which model produced the flags it scored. |
+| dedupe_key        | text, unique  | Stable identity for this case, so a rerun recognises it.     |
+| raised_at         | timestamptz   |                                                              |
+| related_player_id | UUID FK, null | The other record in a suspected duplicate pair. Null otherwise. |
+
+Only three types reach the integrity board: `fraud`, `duplicate` and `anomaly`. A late bloomer
+is not an integrity concern and surfaces on the player profile instead.
+
+**`dedupe_key` and reruns.** A detector that runs nightly finds the same case every night.
+Without a stable identity for a case, a reviewer who dismisses a false positive is handed it
+again the next morning, and with the detectors currently at 0.6 to 0.8 precision that is how a
+review queue gets abandoned. The key is a hash over the player, the type, and a coarse
+fingerprint of what the evidence was about. It deliberately excludes the confidence and the
+exact numbers, so ordinary drift does not manufacture a new case. It includes the fingerprint,
+so a materially different observation raises a genuinely new flag rather than being swallowed
+by an old dismissal. A dismissal sticks, but it cannot hide something new.
+
+## FlagEvent
+
+Append-only history of what happened to a flag. Never updated or deleted; a correction is
+another event.
+
+| Field         | Type          | Notes                                                           |
+| ------------- | ------------- | --------------------------------------------------------------- |
+| id            | UUID PK       |                                                                 |
+| flag_id       | UUID FK       | To Flag. Cascades on delete.                                    |
+| actor_user_id | UUID FK, null | Null for system actions, which is every `raised` event.         |
+| action        | text          | `raised` / `confirmed` / `dismissed` / `needs_info` / `reopened` / `commented`. |
+| reason        | text, null    | Required for a human decision, absent on `raised`.              |
+| created_at    | timestamptz   |                                                                 |
+
+Two tables rather than one mutable row, for two reasons. The integrity board has to show a
+case's history so two reviewers do not both work the same flag and so a decision can be
+revisited with its context intact; a single row can only show the latest decision. And each
+decision plus its reason is a labelled example, which is what the detectors' precision and
+recall are computed from. An append-only log is a training set. An overwritten column is not.
+
+---
+
 ## AuditLog
 
 Append-only record of who did what. Feeds both the security workstream (accountability) and
@@ -265,6 +321,9 @@ Player --< PlayerOrganization >-- Organization
 Player --< Measurement
 Player --< PerformanceEntry >-- Organization   (context and opponent)
 Player --< Consent
+Player --< Flag --< FlagEvent
+Flag ----- Player            (related_player_id, the other half of a duplicate pair)
+FlagEvent >---- User         (who decided, null for system)
 Player --- Player            (merged_into self-reference for dedup)
 ```
 
@@ -277,5 +336,12 @@ Player --- Player            (merged_into self-reference for dedup)
 - Exact enum value sets, and enum type vs lookup table for each.
 - Do we need a separate `Match` / `Fixture` entity, or is `PerformanceEntry` with
   `opponent_org_id` enough for now?
+- **Flags, three questions the table does not answer.** Does the flagged player or their
+  coach get told? Being flagged for fraud without ever knowing is hard to defend, and telling
+  people immediately makes the flag easier to game; this needs a policy, not a default. Who
+  may review a flag against a player at their own organization, which is a conflict of
+  interest the role model does not currently prevent (today nobody below federation can reach
+  the board, so it cannot arise yet). And is a merge reversible? Easier to design now than to
+  retrofit.
 - Embedding storage for player similarity: a `pgvector` column on Player, or a separate
   table. TODO once the ML workstream picks an embedding model.

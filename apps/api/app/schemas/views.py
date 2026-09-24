@@ -240,3 +240,64 @@ class OversightSummaryOut(CamelModel):
     by_age_tier: list[AgeTierRowOut] = []
     academies: list[CoverageRowOut] = []
     diaspora: DiasporaSummaryOut
+
+
+# ---------------------------------------------------------------------------
+# Integrity board
+# ---------------------------------------------------------------------------
+
+
+class FlagDiffFieldOut(CamelModel):
+    field: str
+    a: str
+    b: str
+    differs: bool
+
+
+class FlagRecordsOut(CamelModel):
+    """The field-by-field diff of a suspected duplicate pair.
+
+    Populated for duplicate flags only. The wireframe is explicit that this is the whole
+    decision for a duplicate, and that it has to show which record has more history, because
+    that determines which one survives the merge.
+    """
+
+    label: str
+    player_id: str
+    created_at: str
+    measurement_count: int
+    source: str
+    fields: list[FlagDiffFieldOut] = []
+
+
+class FlagHistoryEntryOut(CamelModel):
+    at: str
+    who: str
+    what: str
+
+
+class IntegrityFlagOut(CamelModel):
+    id: str
+    type: str
+    status: str
+    player_name: str
+    organization_name: str | None = None
+    raised_at: str
+    age_days: int
+    confidence: float
+    reason: str
+    evidence: list[str] = []
+    records: FlagRecordsOut | None = None
+    history: list[FlagHistoryEntryOut] = []
+
+
+class FlagDecisionRequest(CamelModel):
+    """A reviewer's decision.
+
+    The reason is required and is validated as non-empty. Not bureaucracy: each decision plus
+    its reason is a labelled example, and labelled examples are what the detectors' precision
+    and recall are computed from. A dismissal with no reason teaches nothing.
+    """
+
+    decision: str
+    reason: str = Field(min_length=3, max_length=2000)

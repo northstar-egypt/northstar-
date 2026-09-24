@@ -45,6 +45,19 @@ python -m ml.run_eval --seed-sweep 20260827 7 99 404 555
 
 Run from the repository root. Tests: `pytest ml/tests`.
 
+To put the detectors' findings in front of users, write them to the database:
+
+```bash
+python -m ml.write_flags --dry-run   # report what would be written, roll back
+python -m ml.write_flags
+```
+
+That is the batch job connecting `ml/detectors` to the application. Until it runs, the
+integrity board is empty and the player profile's flag banner never appears, because the API
+reads flags from a table rather than recomputing them per request. It is safe to rerun: a case
+already raised is recognised rather than duplicated, and a case a reviewer dismissed is not
+raised again. See `docs/schema.md` under Flag for the `dedupe_key` that makes that work.
+
 On Windows the player names are Arabic, so a console that is not already UTF-8 will fail
 on the error-analysis output. Set `PYTHONIOENCODING=utf-8` before the command.
 
@@ -146,6 +159,7 @@ requires anyway.
 detectors/     late-bloomer, fraud, duplicate + the features they share   done
 evaluation/    metrics and the scoring harness, shared with forecasting   done
 run_eval.py    CLI entry point                                            done
+write_flags.py detector run that writes flags to the database             done
 forecasting/   trajectory models + walk-forward harness                   TODO
 similarity/    embedding + nearest-neighbor search                        TODO
 assistant/     Ollama prompt + retrieval grounding                        TODO
