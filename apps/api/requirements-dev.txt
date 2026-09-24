@@ -1,0 +1,18 @@
+# Test-only dependencies for apps/api.
+#
+# Separate from requirements.txt so none of this reaches the API image: the Dockerfile
+# installs requirements.txt alone.
+#
+#     pip install -r apps/api/requirements.txt -r apps/api/requirements-dev.txt
+#     pytest apps/api/tests
+#
+# The suite needs a live PostgreSQL, because the models use JSONB, ARRAY and
+# gen_random_uuid() and SQLite has none of them. Testing against a substitute schema would
+# test something other than what runs. Start one with:
+#
+#     docker compose -f docker/docker-compose.yml up -d db
+#
+# With no database reachable the suite skips rather than fails, and says this in the message.
+
+pytest==8.3.*
+httpx==0.28.*   # required by fastapi.testclient

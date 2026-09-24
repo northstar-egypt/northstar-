@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import health
+from app.routers import comparison, dev, health, oversight, players, search
 
 settings = get_settings()
 
@@ -23,6 +23,12 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(players.router)
+app.include_router(search.router)
+app.include_router(comparison.router)
+app.include_router(oversight.router)
+# Development only, refused unless environment=development. Delete with the auth work.
+app.include_router(dev.router)
 
 
 @app.get("/")
@@ -31,5 +37,7 @@ def root() -> dict[str, str]:
     return {"name": settings.app_name, "docs": "/docs", "health": "/health"}
 
 
-# TODO: mount feature routers here as workstreams add them
-#   (players, search, ingestion, auth, ...).
+# TODO: mount write endpoints as they land: POST /players, POST /players/{id}/measurements,
+#   and the integrity board, which is blocked on a Flag table (see app/services/flags.py).
+#   Authentication is not implemented; app/deps.py resolves a caller from a development
+#   header and refuses outside environment=development.
