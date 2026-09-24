@@ -15,7 +15,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!ready) return;
-    router.replace(user ? homeFor(user.role) : "/login");
+    router.replace(user ? homeFor(user.role, user.linkedPlayerId) : "/login");
   }, [ready, user, router]);
 
   return (

@@ -41,6 +41,7 @@ export default function NewPlayerPage() {
   const [confidence, setConfidence] = useState<"measured" | "estimated">("measured");
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const minor = useMemo(() => (dob ? isMinorFrom(dob) : null), [dob]);
   const age = useMemo(() => ageLabel(dob), [dob]);
@@ -56,6 +57,23 @@ export default function NewPlayerPage() {
 
   async function save() {
     setBusy(true);
+    setSaveError(null);
+    try {
+      await saveToApi();
+    } catch (err) {
+      // The write endpoints are not built. Say so rather than routing to a dashboard the
+      // player is not on: a coach logging a child in the field has to know the record did not
+      // save, and a silent failure here is the worst outcome on this screen.
+      setSaveError(
+        err instanceof Error
+          ? err.message
+          : "Could not save this player. Nothing was recorded.",
+      );
+      setBusy(false);
+    }
+  }
+
+  async function saveToApi() {
     const { id } = await createPlayer({
       fullName,
       dateOfBirth: dob,
@@ -253,6 +271,16 @@ export default function NewPlayerPage() {
                   {acknowledged ? "Will save anyway" : "Save anyway"}
                 </Button>
               </div>
+            </Banner>
+          ) : null}
+
+          {saveError ? (
+            <Banner tone="warn" title="Not saved">
+              <p>{saveError}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Nothing was recorded. The API serves reads only so far; the write endpoints
+                this screen needs are the next piece of work.
+              </p>
             </Banner>
           ) : null}
 

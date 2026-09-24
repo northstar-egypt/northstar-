@@ -1,30 +1,26 @@
 /**
  * The one place the web app talks to the outside world.
  *
- * Today the API serves `/health` and `/health/db` and nothing else. Every other endpoint this
- * app needs is unbuilt, so each function below returns a synthetic fixture and carries a TODO
- * naming the endpoint it should call and the tables behind it. Those TODOs are the application
- * track's request to the data track, written where they cannot be lost.
+ * Every read this app needs is now a real endpoint. The fixtures are gone from this file and
+ * `lib/fixtures.ts` is no longer imported by anything that ships a screen.
  *
- * The point of routing everything through this module is that switching to the real API is a
- * change here and nowhere else. No screen imports fixtures directly.
+ * The point of routing everything through this module has not changed: a screen imports from
+ * here and never from `fetch` directly, so the next change of transport is contained again.
  *
- * Two rules that must survive the switch:
+ * Two rules that survived the switch, and are now the API's job rather than a comment:
  *   1. Scoping and consent filtering happen server side. If a field must not be seen by the
- *      current role, the API must not send it. Hiding it in the browser is not access control.
- *   2. Aggregates are computed server side. This app must never fetch rows in order to count
+ *      current role, the API does not send it. Nothing here hides anything.
+ *   2. Aggregates are computed server side. This app never fetches rows in order to count
  *      them.
+ *
+ * Identity
+ * --------
+ * There is no authentication yet; the security track owns that decision. The API resolves a
+ * caller from an `X-NorthStar-User` header and honours it only when it is running in
+ * development. `lib/auth.tsx` puts the chosen account in localStorage and this module attaches
+ * it. When real sessions land, `authHeaders` is the only function here that changes.
  */
 
-import {
-  FLAGS,
-  OVERSIGHT,
-  PARSED_QUERY,
-  SEARCH_RESULTS,
-  SQUAD,
-  comparison as fixtureComparison,
-  profile as fixtureProfile,
-} from "./fixtures";
 import type {
   Comparison,
   IntegrityFlag,
@@ -32,23 +28,90 @@ import type {
   ParsedQuery,
   PlayerProfile,
   SearchResult,
+  SessionUser,
   SquadRow,
 } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-/**
- * True while the endpoints below are stubs. Flip to false as they land, or delete this and the
- * fixture imports once they all have.
- */
-export const USING_FIXTURES = true;
+/** Kept so any remaining reference reads false rather than breaking the build. */
+export const USING_FIXTURES = false;
 
-/** Simulates a round trip so loading states are real rather than theoretical. */
-function settle<T>(value: T, ms = 220): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), ms));
+/** Where `lib/auth.tsx` stores the account the role switcher is acting as. */
+export const IDENTITY_KEY = "northstar.devIdentity";
+
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+
+  /** True when the caller is not signed in, or the API refuses the stand-in identity. */
+  get isAuth(): boolean {
+    return this.status === 401;
+  }
+
+  /** True when the caller is signed in but not allowed to do this. */
+  get isForbidden(): boolean {
+    return this.status === 403;
+  }
 }
 
-/* ------------------------------------------------------------------ health, real */
+export class NotImplementedError extends Error {
+  constructor(readonly endpoint: string, message: string) {
+    super(message);
+    this.name = "NotImplementedError";
+  }
+}
+
+function authHeaders(): Record<string, string> {
+  try {
+    const identity = window.localStorage.getItem(IDENTITY_KEY);
+    return identity ? { "X-NorthStar-User": identity } : {};
+  } catch {
+    // localStorage throws in private browsing. An unauthenticated request that gets a clean
+    // 401 is a better outcome than a crash inside a render.
+    return {};
+  }
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+        ...(init.headers ?? {}),
+      },
+    });
+  } catch {
+    // A network failure is not a 500. Saying the API is unreachable points at the right
+    // problem, which is usually that nobody started it.
+    throw new ApiError(0, `Cannot reach the API at ${API_URL}. Is it running?`);
+  }
+
+  if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      const body = await response.json();
+      if (typeof body?.detail === "string") detail = body.detail;
+    } catch {
+      // A non-JSON error body is not worth a second failure.
+    }
+    throw new ApiError(response.status, detail);
+  }
+
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+/* ------------------------------------------------------------------ health */
 
 export interface Health {
   ok: boolean;
@@ -65,129 +128,186 @@ export async function getHealth(): Promise<Health> {
   }
 }
 
-/* ------------------------------------------------------------------ squad */
+/* ------------------------------------------------------------------ identity */
+
+/** Who the API believes is calling. Useful for confirming the header actually worked. */
+export async function getSession(): Promise<SessionUser> {
+  return request<SessionUser>("/me");
+}
+
+export interface DevIdentity {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  organizationId: string | null;
+  organizationName: string | null;
+  linkedPlayerId: string | null;
+}
 
 /**
- * TODO(api): GET /players?organization_id=<caller's org>&active=true
- * Player joined through PlayerOrganization where end_date is null, scoped to the caller's
- * organization by the API. Needs days since last Measurement and the last six height readings
- * as part of the row, because fetching them per player would make this screen slow.
+ * Accounts the development role switcher can act as.
+ *
+ * Development only. The API returns 404 for this outside development, which is what will
+ * happen the moment real authentication exists, and `lib/auth.tsx` treats that as "the role
+ * switcher is over" rather than as an error.
  */
-export async function getSquad(): Promise<SquadRow[]> {
-  return settle(SQUAD);
+export async function getDevIdentities(): Promise<DevIdentity[]> {
+  return request<DevIdentity[]>("/dev/identities");
+}
+
+/* ------------------------------------------------------------------ squad */
+
+export async function getSquad(organizationId?: string): Promise<SquadRow[]> {
+  const query = organizationId ? `?organization_id=${encodeURIComponent(organizationId)}` : "";
+  return request<SquadRow[]>(`/players${query}`);
 }
 
 /* ------------------------------------------------------------------ profile */
 
 /**
- * TODO(api): GET /players/{id}/profile
- * Player, current PlayerOrganization, all Measurement rows, PerformanceEntry rows, plus the ML
- * layer's forecast, maturity estimate, percentiles, and flags. The response must already be
- * filtered for the caller's role and for consent, and must include a permissions object so the
- * frontend does not have to infer what to render.
+ * Returns null when the player does not exist *or* the caller may not see them.
+ *
+ * Those are deliberately the same answer. The API returns 404 for both, because a
+ * distinguishable response would tell an unauthorised caller that the player exists, and for
+ * a child without scouting consent that is the disclosure the rule exists to prevent. This
+ * function must not try to be more helpful than that.
  */
 export async function getProfile(playerId: string): Promise<PlayerProfile | null> {
-  return settle(fixtureProfile(playerId));
+  try {
+    return await request<PlayerProfile>(`/players/${encodeURIComponent(playerId)}/profile`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
 }
+
+/* ------------------------------------------------------------------ writes, not built */
 
 /**
  * TODO(api): POST /players
- * Creates a Player and the PlayerOrganization row linking them to the caller's organization,
- * in one transaction. A player with no affiliation is invisible to every screen in this app.
+ *
+ * Not built. The read API landed first; this needs a Player row and the PlayerOrganization
+ * row linking them to the caller's organization, created in one transaction, because a player
+ * with no affiliation is invisible to every screen in this app.
+ *
+ * It throws rather than resolving with a fake id. The add-player screen catches it and says
+ * so. Pretending a save succeeded and then routing to a dashboard the player is not on is a
+ * worse failure than an honest error, especially on the one screen a coach uses in the field.
  */
 export async function createPlayer(input: Record<string, unknown>): Promise<{ id: string }> {
-  console.info("createPlayer would POST", input);
-  return settle({ id: "p-new" }, 400);
+  throw new NotImplementedError(
+    "POST /players",
+    "Saving a new player is not built yet. The API serves reads only.",
+  );
 }
 
 /**
  * TODO(api): POST /players/{id}/measurements
- * One Measurement row per metric, long format, source coach_logged, recorded_by the caller.
- * The API validates plausibility and returns a warning rather than rejecting: a coach who
- * genuinely measured an implausible value must be able to record it, because that is the
- * observation the detectors need. See docs/wireframes/03-add-edit-player.html.
+ *
+ * Not built. One Measurement row per metric, long format, source coach_logged, recorded_by the
+ * caller. The API should validate plausibility and return a warning rather than rejecting: a
+ * coach who genuinely measured an implausible value must be able to record it, because that is
+ * the observation the detectors need.
  */
 export async function logMeasurement(
   playerId: string,
   input: Record<string, unknown>,
 ): Promise<{ ok: true }> {
-  console.info("logMeasurement would POST", playerId, input);
-  return settle({ ok: true } as const, 400);
+  throw new NotImplementedError(
+    "POST /players/{id}/measurements",
+    "Logging a measurement is not built yet. The API serves reads only.",
+  );
 }
 
 /* ------------------------------------------------------------------ search */
 
+export interface SearchFilters {
+  // Nullable as well as optional: the screens hold these in state that starts empty, and a
+  // cleared dropdown is null rather than undefined.
+  tier?: string | null;
+  position?: string | null;
+  sport?: string | null;
+  egyptOnly?: boolean;
+  minAge?: number | null;
+  maxAge?: number | null;
+  minHeightCm?: number | null;
+  limit?: number;
+  offset?: number;
+}
+
 /**
- * TODO(api): POST /search
- * Structured filters map to Player columns and to values the ML layer wrote back. The natural
- * language half needs sentence-transformer embeddings, which the ML track has deferred until
- * they pick a model, so the filter half should ship first.
+ * Structured filters plus whatever can be read out of the query text.
  *
- * Withheld results must arrive already stripped of the fields the caller may not see.
+ * The natural language half needs an embedding model nobody has chosen yet. What comes back
+ * in `parsed.chips` is the API's account of how it read the sentence, and a chip marked
+ * `understood: false` genuinely changed nothing about the results. The screen renders that
+ * under "How this was read".
  */
 export async function search(
   query: string,
-  filters: Record<string, unknown>,
+  filters: SearchFilters = {},
 ): Promise<{ parsed: ParsedQuery; results: SearchResult[]; total: number }> {
-  console.info("search would POST", { query, filters });
-  return settle({
-    parsed: query.trim() ? PARSED_QUERY : { chips: [] },
-    results: SEARCH_RESULTS,
-    total: SEARCH_RESULTS.length,
+  return request<{ parsed: ParsedQuery; results: SearchResult[]; total: number }>("/search", {
+    method: "POST",
+    body: JSON.stringify({
+      query,
+      tier: filters.tier || null,
+      position: filters.position || null,
+      sport: filters.sport || null,
+      minAge: filters.minAge ?? null,
+      maxAge: filters.maxAge ?? null,
+      minHeightCm: filters.minHeightCm ?? null,
+      egyptEligibleOnly: Boolean(filters.egyptOnly),
+      limit: filters.limit ?? 50,
+      offset: filters.offset ?? 0,
+    }),
   });
 }
 
 /* ------------------------------------------------------------------ comparison */
 
-/**
- * TODO(api): GET /compare?players=<id>,<id>&basis=age|maturity
- * Percentiles must be computed against the same stated population for every player, otherwise
- * the columns are not comparable. Metric direction (higher or lower is better) should come
- * from metric definitions in packages/shared, not be hard coded per screen.
- */
 export async function getComparison(
   playerIds: string[],
   basis: "age" | "maturity",
 ): Promise<Comparison> {
-  console.info("getComparison would GET", playerIds, basis);
-  return settle(fixtureComparison(basis));
+  const players = playerIds.map(encodeURIComponent).join(",");
+  return request<Comparison>(`/compare?players=${players}&basis=${basis}`);
 }
 
 /* ------------------------------------------------------------------ oversight */
 
-/**
- * TODO(api): GET /oversight?sport=football
- * Aggregates only. Coverage by governorate needs a region field on Organization, which the
- * schema does not have yet. Raised in docs/wireframes/README.md.
- */
-export async function getOversight(): Promise<OversightSummary> {
-  return settle(OVERSIGHT);
+export async function getOversight(sport = "football"): Promise<OversightSummary> {
+  return request<OversightSummary>(`/oversight?sport=${encodeURIComponent(sport)}`);
 }
 
 /* ------------------------------------------------------------------ integrity */
 
 /**
- * TODO(api): GET /integrity/flags?status=open
- * BLOCKED. There is no flag table in docs/schema.md. Nothing holds a raised flag with a type,
- * confidence, evidence, status, reviewer, decision, and reason. The ML track writes those, this
- * app reads them, and the security track audits them, so it belongs in the shared core.
- * Proposed field list is in docs/wireframes/08-integrity-board.html.
+ * The review queue.
+ *
+ * Flags are read from the database, not computed per request. They get there by running
+ * `python -m ml.write_flags`, which is the batch job connecting `ml/detectors` to this screen.
+ * An empty board usually means that has not been run rather than that nothing is wrong.
  */
-export async function getFlags(): Promise<IntegrityFlag[]> {
-  return settle(FLAGS);
+export async function getFlags(status = "open"): Promise<IntegrityFlag[]> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "?status=";
+  return request<IntegrityFlag[]>(`/integrity/flags${query}`);
 }
 
 /**
- * TODO(api): POST /integrity/flags/{id}/decision
- * Records the outcome, the reviewer, and the reason, and appends to AuditLog. The reason is not
- * optional: each decision plus its reason is a labelled example, and labelled examples are what
- * the detectors' precision and recall are computed from.
+ * Record a decision. The reason is required by the API, not only by this form.
+ *
+ * Each decision plus its reason is a labelled example, and labelled examples are what the
+ * detectors' precision and recall are computed from.
  */
 export async function decideFlag(
   flagId: string,
   decision: "confirmed" | "dismissed" | "needs_info",
   reason: string,
-): Promise<{ ok: true }> {
-  console.info("decideFlag would POST", { flagId, decision, reason });
-  return settle({ ok: true } as const, 350);
+): Promise<IntegrityFlag> {
+  return request<IntegrityFlag>(
+    `/integrity/flags/${encodeURIComponent(flagId)}/decision`,
+    { method: "POST", body: JSON.stringify({ decision, reason }) },
+  );
 }
