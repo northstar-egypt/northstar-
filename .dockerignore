@@ -1,0 +1,22 @@
+# Build context for images built from the repository root (currently docker/seed.Dockerfile).
+#
+# Without this, `docker build` ships node_modules, .next and the whole git history into the
+# daemon, which turns a small image into a slow one.
+
+.git/
+node_modules/
+**/node_modules/
+**/.next/
+**/__pycache__/
+**/*.pyc
+.venv/
+venv/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+.env
+
+# Generated datasets. The seed container regenerates these from the committed seed, and they
+# are gitignored precisely so they never travel.
+data/pipelines/synthetic/out/
+out/
