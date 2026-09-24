@@ -13,6 +13,7 @@
  */
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { GrowthChart, PercentileBar } from "@/components/charts";
 import {
@@ -34,17 +35,22 @@ import { useAuth } from "@/lib/auth";
 import { num, ordinal, shortDate } from "@/lib/format";
 import type { PlayerProfile } from "@/lib/types";
 
-export default function PlayerProfilePage({ params }: { params: { id: string } }) {
+export default function PlayerProfilePage() {
+  // The route segment is read with useParams rather than taken as a `params` prop. From Next 15
+  // that prop is a Promise, and unwrapping it in a client component needs React 19. This hook is
+  // synchronous, is the documented way to read the segment from a client component, and keeps us
+  // on React 18.
+  const playerId = String(useParams().id ?? "");
   const { user } = useAuth();
   const [data, setData] = useState<PlayerProfile | null | "missing">(null);
 
   useEffect(() => {
     let alive = true;
-    getProfile(params.id).then((p) => alive && setData(p ?? "missing"));
+    getProfile(playerId).then((p) => alive && setData(p ?? "missing"));
     return () => {
       alive = false;
     };
-  }, [params.id]);
+  }, [playerId]);
 
   if (data === null) {
     return (
