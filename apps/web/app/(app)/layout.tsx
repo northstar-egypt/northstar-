@@ -28,7 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return;
     }
     if (!canAccess(user.role, pathname)) {
-      router.replace(homeFor(user.role));
+      router.replace(homeFor(user.role, user.linkedPlayerId));
     }
   }, [ready, user, pathname, router]);
 

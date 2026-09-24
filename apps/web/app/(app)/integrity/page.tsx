@@ -17,7 +17,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Banner,
   Button,
   Card,
   Chip,
@@ -117,12 +116,6 @@ export default function IntegrityPage() {
           <Chip tone="warn">anomaly {counts.anomaly}</Chip>
         </div>
       </div>
-
-      <Banner tone="warn" title="This screen has nothing to read from">
-        There is no flag table in the schema. Nothing holds a raised flag with a type,
-        confidence, evidence, status, reviewer, decision, and reason. Everything below is
-        synthetic. The proposed field list is in docs/wireframes/08-integrity-board.html.
-      </Banner>
 
       <div className="grid gap-4 lg:grid-cols-[15rem_1fr]">
         {/* queue */}

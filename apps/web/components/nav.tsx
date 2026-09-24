@@ -18,7 +18,7 @@ const LINKS: { href: string; label: string }[] = [
 const ROLES: UserRole[] = ["coach", "scout", "federation", "player", "admin"];
 
 export function Nav() {
-  const { user, switchRole, signOut } = useAuth();
+  const { user, identities, switchRole, signOut } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -32,7 +32,7 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5">
-        <Link href={homeFor(user.role)} className="flex items-center gap-2 font-bold tracking-tight">
+        <Link href={homeFor(user.role, user.linkedPlayerId)} className="flex items-center gap-2 font-bold tracking-tight">
           <span className="inline-block h-2.5 w-2.5 rotate-45 bg-sky-400" aria-hidden />
           NorthStar
         </Link>
@@ -75,7 +75,7 @@ export function Nav() {
               onChange={(e) => {
                 const role = e.target.value as UserRole;
                 switchRole(role);
-                router.push(homeFor(role));
+                router.push(homeFor(role, identities[role]?.linkedPlayerId));
               }}
               className="rounded-md border border-dashed border-amber-800 bg-amber-950/40 px-2 py-1 text-xs text-amber-200 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
               title="Development only. Replaced by real sign in when the API has auth."
@@ -102,7 +102,7 @@ export function Nav() {
       </div>
 
       <div className="border-t border-amber-900/40 bg-amber-950/30 px-4 py-1 text-center text-[0.7rem] text-amber-300/90">
-        Prototype. Data on these screens is synthetic and most endpoints are not built yet.
+        Prototype. All data is synthetic. Reads come from the API; writing a player is not built yet.
         <Chip tone="warn">
           <span className="font-mono">see lib/api.ts</span>
         </Chip>

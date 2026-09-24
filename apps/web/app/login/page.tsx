@@ -27,7 +27,7 @@ const DEMO: { role: UserRole; label: string; blurb: string }[] = [
 ];
 
 export default function LoginPage() {
-  const { signIn } = useAuth();
+  const { signIn, identities, error: authError } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,7 +51,7 @@ export default function LoginPage() {
 
   function useDemo(role: UserRole) {
     signIn(role);
-    router.push(homeFor(role));
+    router.push(homeFor(role, identities[role]?.linkedPlayerId));
   }
 
   return (

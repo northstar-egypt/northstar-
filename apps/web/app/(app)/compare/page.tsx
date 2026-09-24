@@ -12,7 +12,7 @@
  * better would be the exact failure this product exists to fix.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { OverlaidGrowth } from "@/components/charts";
 import {
   Avatar,
@@ -26,6 +26,7 @@ import {
   Td,
   Th,
 } from "@/components/ui";
+import { useSearchParams } from "next/navigation";
 import { getComparison } from "@/lib/api";
 import { cx } from "@/lib/format";
 import type { Comparison } from "@/lib/types";
@@ -33,15 +34,45 @@ import type { Comparison } from "@/lib/types";
 export default function ComparePage() {
   const [basis, setBasis] = useState<"age" | "maturity">("age");
   const [data, setData] = useState<Comparison | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Players come from the query string, which is what the player profile's Compare button
+  // builds: /compare?players=<id>&players=<id>, or a single comma-separated value.
+  const params = useSearchParams();
+  const playerIds = useMemo(() => {
+    const raw = params.getAll("players").flatMap((value) => value.split(","));
+    return raw.map((value) => value.trim()).filter(Boolean);
+  }, [params]);
 
   useEffect(() => {
     let alive = true;
     setData(null);
-    getComparison(["p-1", "p-2"], basis).then((c) => alive && setData(c));
+    setError(null);
+
+    if (playerIds.length < 2) {
+      setError(
+        playerIds.length === 0
+          ? "Pick players to compare from a player profile or from search."
+          : "Comparison needs at least two players. Add another from search.",
+      );
+      return;
+    }
+
+    getComparison(playerIds, basis)
+      .then((c) => alive && setData(c))
+      .catch((err) => alive && setError(err.message));
     return () => {
       alive = false;
     };
-  }, [basis]);
+  }, [basis, playerIds]);
+
+  if (error) {
+    return (
+      <Card>
+        <p className="text-sm text-slate-400">{error}</p>
+      </Card>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">
