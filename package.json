@@ -10,5 +10,9 @@
   "scripts": {
     "dev:web": "npm run dev --workspace @northstar/web"
   },
+  "overrides": {
+    "postcss": "8.5.28"
+  },
+  "overrides-comment": "Next pins postcss 8.4.31 inside its own tree, which has four open advisories including a path traversal that discloses arbitrary .map files. 8.5.28 is the same major, so this lifts the nested copy to the patched version without waiting on a Next release. Drop this entry once Next ships a postcss above 8.5.22 itself.",
   "comment": "The Python backend (apps/api) is not an npm workspace; it uses pip. See apps/api/README.md."
 }
