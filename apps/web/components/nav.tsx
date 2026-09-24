@@ -102,7 +102,7 @@ export function Nav() {
       </div>
 
       <div className="border-t border-amber-900/40 bg-amber-950/30 px-4 py-1 text-center text-[0.7rem] text-amber-300/90">
-        Prototype. Data on these screens is synthetic and most endpoints are not built yet.
+        Prototype. All data is synthetic. Reads come from the API; writing a player is not built yet.
         <Chip tone="warn">
           <span className="font-mono">see lib/api.ts</span>
         </Chip>

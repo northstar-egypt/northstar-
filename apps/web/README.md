@@ -115,3 +115,14 @@ measurement entry and the indistinguishable-values rule on comparison.
 - This package is part of the repo-root npm workspaces.
 - `apps/web/lib/` needs an explicit exception in the root `.gitignore`, because the Python
   section ignores any directory called `lib`. Do not remove it.
+
+## End-to-end tests
+
+The browser tests live in `tests/e2e` at the repository root, because they drive this app, the
+API and PostgreSQL together. They run in **Firefox**, which is the browser the team uses, via
+Playwright. See `tests/e2e/README.md` for what has to be running first.
+
+```bash
+python -m playwright install firefox   # once
+pytest tests/e2e
+```
