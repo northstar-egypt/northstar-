@@ -1,0 +1,28 @@
+# Dependencies for ml/.
+#
+# Kept separate from apps/api/requirements.txt on purpose: the API image installs
+# only its own file, so nothing here reaches the container that serves requests.
+#
+# The detectors and the scoring harness are deliberately standard-library only.
+# The population is a few hundred players and a few thousand measurements, which
+# is small enough that pandas would cost more in review effort than it saves in
+# runtime, and it means `python -m ml.run_eval` works in any environment that can
+# already run the generator. Nothing below is needed to produce the numbers.
+#
+# Running the harness needs the generator's environment, because the evaluation
+# reads the dataset it produces and the seed sweep builds datasets in process:
+#
+#     pip install -r data/pipelines/requirements.txt
+#     pip install -r ml/requirements.txt
+
+# Cross-checks our precision/recall/F1 against a reference implementation in
+# ml/tests/test_metrics.py. The test skips cleanly when this is absent, so the
+# harness never depends on it, but the one number the project is graded on should
+# not rest solely on our own arithmetic.
+scikit-learn==1.5.*
+
+pytest==8.3.*
+
+# TODO (forecasting): the trajectory models are where numpy, pandas and a gradient
+#   boosting library actually become necessary. Add them when that lands rather
+#   than in advance, and note why each one is here.
