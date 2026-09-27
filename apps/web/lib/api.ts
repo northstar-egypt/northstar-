@@ -1,8 +1,8 @@
 /**
  * The one place the web app talks to the outside world.
  *
- * Every read this app needs is now a real endpoint. The fixtures are gone from this file and
- * `lib/fixtures.ts` is no longer imported by anything that ships a screen.
+ * Every read and write this app needs is now a real endpoint. The fixtures are gone from this
+ * file and `lib/fixtures.ts` is no longer imported by anything that ships a screen.
  *
  * The point of routing everything through this module has not changed: a screen imports from
  * here and never from `fetch` directly, so the next change of transport is contained again.
@@ -44,6 +44,8 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** The parsed `detail` when the API sent a structured one, for 409 and 422 on writes. */
+    readonly detail: unknown = null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -57,13 +59,6 @@ export class ApiError extends Error {
   /** True when the caller is signed in but not allowed to do this. */
   get isForbidden(): boolean {
     return this.status === 403;
-  }
-}
-
-export class NotImplementedError extends Error {
-  constructor(readonly endpoint: string, message: string) {
-    super(message);
-    this.name = "NotImplementedError";
   }
 }
 
@@ -97,14 +92,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!response.ok) {
-    let detail = response.statusText;
+    let message = response.statusText;
+    let detail: unknown = null;
     try {
       const body = await response.json();
-      if (typeof body?.detail === "string") detail = body.detail;
+      detail = body?.detail ?? null;
+      if (typeof detail === "string") message = detail;
+      else if (typeof (detail as { message?: unknown })?.message === "string") {
+        message = (detail as { message: string }).message;
+      }
     } catch {
       // A non-JSON error body is not worth a second failure.
     }
-    throw new ApiError(response.status, detail);
+    throw new ApiError(response.status, message, detail);
   }
 
   if (response.status === 204) return undefined as T;
@@ -182,42 +182,99 @@ export async function getProfile(playerId: string): Promise<PlayerProfile | null
   }
 }
 
-/* ------------------------------------------------------------------ writes, not built */
+/* ------------------------------------------------------------------ writes */
 
-/**
- * TODO(api): POST /players
- *
- * Not built. The read API landed first; this needs a Player row and the PlayerOrganization
- * row linking them to the caller's organization, created in one transaction, because a player
- * with no affiliation is invisible to every screen in this app.
- *
- * It throws rather than resolving with a fake id. The add-player screen catches it and says
- * so. Pretending a save succeeded and then routing to a dashboard the player is not on is a
- * worse failure than an honest error, especially on the one screen a coach uses in the field.
- */
-export async function createPlayer(input: Record<string, unknown>): Promise<{ id: string }> {
-  throw new NotImplementedError(
-    "POST /players",
-    "Saving a new player is not built yet. The API serves reads only.",
-  );
+export interface MeasurementInput {
+  metric: string;
+  value: number;
+  unit: string;
+  confidence?: "measured" | "estimated";
+}
+
+/** One visit: everything measured about one player on one day. */
+export interface MeasurementBatch {
+  measuredAt: string;
+  metrics: MeasurementInput[];
+  /** Set only after a person has seen the warnings and confirmed the readings are right. */
+  acknowledgeWarnings?: boolean;
+}
+
+export interface NewPlayer {
+  fullName: string;
+  dateOfBirth: string;
+  sex?: string | null;
+  /** ISO 3166-1 alpha-2, for example EG. */
+  nationality: string[];
+  isEgyptEligible: boolean;
+  primarySport: string;
+  tier?: string | null;
+  position?: string | null;
+  measurements?: MeasurementBatch;
+}
+
+export interface MeasurementWarning {
+  metric: string;
+  value: number;
+  message: string;
+}
+
+export interface PlayerCreated {
+  player: { id: string; isMinor: boolean };
+  organizationId: string;
+  acknowledgedWarnings: MeasurementWarning[];
+  consentRequired: boolean;
 }
 
 /**
- * TODO(api): POST /players/{id}/measurements
+ * Why a write did not happen, in a shape the screen can act on.
  *
- * Not built. One Measurement row per metric, long format, source coach_logged, recorded_by the
- * caller. The API should validate plausibility and return a warning rather than rejecting: a
- * coach who genuinely measured an implausible value must be able to record it, because that is
- * the observation the detectors need.
+ * `confirm` means the API found readings that look wrong but could be real. Nothing was saved;
+ * show the warnings and let the person resend with `acknowledgeWarnings`. `fix` means the
+ * input cannot be stored as it is. Anything else is rethrown untouched.
  */
+export type WriteRefusal =
+  | { kind: "confirm"; message: string; warnings: MeasurementWarning[] }
+  | { kind: "fix"; message: string; problems: string[] };
+
+export function writeRefusal(error: unknown): WriteRefusal | null {
+  if (!(error instanceof ApiError)) return null;
+  const detail = (error.detail ?? {}) as { warnings?: MeasurementWarning[]; problems?: unknown };
+  if (error.status === 409 && Array.isArray(detail.warnings)) {
+    return { kind: "confirm", message: error.message, warnings: detail.warnings };
+  }
+  if (error.status === 422) {
+    // Our own checks send `problems`. FastAPI's schema validation sends a list of
+    // {loc, msg}, which is flattened here so the screen has one thing to render.
+    const problems = Array.isArray(detail.problems)
+      ? (detail.problems as string[])
+      : Array.isArray(error.detail)
+        ? (error.detail as { loc?: unknown[]; msg?: string }[]).map(
+            (d) => `${(d.loc ?? []).slice(1).join(".")}: ${d.msg ?? "invalid"}`,
+          )
+        : [];
+    return { kind: "fix", message: error.message, problems };
+  }
+  return null;
+}
+
+/**
+ * POST /players. Creates the player, their affiliation to the caller's organization, and the
+ * first visit, in one transaction. Either all of it is saved or none of it is, so a failure
+ * here never leaves behind a player the screen said was not saved.
+ */
+export async function createPlayer(input: NewPlayer): Promise<PlayerCreated> {
+  return request<PlayerCreated>("/players", { method: "POST", body: JSON.stringify(input) });
+}
+
+/** POST /players/{id}/measurements. One visit for a player the caller may log for. */
 export async function logMeasurement(
   playerId: string,
-  input: Record<string, unknown>,
-): Promise<{ ok: true }> {
-  throw new NotImplementedError(
-    "POST /players/{id}/measurements",
-    "Logging a measurement is not built yet. The API serves reads only.",
-  );
+  input: MeasurementBatch,
+): Promise<{ acknowledgedWarnings: MeasurementWarning[] }> {
+  return request(`/players/${encodeURIComponent(playerId)}/measurements`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 /* ------------------------------------------------------------------ search */

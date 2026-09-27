@@ -38,7 +38,6 @@ def root() -> dict[str, str]:
     return {"name": settings.app_name, "docs": "/docs", "health": "/health"}
 
 
-# TODO: mount write endpoints as they land: POST /players, POST /players/{id}/measurements,
-#   and the integrity board, which is blocked on a Flag table (see app/services/flags.py).
-#   Authentication is not implemented; app/deps.py resolves a caller from a development
-#   header and refuses outside environment=development.
+
+# Authentication is not implemented. app/deps.py resolves a caller from a development header
+# and refuses outside environment=development. See the auth decision on the board.

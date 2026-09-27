@@ -135,9 +135,10 @@ docker compose -f docker/docker-compose.yml down -v
 
 ### What is not built
 
-One thing on the screens does not work: **adding a player**. `POST /players` and
-`POST /players/{id}/measurements` are not implemented, so the add-player form reports that
-nothing was saved rather than pretending. Everything else reads from the real API.
+Every screen reads from and writes to the real API. What is still missing on them: there is
+no real sign-in (the security track's authentication decision is open, and a development
+header stands in for it), guardian consent is not captured when a coach adds a minor, and an
+existing player cannot be edited yet.
 
 ### Running pieces outside Docker
 

@@ -12,7 +12,9 @@ would have made the suite worthless on the day it was most needed.
 from __future__ import annotations
 
 import json
+import re
 import urllib.request
+import uuid
 
 import pytest
 
@@ -231,37 +233,80 @@ def test_the_board_no_longer_claims_there_is_no_flag_table(sign_in, page, identi
 
 
 # ---------------------------------------------------------------------------
-# Logging a player, the one step that is not built
+# Logging a player
 # ---------------------------------------------------------------------------
 
 
-def test_adding_a_player_says_it_did_not_save(sign_in, page):
-    """`POST /players` does not exist.
+# A profile URL ends in a player UUID. A glob like /players/* would also match /players/new,
+# which is where the page already is, and the wait would pass without anything saving.
+PROFILE_URL = re.compile(r".*/players/[0-9a-f]{8}-[0-9a-f-]{27}$")
 
-    The screen must say nothing was saved rather than routing to a dashboard the player is
-    not on. A coach logging a child in the field has to know the record did not save, and a
-    silent failure here is the worst outcome on this screen. When the endpoint lands, this
-    test is the one to invert.
-    """
-    sign_in("Coach", "/dashboard")
+
+def _fill_new_player(page, name: str, *, height: str, weight: str = ""):
+    """Steps 1 and 2 of the add player form, stopping short of saving."""
     page.goto(f"{WEB_URL}/players/new", wait_until="networkidle")
     page.wait_for_timeout(SETTLE_MS)
 
     # Everything is scoped to `main`, because the nav carries a role switcher whose <select>
     # and buttons would otherwise be matched instead of the form's.
     form = page.locator("main")
-    form.locator("input[autocomplete='off']").fill("Test Player")
+    form.locator("input[autocomplete='off']").fill(name)
     form.locator("input[type='date']").fill("2011-05-04")
     # Position is a row of buttons rather than a dropdown.
     form.get_by_role("button", name="ST", exact=True).click()
     form.get_by_role("button", name="Continue").click()
     page.wait_for_timeout(1500)
 
-    # Height is the first numeric input on step 2; the first input overall is the date.
-    form.locator("input[inputmode='decimal']").first.fill("150")
+    # Height then weight are the numeric inputs on step 2; the first input overall is the date.
+    numbers = form.locator("input[inputmode='decimal']")
+    numbers.nth(0).fill(height)
+    if weight:
+        numbers.nth(1).fill(weight)
+    return form
+
+
+def test_adding_a_player_saves_and_opens_their_profile(sign_in, page, identities):
+    """Step one of the demo flow, and until this landed the only one that did not work.
+
+    The player must then exist for the API as well as on screen, in this coach's squad, as a
+    minor, with the height that was typed in.
+    """
+    name = f"E2E Player {uuid.uuid4().hex[:6]}"
+    sign_in("Coach", "/dashboard")
+    form = _fill_new_player(page, name, height="150")
+    form.get_by_role("button", name="Save player and measurement").click()
+    page.wait_for_url(PROFILE_URL, timeout=15000)
+    page.wait_for_timeout(SETTLE_MS)
+
+    assert name.lower() in text_of(page)
+
+    squad = api("/players", identities["coach"]["email"])
+    row = next(r for r in squad if r["player"]["fullName"] == name)
+    assert row["player"]["isMinor"] is True
+    assert row["heightCm"] == 150
+    assert page.url.endswith(row["player"]["id"])
+
+
+def test_an_unusual_reading_is_asked_about_before_it_is_saved(sign_in, page, identities):
+    """The API's question, not the screen's own check.
+
+    The screen only range-checks height. 300 kg is caught by the server, which must turn into
+    a question the coach can answer on the spot, not an error and not a silent save.
+    """
+    name = f"E2E Heavy {uuid.uuid4().hex[:6]}"
+    sign_in("Coach", "/dashboard")
+    form = _fill_new_player(page, name, height="150", weight="300")
     form.get_by_role("button", name="Save player and measurement").click()
     page.wait_for_timeout(SETTLE_MS)
 
     body = text_of(page)
-    assert "not saved" in body
-    assert "/dashboard" not in page.url, "must not navigate away after a failed save"
+    assert "check this" in body
+    assert "300 kg" in body
+    assert "/players/new" in page.url, "must not navigate away before the coach confirms"
+    squad = api("/players", identities["coach"]["email"])
+    assert name not in {r["player"]["fullName"] for r in squad}, "saved before confirming"
+
+    form.get_by_role("button", name="Save anyway").click()
+    page.wait_for_url(PROFILE_URL, timeout=15000)
+    squad = api("/players", identities["coach"]["email"])
+    assert name in {r["player"]["fullName"] for r in squad}
