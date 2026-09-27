@@ -165,6 +165,10 @@ class GeneratorConfig:
     performance: PerformanceConfig = field(default_factory=PerformanceConfig)
     planted: PlantedConfig = field(default_factory=PlantedConfig)
     accounts: AccountConfig = field(default_factory=AccountConfig)
+    # Simulated release of small players at 14, for backtest evaluation datasets only. Off by
+    # default, so the committed dataset and every reported score are unchanged. See
+    # attrition.py.
+    attrition: bool = False
 
     def scaled(self, n_players: int) -> GeneratorConfig:
         """Return a copy sized for a different population.
@@ -200,4 +204,5 @@ class GeneratorConfig:
                 resolved_duplicate_fraction=self.planted.resolved_duplicate_fraction,
             ),
             accounts=self.accounts,
+            attrition=self.attrition,
         )

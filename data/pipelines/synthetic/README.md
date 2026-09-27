@@ -47,6 +47,7 @@ Useful flags:
 | `--database-url URL` | Also insert into a database through the ORM. |
 | `--truncate` | Delete existing rows first. Only with `--database-url`. |
 | `--no-json` | Skip the JSON export. `ground_truth.json` is written regardless. |
+| `--attrition` | Simulate academies releasing small players at their age-14 review: their later rows are removed and `ground_truth.json` gains an `attrition` section. Off by default, and the default output is byte-identical with or without it. For backtest evaluation only; do not load it into the demo database. |
 
 ## Why the output is not committed
 
@@ -132,6 +133,7 @@ Each planted player carries exactly one label, so the answer key is unambiguous.
 | `affiliations.py` | Affiliation history, built so overlaps cannot occur. |
 | `accounts.py` | Users, consent, audit log. |
 | `planted.py` | The three planted case types. |
+| `attrition.py` | Optional simulated release at 14, on its own random stream. |
 | `ground_truth.py` | The answer key, and the helpers that turn it into label vectors. |
 | `dataset.py` | Orchestration, in dependency order. |
 | `writer.py` | Database insert and JSON export. |

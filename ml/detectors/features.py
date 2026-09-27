@@ -124,14 +124,21 @@ class PlayerFeatures:
 class FeatureSet:
     """The loaded dataset plus the derived per-player features."""
 
-    def __init__(self, data_dir: str | Path):
+    def __init__(self, data_dir: str | Path, *, raw: dict[str, list[dict]] | None = None):
+        """Load an export from `data_dir`, or build from tables already in memory.
+
+        `raw` is how the backtest builds the features the system would have had on a past
+        date: the same tables, cut off at that date, with nothing written to disk.
+        """
         self.data_dir = Path(data_dir)
-        self.raw: dict[str, list[dict]] = {}
-        for name in TABLES:
-            path = self.data_dir / f"{name}.json"
-            self.raw[name] = (
-                json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
-            )
+        if raw is None:
+            raw = {}
+            for name in TABLES:
+                path = self.data_dir / f"{name}.json"
+                raw[name] = (
+                    json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+                )
+        self.raw = {name: raw.get(name, []) for name in TABLES}
 
         self.players: dict[str, PlayerFeatures] = {
             p["id"]: PlayerFeatures(player_id=p["id"], player=p)

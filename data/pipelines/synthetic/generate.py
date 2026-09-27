@@ -61,6 +61,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip the JSON export. ground_truth.json is always written.",
     )
     parser.add_argument(
+        "--attrition",
+        action="store_true",
+        help="Simulate academies releasing small players at 14 (evaluation datasets only; "
+        "do not load into the demo database). See attrition.py.",
+    )
+    parser.add_argument(
         "--name-locale",
         default="ar_EG",
         help="Faker locale for player names (default: ar_EG).",
@@ -71,7 +77,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
-    config = GeneratorConfig(seed=args.seed, name_locale=args.name_locale)
+    config = GeneratorConfig(
+        seed=args.seed, name_locale=args.name_locale, attrition=args.attrition
+    )
     if args.players:
         config = config.scaled(args.players)
 
