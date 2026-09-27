@@ -175,6 +175,100 @@ positive forecast residual is therefore a fraud signal the detector does not use
 population and their reference curve is built from fewer children. The gap is smaller than
 the gap to either baseline, but it is there and it is now measured.
 
+## The late-bloomer backtest
+
+```bash
+python -m ml.run_backtest --seed-sweep 20260827 7 99 404 555
+python -m ml.run_backtest --seed-sweep 20260827 7 99 404 555 --players 1000
+python -m ml.run_backtest --seed-sweep 20260827 7 99 404 555 --players 1000 --attrition
+```
+
+The question the project exists to answer: when an academy would have released a late bloomer
+for being small, would the system have flagged them? The backtest goes back to past dates,
+gives the detector only the data that existed on each one, and finds each player's **decision
+moment**, the first date on which they fall in the **size cut**: the shortest quarter of their
+sex among players aged 12 to 16 and measured in the last six months. The size cut stands in
+for current practice. `ml/backtest.py` has the full definition, and every constant in it was
+fixed before the first run.
+
+**Result**, pooled over the five reported seeds at 1000 players each (the larger population
+gives tighter intervals; the default 212 is in brackets):
+
+| at the moment of the size cut | flagged |
+| --- | --- |
+| late bloomers the system had measured 3+ times | **46%**, 37 of 81, CI 35 to 56% (65%, 13 of 20) |
+| other small players measured 3+ times | **10%**, 14 of 147, CI 6 to 15% (22%, 7 of 32) |
+| late bloomers measured fewer than 3 times | **0%**, 0 of 110 (0 of 22) |
+
+So the sentence the project can defend is:
+
+> Of the late bloomers a size-based cut would have released, the system flagged about half of
+> those it had measured at least three times, against one in ten of the other small players.
+> It could not flag any it had measured fewer than three times, and that was more than half
+> of them.
+
+The last clause is the main practical finding. The detector needs a growth rate, and a growth
+rate needs history, so **a player who is measured once on arrival and cut a few months later
+cannot be helped by any model**. The fix is operational rather than statistical: measure every
+player at intake and every few months after. The coach logging screen exists for that.
+
+The two sizes disagree more than their intervals suggest they should (46% against 65%). The
+detector's thresholds were tuned on 212-player datasets, where the cohort reference is built
+from fewer children, and they transfer imperfectly to a larger population. Reported rather than
+retuned; the larger figure is the one to quote.
+
+### What this means for a backtest on real data
+
+A real dataset has no answer key. The backtest then scores against what can be observed:
+a player **caught up** if, a year or more after the cut, they sit at least 0.5 standard
+deviations higher relative to their age group. On synthetic data the report checks that label
+against the planted truth, and it fails:
+
+| 'caught up' vs the planted truth, 1000 players x 5 | |
+| --- | --- |
+| median follow-up from the cut | 1.8 years |
+| late bloomers the label finds | 22%, 37 of 171 |
+| players the label finds who are late bloomers | 67%, 37 of 55 |
+
+After under two years most late bloomers have not caught up yet, so the label misses most of
+them, and every rate built on it describes the label rather than the system. The report prints
+a warning when this happens. **A real-data backtest needs several years of follow-up**, which
+means historical records going back four or five years, before its catch-up numbers mean
+anything. The detection side (who was flagged at the cut) needs only the records up to the cut.
+
+### Players who disappear
+
+In real data the players released after a cut stop being measured, so they have no outcome,
+and they are not a random sample. `--attrition` plants that effect: at the age-14 review, the
+smaller a football player is for their age, the likelier they are to be released, and their
+later rows are removed. At 1000 players x 5:
+
+| | as generated | with release at 14 |
+| --- | --- | --- |
+| small players with an outcome | 87% | 74% |
+| late bloomer recall, scored on everyone | 19% | 19% |
+| late bloomer recall, scored on stayers only | 20% | 20% |
+| players observed to catch up | 55 | 35 |
+
+The effect we expected, a backtest on the stayers overstating recall, **did not appear**:
+released late bloomers were flagged at about the same rate as the ones who stayed, so dropping
+them left the rate where it was. What release did do is cost about one in seven of the evaluable
+players (416 down to 353) and more than a third of the observed success stories (55 down to 35). On real data, that is the
+risk to plan for: fewer cases than the cohort size suggests, and the catch-ups that would make
+the strongest case are disproportionately the ones missing. The report always prints how many
+players have no outcome and how they compare with the rest.
+
+### Running it on real data
+
+```bash
+python -m ml.export_db --out out/db_export     # refuses any path git would track
+python -m ml.run_backtest --data-dir out/db_export
+```
+
+`export_db` writes the local database in the same format the generator does. It refuses to write
+anywhere inside the repository that git would track, because on a machine with real data the
+export is real data about children. Commit the numbers from the report, never the export.
+
 ## What the detectors actually do
 
 All three are threshold rules over a handful of features, not trained models. That is a
@@ -228,6 +322,8 @@ evaluation/    metrics and the scoring harness, shared with forecasting   done
 run_eval.py    CLI entry point                                            done
 write_flags.py detector run that writes flags to the database             done
 forecasting/   height forecasters + walk-forward harness                 done
+backtest.py    the late-bloomer backtest, run_backtest.py is its CLI      done
+export_db.py   database to JSON export, for running any harness on real data  done
 similarity/    embedding + nearest-neighbor search                        TODO
 assistant/     Ollama prompt + retrieval grounding                        TODO
 artifacts/     trained models (gitignored)

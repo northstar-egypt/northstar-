@@ -14,6 +14,7 @@ The order below is not arbitrary and changing it changes the data:
 8. affiliations, because performance entries carry the player's organization
 9. measurements and performance
 10. injected fraud rows, consent and audit
+11. optionally, simulated release at 14 (attrition.py), off by default
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .accounts import generate_audit_log, generate_consents, generate_users
+from .attrition import apply_attrition
 from .affiliations import generate_affiliations
 from .config import GeneratorConfig
 from .ground_truth import build as build_ground_truth
@@ -108,9 +110,24 @@ def build_dataset(config: GeneratorConfig) -> Dataset:
     ds.performance_entries = generate_performance_entries(
         rng, config, ds.profiles, ds.organizations, current_org
     )
-    ds.performance_entries += inject_metric_fraud_rows(
+    injected = inject_metric_fraud_rows(
         rng, config, ds.profiles, ds.performance_entries, cases.fraud
     )
+    ds.performance_entries += injected
+    releases = []
+    if config.attrition:
+        # Last among the row generators, and on its own random stream, so the default
+        # dataset is byte-identical whether or not this module exists. The planted fraud
+        # rows are exempt: they are in the answer key, and a released player can still
+        # self-submit.
+        injected_ids = {row.id for row in injected}
+        ds.measurements, kept, releases = apply_attrition(
+            config,
+            ds.profiles,
+            ds.measurements,
+            [e for e in ds.performance_entries if e.id not in injected_ids],
+        )
+        ds.performance_entries = kept + injected
     ds.consents = generate_consents(rng, config, ds.profiles)
     ds.audit_logs = generate_audit_log(rng, config, ds.users, ds.profiles)
 
@@ -121,4 +138,12 @@ def build_dataset(config: GeneratorConfig) -> Dataset:
         counts=ds.counts(),
         all_player_ids=[str(p.id) for p in ds.players],
     )
+    if config.attrition:
+        ds.ground_truth["attrition"] = {
+            "description": (
+                "Players released at their age-14 review, with every measurement and "
+                "performance row after the review removed. See attrition.py."
+            ),
+            "released": [case.to_dict() for case in releases],
+        }
     return ds
