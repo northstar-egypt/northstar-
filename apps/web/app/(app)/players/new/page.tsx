@@ -17,7 +17,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Banner, Button, Card, Chip, Label, SectionTitle, inputClass } from "@/components/ui";
-import { createPlayer, logMeasurement } from "@/lib/api";
+import { createPlayer, writeRefusal, type MeasurementWarning } from "@/lib/api";
 import { ageLabel, isMinorFrom } from "@/lib/format";
 
 const POSITIONS = ["GK", "CB", "RB", "LB", "CM", "CDM", "CAM", "LW", "RW", "ST"];
@@ -32,7 +32,7 @@ export default function NewPlayerPage() {
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
   const [position, setPosition] = useState<string>("");
-  const [nationalities, setNationalities] = useState<string[]>(["EGY"]);
+  const [nationalities, setNationalities] = useState<string[]>(["EG"]);
   const [egyptEligible, setEgyptEligible] = useState(true);
 
   const [height, setHeight] = useState("");
@@ -41,7 +41,13 @@ export default function NewPlayerPage() {
   const [confidence, setConfidence] = useState<"measured" | "estimated">("measured");
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<{ message: string; problems: string[] } | null>(
+    null,
+  );
+  // Readings the API asked about. The server knows things this screen does not (the ranges
+  // for every metric, and on an existing player the previous reading), so its question is the
+  // one that counts, even when the check below found nothing.
+  const [serverWarnings, setServerWarnings] = useState<MeasurementWarning[] | null>(null);
 
   const minor = useMemo(() => (dob ? isMinorFrom(dob) : null), [dob]);
   const age = useMemo(() => ageLabel(dob), [dob]);
@@ -55,44 +61,50 @@ export default function NewPlayerPage() {
   const canContinue = fullName.trim().length > 1 && dob !== "" && position !== "";
   const canSave = height !== "" && (!implausible || acknowledged);
 
-  async function save() {
+  async function save(confirmWarnings = acknowledged) {
     setBusy(true);
     setSaveError(null);
+    setServerWarnings(null);
     try {
-      await saveToApi();
+      // One request: the player, their academy and this first visit are saved together or
+      // not at all, so a failure can never leave half a record behind.
+      const created = await createPlayer({
+        fullName,
+        dateOfBirth: dob,
+        position,
+        nationality: nationalities,
+        isEgyptEligible: egyptEligible,
+        primarySport: "football",
+        tier: "youth",
+        measurements: {
+          measuredAt,
+          metrics: [
+            { metric: "height_cm", value: Number(height), unit: "cm", confidence },
+            ...(weight
+              ? [{ metric: "weight_kg", value: Number(weight), unit: "kg", confidence }]
+              : []),
+          ],
+          acknowledgeWarnings: confirmWarnings,
+        },
+      });
+      router.push(`/players/${created.player.id}`);
     } catch (err) {
-      // The write endpoints are not built. Say so rather than routing to a dashboard the
-      // player is not on: a coach logging a child in the field has to know the record did not
-      // save, and a silent failure here is the worst outcome on this screen.
-      setSaveError(
-        err instanceof Error
-          ? err.message
-          : "Could not save this player. Nothing was recorded.",
-      );
+      // Never route away after a failure. A coach logging a child in the field has to know
+      // the record did not save, and a silent failure is the worst outcome on this screen.
+      const refusal = writeRefusal(err);
+      if (refusal?.kind === "confirm") {
+        setServerWarnings(refusal.warnings);
+      } else if (refusal?.kind === "fix") {
+        setSaveError({ message: refusal.message, problems: refusal.problems });
+      } else {
+        setSaveError({
+          message:
+            err instanceof Error ? err.message : "Could not save this player. Nothing was recorded.",
+          problems: [],
+        });
+      }
       setBusy(false);
     }
-  }
-
-  async function saveToApi() {
-    const { id } = await createPlayer({
-      fullName,
-      dateOfBirth: dob,
-      position,
-      nationality: nationalities,
-      isEgyptEligible: egyptEligible,
-      primarySport: "football",
-      tier: "youth",
-    });
-    await logMeasurement(id, {
-      measuredAt,
-      metrics: [
-        { metric: "height_cm", value: Number(height), unit: "cm", confidence },
-        ...(weight ? [{ metric: "weight_kg", value: Number(weight), unit: "kg", confidence }] : []),
-      ],
-      acknowledgedWarning: implausible && acknowledged,
-    });
-    setBusy(false);
-    router.push("/dashboard");
   }
 
   return (
@@ -159,8 +171,8 @@ export default function NewPlayerPage() {
                   {n} &times;
                 </Chip>
               ))}
-              {!nationalities.includes("ITA") ? (
-                <Chip onClick={() => setNationalities((xs) => [...xs, "ITA"])}>add second</Chip>
+              {!nationalities.includes("IT") ? (
+                <Chip onClick={() => setNationalities((xs) => [...xs, "IT"])}>add second</Chip>
               ) : null}
             </div>
             <span className="text-xs text-slate-500">
@@ -219,6 +231,7 @@ export default function NewPlayerPage() {
                 onChange={(e) => {
                   setHeight(e.target.value);
                   setAcknowledged(false);
+                  setServerWarnings(null);
                 }}
                 className={`${inputClass} text-lg tabular-nums`}
               />
@@ -233,7 +246,11 @@ export default function NewPlayerPage() {
                 type="number"
                 inputMode="decimal"
                 value={weight}
-                onChange={(e) => setWeight(e.target.value)}
+                onChange={(e) => {
+                  setWeight(e.target.value);
+                  setAcknowledged(false);
+                  setServerWarnings(null);
+                }}
                 className={`${inputClass} text-lg tabular-nums`}
               />
               <span className="text-sm text-slate-500">kg</span>
@@ -274,18 +291,51 @@ export default function NewPlayerPage() {
             </Banner>
           ) : null}
 
+          {serverWarnings ? (
+            <Banner tone="warn" title="Check this">
+              <ul className="mb-2 list-disc pl-4">
+                {serverWarnings.map((w) => (
+                  <li key={`${w.metric}-${w.message}`}>{w.message}</li>
+                ))}
+              </ul>
+              <p className="mb-2">
+                Nothing has been saved yet. If you measured it, save it anyway and the entry will
+                be recorded as confirmed by you.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setServerWarnings(null)}>
+                  Correct it
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => {
+                    setAcknowledged(true);
+                    void save(true);
+                  }}
+                >
+                  Save anyway
+                </Button>
+              </div>
+            </Banner>
+          ) : null}
+
           {saveError ? (
             <Banner tone="warn" title="Not saved">
-              <p>{saveError}</p>
-              <p className="mt-1 text-xs text-slate-500">
-                Nothing was recorded. The API serves reads only so far; the write endpoints
-                this screen needs are the next piece of work.
-              </p>
+              <p>{saveError.message}</p>
+              {saveError.problems.length ? (
+                <ul className="mt-1 list-disc pl-4">
+                  {saveError.problems.map((problem) => (
+                    <li key={problem}>{problem}</li>
+                  ))}
+                </ul>
+              ) : null}
+              <p className="mt-1 text-xs text-slate-500">Nothing was recorded.</p>
             </Banner>
           ) : null}
 
           <div className="flex flex-col gap-2">
-            <Button variant="primary" disabled={!canSave || busy} onClick={save}>
+            <Button variant="primary" disabled={!canSave || busy} onClick={() => save()}>
               {busy ? "Saving" : "Save player and measurement"}
             </Button>
             <Button variant="ghost" onClick={() => setStep(1)}>

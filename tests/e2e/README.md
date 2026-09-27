@@ -47,6 +47,10 @@ python -m playwright install firefox     # once
 pytest tests/e2e
 ```
 
+The add-player tests really save. Each run adds two players to the coach's academy, named
+`E2E Player ...` and `E2E Heavy ...` so they are easy to spot. Re-run the generator with
+`--truncate` for a clean dataset.
+
 The suite skips, with a message saying what is missing, when the web app or the API is not
 answering. A red suite should mean a broken application, not a forgotten terminal.
 

@@ -1,6 +1,6 @@
 """Who may see what.
 
-This module is the whole of the read API's access control. It is deliberately one file: the
+This module is the whole of the API's access control, reads and writes. It is deliberately one file: the
 security workstream has to be able to read every rule in one sitting, and every rule here is
 meant to become a test in the RBAC suite.
 
@@ -245,6 +245,36 @@ def permissions(db: Session, caller: Caller, player: Player) -> dict[str, bool]:
         return {"can_edit": True, "can_log": False, "can_see_flags": False}
 
     return {"can_edit": False, "can_log": False, "can_see_flags": False}
+
+
+def may_create_player(
+    caller: Caller, organization_id: uuid.UUID | None
+) -> tuple[uuid.UUID | None, str | None]:
+    """Which organization a new player joins, or why this caller may not add one.
+
+    Returns (organization_id, reason_when_refused). Only coaches and admins add players.
+
+    A coach always adds to their own organization. Naming another one is refused rather than
+    quietly corrected, because a coach who typed a different academy believes the player went
+    there, and silently putting the child somewhere else is how records end up in the wrong
+    squad. An admin has no organization of their own, so must name one.
+
+    The organization matters more than it looks: a player with no current affiliation is
+    invisible to every coach, so a player created without one would be saved and then lost.
+    """
+    if caller.is_coach:
+        if caller.organization_id is None:
+            return None, "Your account is not attached to an organization."
+        if organization_id is not None and organization_id != caller.organization_id:
+            return None, "A coach can only add players to their own organization."
+        return caller.organization_id, None
+
+    if caller.is_admin:
+        if organization_id is None:
+            return None, "An admin adding a player must say which organization they join."
+        return organization_id, None
+
+    return None, "Your role does not permit adding players."
 
 
 def redact(player: Player) -> dict:

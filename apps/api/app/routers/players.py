@@ -1,6 +1,6 @@
-"""Player endpoints: the squad list and the full profile.
+"""Player endpoints: the squad list, the full profile, adding a player, logging a visit.
 
-Both are scoped by `app.services.access`. A player outside the caller's scope returns 404
+Reads are scoped by `app.services.access`. A player outside the caller's scope returns 404
 rather than 403, because "403 on a player you may not see" tells an unauthorised caller that
 the player exists, which is the leak the threat model's first entry is about.
 """
@@ -16,10 +16,22 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import current_user
 from app.models.player import Player
-from app.schemas.core import SessionUserOut
+from app.schemas.core import MeasurementOut, PlayerOut, SessionUserOut
 from app.schemas.views import PlayerProfileOut, SquadRowOut
-from app.services import views
-from app.services.access import Caller, may_view, visible_players
+from app.schemas.writes import (
+    MeasurementBatchIn,
+    MeasurementsSavedOut,
+    PlayerCreatedOut,
+    PlayerCreateIn,
+)
+from app.services import views, writes
+from app.services.access import (
+    Caller,
+    may_create_player,
+    may_view,
+    permissions,
+    visible_players,
+)
 
 router = APIRouter(tags=["players"])
 
@@ -102,3 +114,119 @@ def player_profile(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such player.")
 
     return PlayerProfileOut.model_validate(views.build_profile(db, caller, player))
+
+
+# ---------------------------------------------------------------------------
+# Writes
+# ---------------------------------------------------------------------------
+
+
+def _refusal(exc: writes.WriteRejected | writes.NeedsConfirmation) -> HTTPException:
+    """The two ways a write does not happen, as responses a screen can act on.
+
+    422 means fix it. 409 means confirm it: the body lists each reading that looked wrong,
+    and resending with `acknowledgeWarnings: true` saves it. Both carry a list rather than one
+    message, so a coach sees every problem at once instead of one per attempt.
+    """
+    if isinstance(exc, writes.NeedsConfirmation):
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": (
+                    "Some readings look unusual. Nothing was saved. Check them, then resend "
+                    "with acknowledgeWarnings set to confirm they are right."
+                ),
+                "warnings": exc.warnings,
+            },
+        )
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={"message": "Nothing was saved.", "problems": exc.problems},
+    )
+
+
+@router.post(
+    "/players", response_model=PlayerCreatedOut, status_code=status.HTTP_201_CREATED
+)
+def create_player(
+    payload: PlayerCreateIn,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> PlayerCreatedOut:
+    """Add a player to the caller's organization, optionally with their first measurements.
+
+    One transaction: the player, their affiliation, the first visit and the audit rows are
+    all saved or none are. The affiliation is not optional, because a player with no current
+    organization is invisible to every coach and would be saved only to be lost.
+
+    Minor status is computed here from the date of birth, never taken from the client. No
+    consent is recorded, so a new minor is not visible to scouts until a guardian's consent
+    is captured, and the response says so.
+    """
+    organization_id, reason = may_create_player(caller, payload.organization_id)
+    if organization_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
+
+    try:
+        player, measurements, warnings = writes.create_player(
+            db,
+            payload=payload,
+            organization_id=organization_id,
+            actor_user_id=caller.user_id,
+        )
+    except (writes.WriteRejected, writes.NeedsConfirmation) as exc:
+        # Every check runs before the first insert, so there is nothing to roll back.
+        raise _refusal(exc) from exc
+    db.commit()
+
+    return PlayerCreatedOut(
+        player=PlayerOut.model_validate(player),
+        organization_id=organization_id,
+        measurements=[MeasurementOut.model_validate(row) for row in measurements],
+        acknowledged_warnings=warnings,
+        consent_required=player.is_minor,
+    )
+
+
+@router.post(
+    "/players/{player_id}/measurements",
+    response_model=MeasurementsSavedOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def log_measurements(
+    player_id: uuid.UUID,
+    batch: MeasurementBatchIn,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> MeasurementsSavedOut:
+    """Log one visit's measurements for a player the caller may log for.
+
+    A player the caller cannot see is 404, for the same reason as the profile. A player they
+    can see but not log for (a scout, federation staff) is 403: they already know the player
+    exists, so there is nothing left to hide, and 403 tells them the true reason.
+    """
+    player = db.execute(
+        visible_players(caller).where(Player.id == player_id).limit(1)
+    ).scalar_one_or_none()
+    if player is None or not may_view(db, caller, player)[0]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such player.")
+
+    if not permissions(db, caller, player)["can_log"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your role does not permit logging measurements.",
+        )
+
+    try:
+        rows, warnings = writes.log_measurements(
+            db, player=player, batch=batch, actor_user_id=caller.user_id
+        )
+    except (writes.WriteRejected, writes.NeedsConfirmation) as exc:
+        # Every check runs before the first insert, so there is nothing to roll back.
+        raise _refusal(exc) from exc
+    db.commit()
+
+    return MeasurementsSavedOut(
+        measurements=[MeasurementOut.model_validate(row) for row in rows],
+        acknowledged_warnings=warnings,
+    )
