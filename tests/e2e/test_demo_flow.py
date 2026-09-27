@@ -100,7 +100,7 @@ def test_a_player_profile_renders_real_measurements(sign_in, page, identities):
     # The percentile section, which only exists when the cohort was big enough to quote one.
     profile = api(f"/players/{player['id']}/profile", identities["coach"]["email"])
     if profile["percentiles"]:
-        assert "against his age group" in body or "percentile" in body
+        assert "against their age group" in body or "percentile" in body
     assert profile["provenance"]["measurementCount"] > 0
     assert "measurements" in body
 
@@ -310,3 +310,71 @@ def test_an_unusual_reading_is_asked_about_before_it_is_saved(sign_in, page, ide
     page.wait_for_url(PROFILE_URL, timeout=15000)
     squad = api("/players", identities["coach"]["email"])
     assert name in {r["player"]["fullName"] for r in squad}
+
+
+# ---------------------------------------------------------------------------
+# Table tennis, through the same screens
+# ---------------------------------------------------------------------------
+
+
+def test_a_table_tennis_profile_is_laid_out_by_its_sport_module(sign_in, page, identities):
+    """The architecture's claim, in a browser: same profile screen, a different sport module.
+
+    Every label asserted here comes from packages/shared/sports/table_tennis.json. None of
+    them appears anywhere in the frontend's source.
+    """
+    federation = identities["federation"]["email"]
+    squad = api("/players", federation)
+    # The first table tennis player with matches. Not simply the first one: the add-player
+    # test below creates table tennis players with no matches, and they sort early by name.
+    player = next(
+        (
+            r["player"]
+            for r in squad
+            if r["player"]["primarySport"] == "table_tennis"
+            and api(f"/players/{r['player']['id']}/profile", federation)["performance"]
+        ),
+        None,
+    )
+    assert player, "no table tennis player with matches, so the test proves nothing"
+
+    sign_in("Federation", "/oversight")
+    page.goto(f"{WEB_URL}/players/{player['id']}", wait_until="networkidle")
+    page.wait_for_timeout(SETTLE_MS)
+    body = text_of(page)
+
+    assert "performance: matches" in body
+    for label in ("best of", "sets won", "sets lost", "points won", "matches won"):
+        assert label in body, label
+    # Nothing from football leaks onto a table tennis record.
+    assert "minutes" not in body
+    assert "shots" not in body
+
+
+def test_a_coach_can_add_a_table_tennis_player(sign_in, page, identities):
+    """The add-player screen's sports and roles come from the sport modules too."""
+    name = f"E2E Table Tennis {uuid.uuid4().hex[:6]}"
+    sign_in("Coach", "/dashboard")
+    page.goto(f"{WEB_URL}/players/new", wait_until="networkidle")
+    page.wait_for_timeout(SETTLE_MS)
+
+    form = page.locator("main")
+    form.locator("input[autocomplete='off']").fill(name)
+    form.locator("input[type='date']").fill("2011-05-04")
+    form.get_by_role("button", name="Table tennis", exact=True).click()
+    body = text_of(page)
+    assert "playing style" in body
+    form.get_by_role("button", name="chopper", exact=True).click()
+    form.get_by_role("button", name="Continue").click()
+    page.wait_for_timeout(1500)
+
+    form.locator("input[inputmode='decimal']").first.fill("150")
+    form.get_by_role("button", name="Save player and measurement").click()
+    page.wait_for_url(PROFILE_URL, timeout=15000)
+
+    squad = api("/players", identities["coach"]["email"])
+    row = next(r for r in squad if r["player"]["fullName"] == name)
+    assert row["player"]["primarySport"] == "table_tennis"
+    assert row["player"]["position"] == "chopper"
+    # Tier is a football idea; the table tennis module says so and the API obeyed it.
+    assert row["player"]["tier"] is None

@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import comparison, dev, health, integrity, oversight, players, search
+from app.routers import comparison, dev, health, integrity, oversight, players, search, sports
 
 settings = get_settings()
 
@@ -28,6 +28,7 @@ app.include_router(search.router)
 app.include_router(comparison.router)
 app.include_router(oversight.router)
 app.include_router(integrity.router)
+app.include_router(sports.router)
 # Development only, refused unless environment=development. Delete with the auth work.
 app.include_router(dev.router)
 

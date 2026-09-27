@@ -108,9 +108,9 @@ on something, for example `@northstar-egypt/security` on anything touching `User
    ORM models. Plant known ground-truth cases: late bloomers, fraud attempts, and duplicates,
    and record the ground truth so the detectors can be scored against it. This unblocks the ML
    track without waiting on the FootyStats subscription. (Data engineering, then ML.)
-2. **Per-sport JSON schemas** in `packages/shared` for `PerformanceEntry.metrics`
-   (`football@1`, `table_tennis@1`), plus the validation used on ingest. The files in
-   `packages/shared/schemas` today are illustrative drafts and are not enforced anywhere yet.
+2. **Per-sport JSON schemas** in `packages/shared` for `PerformanceEntry.metrics`, plus the
+   validation used on ingest. Done: these are now the sport modules in
+   `packages/shared/sports`, enforced by the generator, the API and the fraud detector.
    (Data engineering.)
 
 These two are sequential because the generator produces the metrics the schemas describe.

@@ -1,0 +1,53 @@
+{
+  "sport": "table_tennis",
+  "label": "Table tennis",
+  "roles": {
+    "label": "Playing style",
+    "values": ["attacker", "all_round", "defender", "chopper"]
+  },
+  "usesTier": false,
+  "periods": {
+    "table_tennis.match.v1": {
+      "periodType": "match",
+      "label": "Matches",
+      "schema": {
+        "type": "object",
+        "required": ["best_of", "sets_won", "sets_lost", "points_won", "points_lost"],
+        "additionalProperties": false,
+        "properties": {
+          "best_of": { "type": "integer", "enum": [3, 5, 7], "title": "Best of" },
+          "sets_won": { "type": "integer", "minimum": 0, "maximum": 4, "title": "Sets won" },
+          "sets_lost": { "type": "integer", "minimum": 0, "maximum": 4, "title": "Sets lost" },
+          "points_won": { "type": "integer", "minimum": 0, "title": "Points won" },
+          "points_lost": { "type": "integer", "minimum": 0, "title": "Points lost" },
+          "service_winners": { "type": "integer", "minimum": 0, "title": "Service winners" },
+          "unforced_errors": { "type": "integer", "minimum": 0, "title": "Unforced errors" }
+        }
+      },
+      "invariants": [
+        {
+          "raceTo": ["sets_won", "sets_lost"],
+          "bestOf": "best_of",
+          "message": "not a finished match: exactly one player must reach the winning number of sets"
+        },
+        {
+          "atLeast": "points_won",
+          "perUnit": "sets_won",
+          "value": 11,
+          "message": "fewer than 11 points in a set that was won"
+        },
+        {
+          "atLeast": "points_lost",
+          "perUnit": "sets_lost",
+          "value": 11,
+          "message": "fewer than 11 points conceded in a set that was lost"
+        }
+      ],
+      "derived": [
+        { "key": "match_win_rate", "label": "Matches won", "shareWhere": { "gt": ["sets_won", "sets_lost"] }, "format": "percent" },
+        { "key": "set_win_rate", "label": "Sets won", "numerator": ["sets_won"], "denominator": ["sets_won", "sets_lost"], "format": "percent" },
+        { "key": "point_win_rate", "label": "Points won", "numerator": ["points_won"], "denominator": ["points_won", "points_lost"], "format": "percent" }
+      ]
+    }
+  }
+}

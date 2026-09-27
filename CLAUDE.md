@@ -35,7 +35,7 @@ This is the single most important design idea in the project. Do not violate it.
 - Player identity, biometrics, time-series measurements, and organizational structure are
   **common across all sports** and live in normal relational columns.
 - Sport-specific performance metrics live in a **flexible JSON field** (`PerformanceEntry.metrics`)
-  validated by a **per-sport JSON schema** that lives in `packages/shared`.
+  validated by a **per-sport module** that lives in `packages/shared/sports`.
 - Adding a new sport should be a **config change** (a new validation schema + some metric
   definitions), not a database schema rewrite.
 
@@ -59,7 +59,7 @@ table, stop. It almost certainly belongs in the JSON metrics field with a schema
   /web          Next.js frontend (TypeScript, App Router, Tailwind)
   /api          Python FastAPI backend (SQLAlchemy + Alembic)
 /packages
-  /shared       Shared types and per-sport validation schemas (TS + Python, hand-written for now)
+  /shared       Shared types (TS + Python, hand-written for now) and the sport modules
 /data
   /pipelines    Ingestion scripts: footystats, ittf scraper, synthetic generator, bulk import
   /migrations   Postgres migration notes / SQL (Alembic migrations live under apps/api)

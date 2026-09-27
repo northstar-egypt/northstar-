@@ -15,12 +15,11 @@
  */
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Banner, Button, Card, Chip, Label, SectionTitle, inputClass } from "@/components/ui";
-import { createPlayer, writeRefusal, type MeasurementWarning } from "@/lib/api";
+import { createPlayer, getSports, writeRefusal, type MeasurementWarning } from "@/lib/api";
 import { ageLabel, isMinorFrom } from "@/lib/format";
-
-const POSITIONS = ["GK", "CB", "RB", "LB", "CM", "CDM", "CAM", "LW", "RW", "ST"];
+import type { SportModule } from "@/lib/types";
 
 /** Rough plausibility ceiling for adolescent growth, used to ask a question, not to reject. */
 const MAX_CM_PER_MONTH = 2.5;
@@ -28,6 +27,18 @@ const MAX_CM_PER_MONTH = 2.5;
 export default function NewPlayerPage() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
+
+  // Sports and their roles come from the sport modules (packages/shared/sports) through the
+  // API. Nothing on this screen names a sport, so a new module makes a new sport loggable.
+  const [sports, setSports] = useState<SportModule[] | null>(null);
+  const [sportsError, setSportsError] = useState<string | null>(null);
+  const [sport, setSport] = useState("football");
+  useEffect(() => {
+    getSports()
+      .then(setSports)
+      .catch((err) => setSportsError(err instanceof Error ? err.message : String(err)));
+  }, []);
+  const sportModule = sports?.find((m) => m.sport === sport) ?? null;
 
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
@@ -74,8 +85,9 @@ export default function NewPlayerPage() {
         position,
         nationality: nationalities,
         isEgyptEligible: egyptEligible,
-        primarySport: "football",
-        tier: "youth",
+        primarySport: sport,
+        // Only sports whose module uses the football tier model get one.
+        tier: sportModule?.usesTier ? "youth" : null,
         measurements: {
           measuredAt,
           metrics: [
@@ -147,16 +159,44 @@ export default function NewPlayerPage() {
             </Banner>
           ) : null}
 
-          <div className="flex flex-col gap-1.5">
-            <Label>Position</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {POSITIONS.map((p) => (
-                <Chip key={p} onClick={() => setPosition(p)} active={position === p}>
-                  {p}
-                </Chip>
-              ))}
+          {sports && sports.length > 1 ? (
+            <div className="flex flex-col gap-1.5">
+              <Label>Sport</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {sports.map((m) => (
+                  <Chip
+                    key={m.sport}
+                    onClick={() => {
+                      setSport(m.sport);
+                      setPosition("");
+                    }}
+                    active={sport === m.sport}
+                  >
+                    {m.label}
+                  </Chip>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
+
+          {sportsError ? (
+            <Banner tone="warn" title="Could not load the sports">
+              {sportsError}
+            </Banner>
+          ) : null}
+
+          {sportModule ? (
+            <div className="flex flex-col gap-1.5">
+              <Label>{sportModule.roleLabel}</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {sportModule.roles.map((r) => (
+                  <Chip key={r} onClick={() => setPosition(r)} active={position === r}>
+                    {r.replace(/_/g, " ")}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-1.5">
             <Label>Nationality</Label>
@@ -355,10 +395,6 @@ export default function NewPlayerPage() {
         <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-slate-500">
           <li>Guardian consent capture, which should be part of step 2 when a player is a minor.</li>
           <li>Editing an existing player. Same form, loaded with values, once the API can serve one.</li>
-          <li>
-            The position list is hard coded here. It should come from the sport module, which is
-            an open question in docs/schema.md.
-          </li>
         </ul>
       </Card>
     </div>

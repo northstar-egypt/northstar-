@@ -115,17 +115,33 @@ def test_ordinary_rows_are_not_caught(metrics):
     assert not fraud.impossible_rows(pf)
 
 
+@pytest.mark.parametrize(
+    ("metrics", "caught"),
+    [
+        ({"best_of": 5, "sets_won": 3, "sets_lost": 3}, True),  # both players won
+        ({"best_of": 5, "sets_won": 3, "sets_lost": 1, "points_won": 12}, True),
+        ({"best_of": 5, "sets_won": 3, "sets_lost": 1, "points_won": 44}, False),
+        ({"sets_won": 3}, False),  # partial, not impossible
+    ],
+)
+def test_the_rule_applies_to_table_tennis_without_a_change(metrics, caught):
+    """The rules come from the sport module, so table tennis is covered for free."""
+    pf = _fake_player_with_entries([metrics], schema_ref="table_tennis.match.v1")
+    assert bool(fraud.impossible_rows(pf)) is caught
+
+
 def test_metrics_that_are_not_a_dict_do_not_crash_the_rule():
     pf = _fake_player_with_entries([None, "nonsense", {"goals": 2, "shots": 0}])
     assert len(fraud.impossible_rows(pf)) == 1
 
 
-def _fake_player_with_entries(metric_dicts):
+def _fake_player_with_entries(metric_dicts, schema_ref="football.match.v1"):
     from ml.detectors.features import PlayerFeatures
 
     pf = PlayerFeatures(player_id="p", player={"id": "p"})
     pf.performance = [
-        {"id": f"e{i}", "metrics": m} for i, m in enumerate(metric_dicts)
+        {"id": f"e{i}", "metrics": m, "schema_ref": schema_ref}
+        for i, m in enumerate(metric_dicts)
     ]
     return pf
 

@@ -21,12 +21,8 @@ from datetime import date
 
 from pydantic import Field, field_validator
 
-from app.models.enums import (
-    FootballTier,
-    MeasurementConfidence,
-    PlayerSex,
-    Sport,
-)
+from app import sports
+from app.models.enums import FootballTier, MeasurementConfidence, PlayerSex
 from app.schemas.core import CamelModel, MeasurementOut, PlayerOut
 
 # ISO 3166-1 alpha-2, which is what every row the generator writes already uses. See the
@@ -108,7 +104,8 @@ class PlayerCreateIn(CamelModel):
     @field_validator("primary_sport")
     @classmethod
     def _sport(cls, value: str) -> str:
-        allowed = {item.value for item in Sport}
+        # The sport modules, not an enum, say which sports exist. See app/sports.py.
+        allowed = set(sports.registry())
         if value not in allowed:
             raise ValueError(f"must be one of {sorted(allowed)}")
         return value

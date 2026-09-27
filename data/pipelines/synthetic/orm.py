@@ -52,9 +52,11 @@ from app.models import (  # noqa: E402
     User,
 )
 from app.models import enums  # noqa: E402
+from app import sports  # noqa: E402
 
 __all__ = [
     "Base",
+    "sports",
     "AuditLog",
     "Consent",
     "Measurement",

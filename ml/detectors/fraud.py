@@ -21,8 +21,10 @@ breakdown. A combined F1 of 0.8 that is 5 easy cases and 6 of 9 hard ones is a
 different result from 0.8 spread evenly, and only one of them is worth shipping.
 
 The arithmetic rule is not machine learning and should not pretend to be. It is
-an integrity check that belongs in ingest validation, and the fact that it scores
-perfectly here is a statement about the generator, not about a model. It is
+an integrity check that belongs in ingest validation, and it now is: the rule is
+the sport modules' own check (`ml/sport_modules.py`), the same one ingest runs.
+The fact that it scores perfectly here is a statement about the generator, not
+about a model. It is
 included because the answer key labels those players and recall is measured
 against all 14.
 """
@@ -31,49 +33,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ml import sport_modules
+
 from .features import FeatureSet, PlayerFeatures
 
-# Rows are flagged when they break arithmetic that cannot be broken. Each entry is
-# (description, required metric keys, predicate).
+# Rows are flagged when their sport module says a present value cannot be true: out of range,
+# or breaking a cross-field rule such as "no more goals than shots". The rules live in
+# packages/shared/sports/<sport>.json, and ingest validation reads the same ones, so the two
+# cannot drift, and a new sport's rules apply here without a change to this file.
 #
-# The required keys are not decoration. A rule only fires when every field it
-# compares is actually present and numeric, because a missing field means unknown
-# and not zero. Reading absence as zero makes "scored without playing" fire on any
-# row that records a goal without recording minutes, which is an ordinary shape for
-# a partial import and would have put a fraud flag on a real child's record. A test
-# caught it; see `test_ordinary_rows_are_not_caught`.
-IMPOSSIBLE_ROW_RULES: tuple[tuple[str, tuple[str, ...], object], ...] = (
-    ("more goals than shots", ("goals", "shots"), lambda m: m["goals"] > m["shots"]),
-    (
-        "more shots on target than shots",
-        ("shots_on_target", "shots"),
-        lambda m: m["shots_on_target"] > m["shots"],
-    ),
-    (
-        "more passes completed than attempted",
-        ("passes_completed", "passes_attempted"),
-        lambda m: m["passes_completed"] > m["passes_attempted"],
-    ),
-    # The record for distance covered in a professional match sits around 14km.
-    # Anything past that in a youth fixture is a data-entry problem or a lie.
-    ("distance beyond human range", ("distance_km",), lambda m: m["distance_km"] > 14.0),
-    (
-        "scored without playing",
-        ("minutes_played", "goals"),
-        lambda m: m["minutes_played"] == 0 and m["goals"] > 0,
-    ),
-)
-
-
-def _numeric(metrics: dict, keys: tuple[str, ...]) -> dict[str, float] | None:
-    """The named metrics as floats, or None when any of them is missing or not a number."""
-    out: dict[str, float] = {}
-    for key in keys:
-        value = metrics.get(key)
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
-            return None
-        out[key] = float(value)
-    return out
+# Only present values are judged. A missing field means unknown and not zero. Reading absence
+# as zero makes "scored without playing" fire on any row that records a goal without
+# recording minutes, which is an ordinary shape for a partial import and would have put a
+# fraud flag on a real child's record. A test caught it; see
+# `test_ordinary_rows_are_not_caught`. That is why this calls `impossibilities`, which ignores
+# missing and malformed fields, and not `validate`, which reports them.
 
 
 @dataclass(frozen=True)
@@ -99,7 +73,7 @@ class FraudParams:
 
 
 def impossible_rows(pf: PlayerFeatures) -> list[tuple[str, str]]:
-    """Every performance row of this player's that breaks arithmetic.
+    """Every performance row of this player's that its sport module says cannot be true.
 
     Returns (entry_id, reason). Row level rather than player level because the
     answer key records the ids of the injected rows, and because a carrier also
@@ -113,11 +87,9 @@ def impossible_rows(pf: PlayerFeatures) -> list[tuple[str, str]]:
         metrics = entry.get("metrics") or {}
         if not isinstance(metrics, dict):
             continue
-        for description, required, predicate in IMPOSSIBLE_ROW_RULES:
-            values = _numeric(metrics, required)
-            if values is not None and predicate(values):
-                found.append((entry.get("id", ""), description))
-                break
+        problems = sport_modules.impossibilities(metrics, entry.get("schema_ref", ""))
+        if problems:
+            found.append((entry.get("id", ""), problems[0]))
     return found
 
 

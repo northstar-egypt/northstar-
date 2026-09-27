@@ -33,7 +33,7 @@ import {
 import { getProfile } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { num, ordinal, shortDate } from "@/lib/format";
-import type { PlayerProfile } from "@/lib/types";
+import type { PerformanceSection, PlayerProfile, SummaryStat } from "@/lib/types";
 
 export default function PlayerProfilePage() {
   // The route segment is read with useParams rather than taken as a `params` prop. From Next 15
@@ -78,10 +78,6 @@ export default function PlayerProfilePage() {
   // open question on fairness in the wireframe: there is no route for them to dispute one yet.
   const showFlags = data.permissions.canSeeFlags && !isOwnProfile;
 
-  const metricKeys = Array.from(
-    new Set(data.performance.flatMap((e) => Object.keys(e.metrics))),
-  );
-
   return (
     <div className="flex flex-col gap-5">
       {/* identity */}
@@ -92,9 +88,13 @@ export default function PlayerProfilePage() {
             <div>
               <h1 className="text-2xl font-bold leading-tight tracking-tight">{p.fullName}</h1>
               <p className="text-sm text-slate-500">
-                {data.organizationName}
-                {p.position ? ` · ${p.position}` : ""}
-                {p.tier ? ` · ${p.tier} tier` : ""}
+                {[
+                  data.organizationName,
+                  p.position?.replace(/_/g, " "),
+                  p.tier ? `${p.tier} tier` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -169,8 +169,8 @@ export default function PlayerProfilePage() {
                 </p>
                 <p className="text-xs text-slate-500">
                   {data.maturity.offsetYears < -0.5
-                    ? "Behind his age group, which is the late bloomer signal. Short for his age is not the same as short."
-                    : "In line with his age group."}
+                    ? "Behind their age group, which is the late bloomer signal. Short for their age is not the same as short."
+                    : "In line with their age group."}
                 </p>
               </div>
               <div>
@@ -194,7 +194,7 @@ export default function PlayerProfilePage() {
 
       {/* percentiles */}
       <Card>
-        <SectionTitle>Against his age group</SectionTitle>
+        <SectionTitle>Against their age group</SectionTitle>
         <div className="grid gap-4 sm:grid-cols-2">
           {data.percentiles.map((pc) => (
             <div key={pc.metric} className="flex flex-col gap-1.5">
@@ -214,59 +214,17 @@ export default function PlayerProfilePage() {
         </div>
       </Card>
 
-      {/* performance, driven by the sport module */}
-      <Card>
-        <SectionTitle
-          action={
-            <Chip tone="brand">
-              {data.performance[0]?.schemaRef ?? p.primarySport}
-            </Chip>
-          }
-        >
-          Performance
-        </SectionTitle>
-        {data.performance.length === 0 ? (
+      {/* performance, laid out by the sport module */}
+      {data.performance.length === 0 ? (
+        <Card>
+          <SectionTitle>Performance</SectionTitle>
           <p className="text-sm text-slate-500">No performance entries recorded.</p>
-        ) : (
-          <>
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Period</Th>
-                  {metricKeys.map((k) => (
-                    <Th key={k}>{k.replace(/_/g, " ")}</Th>
-                  ))}
-                  <Th>Source</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.performance.map((e) => (
-                  <tr key={e.id}>
-                    <Td className="whitespace-nowrap">
-                      {shortDate(e.periodStart)}
-                      {e.periodEnd ? ` to ${shortDate(e.periodEnd)}` : ""}
-                    </Td>
-                    {metricKeys.map((k) => (
-                      <Td key={k} className="tabular-nums">
-                        {e.metrics[k] ?? "-"}
-                      </Td>
-                    ))}
-                    <Td className="whitespace-nowrap text-slate-500">
-                      {e.source.replace(/_/g, " ")}
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-            <p className="mt-2 text-xs text-slate-500">
-              These columns are read from the entry&apos;s metrics rather than hard coded. Load a
-              table tennis player and the same component renders matches, sets, and rally length
-              from the same JSON field. If this section needed a rewrite to add a sport, the
-              architecture would have failed.
-            </p>
-          </>
-        )}
-      </Card>
+        </Card>
+      ) : (
+        data.performance.map((section) => (
+          <PerformanceCard key={section.schemaRef} section={section} />
+        ))
+      )}
 
       {/* assistant summary */}
       {data.summary ? (
@@ -299,4 +257,90 @@ export default function PlayerProfilePage() {
       </Card>
     </div>
   );
+}
+
+/**
+ * One kind of performance record. Every label, unit and statistic here comes from the sport
+ * module (packages/shared/sports/<sport>.json) by way of the API. Nothing in this component
+ * names a sport, a metric or a rule: a football season and a table tennis match go through
+ * the same code, and a new sport's module renders here without a change to this file.
+ */
+function PerformanceCard({ section }: { section: PerformanceSection }) {
+  return (
+    <Card>
+      <SectionTitle action={<Chip tone="brand">{section.schemaRef}</Chip>}>
+        {`Performance: ${section.label.toLowerCase()}`}
+      </SectionTitle>
+
+      {section.summary.length > 0 ? (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {section.summary.map((stat) => (
+            <div
+              key={stat.key}
+              className="min-w-[7rem] rounded-md border border-slate-800 bg-slate-900/40 px-3 py-2"
+            >
+              <Label>{stat.label}</Label>
+              <span className="block text-xl font-bold tabular-nums">{formatStat(stat)}</span>
+              <span className="text-[0.7rem] text-slate-500">over {stat.basis} records</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {!section.known ? (
+        <Banner tone="info" title="No sport module for these records">
+          Shown with their raw field names. Nothing validates them until a module in
+          packages/shared/sports defines {section.schemaRef}.
+        </Banner>
+      ) : null}
+
+      <Table>
+        <thead>
+          <tr>
+            <Th>Period</Th>
+            {section.columns.map((c) => (
+              <Th key={c.key}>
+                {c.label}
+                {c.unit ? ` (${c.unit})` : ""}
+              </Th>
+            ))}
+            <Th>Source</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {section.entries.map((e) => (
+            <tr key={e.id} className={e.problems ? "bg-amber-500/10" : undefined}>
+              <Td className="whitespace-nowrap">
+                {shortDate(e.periodStart)}
+                {e.periodEnd ? ` to ${shortDate(e.periodEnd)}` : ""}
+                {e.problems ? (
+                  <span className="block text-[0.7rem] text-amber-400" title={e.problems.join("; ")}>
+                    fails validation: {e.problems[0]}
+                  </span>
+                ) : null}
+              </Td>
+              {section.columns.map((c) => (
+                <Td key={c.key} className="tabular-nums">
+                  {String(e.metrics[c.key] ?? "-")}
+                </Td>
+              ))}
+              <Td className="whitespace-nowrap text-slate-500">{e.source.replace(/_/g, " ")}</Td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+
+      {section.excludedFromSummary > 0 ? (
+        <p className="mt-2 text-xs text-slate-500">
+          {section.excludedFromSummary} record{section.excludedFromSummary === 1 ? "" : "s"} fail
+          {section.excludedFromSummary === 1 ? "s" : ""} the sport&apos;s validation rules and
+          {section.excludedFromSummary === 1 ? " is" : " are"} left out of the figures above.
+        </p>
+      ) : null}
+    </Card>
+  );
+}
+
+function formatStat(stat: SummaryStat): string {
+  return stat.format === "percent" ? `${Math.round(stat.value * 100)}%` : stat.value.toFixed(2);
 }

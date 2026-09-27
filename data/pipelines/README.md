@@ -5,7 +5,9 @@ into the shared core shape, validate it, and load it into PostgreSQL.
 
 Every source has an adapter. All adapters feed one validation and cleaning layer before the
 database, so the DB only ever holds validated data. Sport-specific `metrics` are validated
-against the per-sport JSON schemas in `packages/shared/schemas`.
+against the sport modules in `packages/shared/sports`, through `app.sports.validate`. The
+synthetic generator already does: every row it writes must pass, and the only rows in a
+dataset that fail are the planted fraud rows.
 
 ## Planned pipelines
 

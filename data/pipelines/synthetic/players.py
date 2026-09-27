@@ -20,7 +20,7 @@ from datetime import date, timedelta
 
 from . import growth
 from .config import GeneratorConfig
-from .orm import Player, enums
+from .orm import Player, enums, sports
 from .reference import DIASPORA_COUNTRIES, EGYPT, FOOTBALL_POSITIONS, TABLE_TENNIS_STYLES
 from .rng import Rng
 
@@ -182,7 +182,9 @@ def generate_players(rng: Rng, config: GeneratorConfig) -> list[PlayerProfile]:
             nationality=nationality,
             is_egypt_eligible=eligible,
             primary_sport=sport,
-            tier=derive_tier(age, based_abroad),
+            # Tier is a football pathway. The sport module says whether a sport uses it,
+            # and table tennis does not.
+            tier=derive_tier(age, based_abroad) if sports.registry()[sport].uses_tier else None,
             position=_pick_position(rng, sport),
             is_minor=age < MINOR_AGE,
             external_ids=external_ids,

@@ -26,6 +26,8 @@ COPY data/pipelines/requirements.txt /repo/data/pipelines/requirements.txt
 RUN pip install --no-cache-dir -r data/pipelines/requirements.txt
 
 COPY apps /repo/apps
+# The sport modules: the generator validates every row it writes against them.
+COPY packages/shared/sports /repo/packages/shared/sports
 COPY data /repo/data
 COPY ml /repo/ml
 COPY docker/seed.py /repo/docker/seed.py

@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # CORS: which web origins may call the API. The Next.js dev server by default.
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Where the sport modules live (packages/shared/sports). Unset means "find them from the
+    # repository checkout", which is right for local runs; the API image sets it explicitly.
+    sport_modules_dir: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

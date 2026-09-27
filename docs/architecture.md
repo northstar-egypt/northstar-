@@ -74,8 +74,16 @@ and detection work has something to measure against before real data arrives.
 ### Ingestion pipelines (`data/pipelines`)
 Each source has an adapter that normalizes its data into the shared core shape. Everything
 then passes through one **validation and cleaning** layer that checks core fields and
-validates sport-specific `metrics` against the per-sport JSON schema in `packages/shared`.
+validates sport-specific `metrics` against the sport module in `packages/shared/sports`.
 Only validated data reaches the database, with the outcome recorded on each row.
+
+### Sport modules (`packages/shared/sports`)
+A sport is one JSON file: the name of a player's role and its values, whether the football
+tier model applies, and for each kind of performance record its metrics, labels, units, the
+rules that make a record impossible, and the summary statistics worth showing. Ingest
+validation, the add-player screen, the player profile and the fraud detector's arithmetic
+rule all read it. Adding a sport is adding a file; `apps/api/tests/test_sports.py` adds one
+for squash and uses it end to end without a code change. See `packages/shared/README.md`.
 
 ### Database (PostgreSQL)
 The single source of truth. Shared core in relational tables, sport-specific performance in

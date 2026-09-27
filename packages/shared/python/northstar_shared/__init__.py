@@ -4,8 +4,8 @@ Mirrors packages/shared/src/index.ts. Hand-written for now; keep in sync with th
 version by hand until codegen replaces the duplication (see this package's README).
 
 Consumed by the API, pipelines, and ML code so every Python component agrees on the shape of
-the shared core. The per-sport JSON schemas that validate PerformanceEntry.metrics live in
-packages/shared/schemas and are loaded via `schema_path`.
+the shared core. The sport modules that validate PerformanceEntry.metrics live in
+packages/shared/sports; `apps/api/app/sports.py` loads and validates them.
 """
 
 from __future__ import annotations
@@ -22,16 +22,13 @@ DataSource = Literal["api", "scrape", "coach_logged", "self_submitted", "import"
 
 PeriodType = Literal["match", "session", "tournament", "season_aggregate"]
 
-# Directory holding the per-sport JSON validation schemas.
-SCHEMAS_DIR = Path(__file__).resolve().parents[2] / "schemas"
+# Directory holding the sport modules. See packages/shared/README.md.
+SPORTS_DIR = Path(__file__).resolve().parents[2] / "sports"
 
 
-def schema_path(sport: Sport, version: int = 1) -> Path:
-    """Return the path to a sport's JSON validation schema.
-
-    The pipeline validation layer loads this to validate PerformanceEntry.metrics.
-    """
-    return SCHEMAS_DIR / f"{sport}.schema.json"
+def sport_module_path(sport: str) -> Path:
+    """Return the path to a sport's module file."""
+    return SPORTS_DIR / f"{sport}.json"
 
 
 @dataclass
@@ -51,7 +48,7 @@ class Player:
 
 @dataclass
 class PerformanceEntry:
-    """Sport-specific performance. `metrics` is validated against the sport's JSON schema."""
+    """Sport-specific performance. `metrics` is validated by the sport module for `schema_ref`."""
 
     id: str
     player_id: str

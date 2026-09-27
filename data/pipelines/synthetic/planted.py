@@ -284,7 +284,16 @@ def inject_metric_fraud_rows(
         template = by_player.get(profile.id)
         case = case_by_player.get(str(profile.id))
         injected_ids: list[str] = []
+        table_tennis = profile.player.primary_sport == enums.Sport.TABLE_TENNIS.value
         for _ in range(rng.randint(2, 4)):
+            if table_tennis:
+                # A table tennis carrier claims matches that cannot have been played. Before
+                # the sport modules existed these players were given football rows, which
+                # the arithmetic rule caught for the wrong reason.
+                injected_ids.append(
+                    _inject_table_tennis_row(rng, profile, template, reference, new_rows)
+                )
+                continue
             shots = rng.randint(1, 4)
             metrics = {
                 "minutes_played": rng.choice([0, 12, 90]),
@@ -322,6 +331,41 @@ def inject_metric_fraud_rows(
         if case is not None:
             case.detail["performance_entry_ids"] = injected_ids
     return new_rows
+
+
+def _inject_table_tennis_row(rng: Rng, profile: PlayerProfile, template, reference, rows) -> str:
+    from .orm import PerformanceEntry
+
+    best_of = rng.choice([5, 7])
+    target = best_of // 2 + 1
+    metrics = {
+        "best_of": best_of,
+        # Both players reached the winning number of sets: impossible in any format.
+        "sets_won": target,
+        "sets_lost": target,
+        "points_won": 11 * target + rng.randint(0, 8),
+        "points_lost": 11 * target + rng.randint(0, 8),
+        "service_winners": rng.randint(10, 25),
+        "unforced_errors": 0,
+    }
+    entry_id = rng.uuid()
+    rows.append(
+        PerformanceEntry(
+            id=entry_id,
+            player_id=profile.id,
+            sport=profile.player.primary_sport,
+            period_type=enums.PeriodType.MATCH.value,
+            period_start=reference - timedelta(days=rng.randint(0, 400)),
+            period_end=None,
+            organization_id=template.organization_id if template else None,
+            opponent_org_id=template.opponent_org_id if template else None,
+            metrics=metrics,
+            schema_ref="table_tennis.match.v1",
+            source=enums.PerformanceSource.SELF_SUBMITTED.value,
+            is_validated=False,
+        )
+    )
+    return str(entry_id)
 
 
 # ---------------------------------------------------------------------------

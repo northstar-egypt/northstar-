@@ -48,7 +48,7 @@ export interface Player {
 
 /**
  * Sport-specific performance payload. The `metrics` object is validated against the
- * per-sport JSON schema in packages/shared/schemas. `schemaRef` records which schema and
+ * sport module in packages/shared/sports. `schemaRef` records which kind of record and
  * version validated it, for example "football@1".
  */
 export interface PerformanceEntry {
