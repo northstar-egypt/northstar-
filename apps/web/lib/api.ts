@@ -29,6 +29,7 @@ import type {
   PlayerProfile,
   SearchResult,
   SessionUser,
+  SportModule,
   SquadRow,
 } from "./types";
 
@@ -180,6 +181,13 @@ export async function getProfile(playerId: string): Promise<PlayerProfile | null
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   }
+}
+
+/* ------------------------------------------------------------------ sports */
+
+/** Every sport with a module in packages/shared/sports, with its roles. */
+export async function getSports(): Promise<SportModule[]> {
+  return request<SportModule[]>("/sports");
 }
 
 /* ------------------------------------------------------------------ writes */

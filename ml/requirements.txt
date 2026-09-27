@@ -9,6 +9,12 @@
 # runtime, and it means `python -m ml.run_eval` works in any environment that can
 # already run the generator. Nothing below is needed to produce the numbers.
 #
+# One exception, deliberate: the fraud detector's arithmetic rule calls the sport
+# modules' validator in apps/api/app/sports.py (see ml/sport_modules.py), so that
+# ingest and the detector share one definition of an impossible record. That
+# validator is itself standard library, but importing the API package needs the
+# generator's environment below, which the harness needs anyway.
+#
 # Running the harness needs the generator's environment, because the evaluation
 # reads the dataset it produces and the seed sweep builds datasets in process:
 #

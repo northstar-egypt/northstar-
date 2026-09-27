@@ -199,7 +199,8 @@ def test_creation_is_audited(client, auth, world, db):
     [
         ({"dateOfBirth": (TODAY + timedelta(days=3)).isoformat()}, "future"),
         ({"dateOfBirth": _years_ago(3)}, "under"),
-        ({"primarySport": "table_tennis", "tier": "youth"}, "football players only"),
+        ({"primarySport": "table_tennis", "tier": "youth", "position": "attacker"}, "Tier does not apply"),
+        ({"primarySport": "table_tennis", "tier": None, "position": "ST"}, "not a playing style"),
         (
             {
                 "measurements": {

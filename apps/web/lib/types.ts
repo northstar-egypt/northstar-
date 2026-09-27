@@ -152,6 +152,56 @@ export interface MaturityEstimate {
   method: string;
 }
 
+/** One column of a performance table, as the sport module names it. */
+export interface MetricColumn {
+  key: string;
+  label: string;
+  unit: string | null;
+}
+
+/** A summary statistic the sport module defines, pooled over the player's valid records. */
+export interface SummaryStat {
+  key: string;
+  label: string;
+  value: number;
+  /** "percent" means `value` is a 0 to 1 share. */
+  format: "percent" | "number";
+  basis: number;
+}
+
+export interface PerformanceRecord extends Omit<PerformanceEntry, "metrics"> {
+  metrics: Record<string, number | string | boolean>;
+  /** Why the record fails its sport module. Null when valid, or when the viewer may not see it. */
+  problems: string[] | null;
+}
+
+/**
+ * One kind of performance record, laid out by its sport module
+ * (packages/shared/sports/<sport>.json). This screen knows nothing about any sport; it renders
+ * the columns and statistics it is given.
+ */
+export interface PerformanceSection {
+  schemaRef: string;
+  sport: string;
+  periodType: string;
+  label: string;
+  /** False when no sport module defines this kind of record. */
+  known: boolean;
+  columns: MetricColumn[];
+  summary: SummaryStat[];
+  excludedFromSummary: number;
+  entries: PerformanceRecord[];
+}
+
+/** A sport the platform has a module for. Drives the add-player screen. */
+export interface SportModule {
+  sport: string;
+  label: string;
+  roleLabel: string;
+  roles: string[];
+  usesTier: boolean;
+}
+
 export interface PlayerProfile {
   player: Player;
   organizationName: string | null;
@@ -160,7 +210,7 @@ export interface PlayerProfile {
   growth: GrowthSeries;
   maturity: MaturityEstimate | null;
   percentiles: Percentile[];
-  performance: PerformanceEntry[];
+  performance: PerformanceSection[];
   flags: FlagSummary[];
   flagReason: string | null;
   summary: string | null;

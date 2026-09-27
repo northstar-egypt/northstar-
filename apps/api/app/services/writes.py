@@ -31,12 +31,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
-from app.models.enums import (
-    MeasurementSource,
-    PlayerOrganizationRole,
-    PlayerStatus,
-    Sport,
-)
+from app import sports
+from app.models.enums import MeasurementSource, PlayerOrganizationRole, PlayerStatus
 from app.models.measurement import Measurement
 from app.models.organization import Organization
 from app.models.player import Player
@@ -123,10 +119,17 @@ def check_player(payload: PlayerCreateIn, today: date) -> list[str]:
         elif age > MAX_AGE_YEARS:
             problems.append(f"Date of birth makes this player {age}, over {MAX_AGE_YEARS}.")
 
-    # Tier is a football idea (pro, youth, diaspora). A table tennis player with a football
-    # tier would be counted in football tier totals on the oversight screen.
-    if payload.tier is not None and payload.primary_sport != Sport.FOOTBALL.value:
-        problems.append("Tier applies to football players only.")
+    # Whether tiers apply, and what a player's role can be, is the sport module's call. A
+    # table tennis player with a football tier would be counted in football tier totals on
+    # the oversight screen, and a "ST" chopper is a typo nobody would catch later.
+    module = sports.registry()[payload.primary_sport]
+    if payload.tier is not None and not module.uses_tier:
+        problems.append(f"Tier does not apply to {module.label.lower()}.")
+    if payload.position is not None and payload.position not in module.roles:
+        problems.append(
+            f"{payload.position!r} is not a {module.role_label.lower()} in "
+            f"{module.label.lower()}. Expected one of: {', '.join(module.roles)}."
+        )
     return problems
 
 

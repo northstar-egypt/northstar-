@@ -71,7 +71,7 @@ def explain(pf: PlayerFeatures) -> str:
     return (
         f"Tracking {abs(pf.height_z_mean or 0):.1f} standard deviations below the median "
         f"height for age {pf.stated_age:.0f}, but still growing at "
-        f"{pf.recent_velocity:.1f} cm/year. Short for his age group and still climbing, "
+        f"{pf.recent_velocity:.1f} cm/year. Short for their age group and still climbing, "
         f"which is the late-maturing pattern rather than a low ceiling."
     )
 

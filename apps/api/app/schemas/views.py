@@ -101,6 +101,50 @@ class PermissionsOut(CamelModel):
     can_see_flags: bool = False
 
 
+class MetricColumnOut(CamelModel):
+    key: str
+    label: str
+    unit: str | None = None
+
+
+class SummaryStatOut(CamelModel):
+    key: str
+    label: str
+    value: float
+    # "percent" (value is a 0 to 1 share) or "number".
+    format: str
+    # How many records the statistic was computed from.
+    basis: int
+
+
+class PerformanceRecordOut(PerformanceEntryOut):
+    # Why the record fails its sport module. Null when it passes, and also null when the
+    # caller may not see integrity findings, because "this record is impossible" is one.
+    problems: list[str] | None = None
+
+
+class PerformanceSectionOut(CamelModel):
+    """One kind of performance record, laid out by its sport module.
+
+    Columns, labels, units and summary statistics all come from
+    `packages/shared/sports/<sport>.json`. The frontend renders whatever is here and knows
+    nothing about any sport.
+    """
+
+    schema_ref: str
+    sport: str
+    period_type: str
+    label: str
+    # False when no sport module defines this schema_ref. The records are still shown, with
+    # their raw keys as columns, rather than hidden.
+    known: bool
+    columns: list[MetricColumnOut]
+    summary: list[SummaryStatOut] = []
+    # Records left out of the summary because they fail their module.
+    excluded_from_summary: int = 0
+    entries: list[PerformanceRecordOut] = []
+
+
 class PlayerProfileOut(CamelModel):
     player: PlayerOut
     organization_name: str | None = None
@@ -109,7 +153,7 @@ class PlayerProfileOut(CamelModel):
     growth: GrowthSeriesOut
     maturity: MaturityEstimateOut | None = None
     percentiles: list[PercentileOut] = []
-    performance: list[PerformanceEntryOut] = []
+    performance: list[PerformanceSectionOut] = []
     flags: list[FlagSummaryOut] = []
     flag_reason: str | None = None
     summary: str | None = None

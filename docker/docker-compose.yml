@@ -34,7 +34,9 @@ services:
 
   api:
     build:
-      context: ../apps/api
+      # The repository root, so the image can include packages/shared/sports.
+      context: ..
+      dockerfile: apps/api/Dockerfile
     container_name: northstar-api
     environment:
       DATABASE_URL: postgresql+psycopg://northstar:northstar@db:5432/northstar
@@ -45,6 +47,8 @@ services:
     volumes:
       # Mount source for hot reload during development.
       - ../apps/api:/app
+      # The sport modules, so editing one takes effect on restart without a rebuild.
+      - ../packages/shared/sports:/shared/sports:ro
     depends_on:
       db:
         condition: service_healthy

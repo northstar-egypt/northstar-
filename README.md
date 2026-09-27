@@ -57,7 +57,7 @@ apps/
   web/          Next.js frontend (TypeScript, App Router, Tailwind, Recharts)
   api/          FastAPI backend (SQLAlchemy 2.0 + Alembic)
 packages/
-  shared/       Shared types and per-sport validation schemas (TS + Python)
+  shared/       Shared types (TS + Python) and the sport modules (sports/*.json)
 data/
   pipelines/    Ingestion: footystats, ittf scraper, synthetic generator, bulk import
   migrations/   Migration notes (Alembic migrations live under apps/api)

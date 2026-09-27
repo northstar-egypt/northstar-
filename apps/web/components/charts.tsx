@@ -184,7 +184,7 @@ export function GrowthChart({ series, height = 220 }: { series: GrowthSeries; he
           <span className="inline-block h-2.5 w-4 bg-sky-400/20" /> forecast range
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-4 bg-slate-600/60" /> 25th to 75th for his age
+          <span className="inline-block h-2.5 w-4 bg-slate-600/60" /> 25th to 75th for their age
         </span>
       </figcaption>
     </figure>

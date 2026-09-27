@@ -103,9 +103,12 @@ detection at national scale will be harder than this.
 | age misrepresentation | 9 | 0.632 |
 
 The perfect score on the first is arithmetic, not machine learning: those rows record more
-goals than shots, more passes completed than attempted, and distances no human has run.
-That check belongs in ingest validation rather than in a model, and the fact that it scores
-perfectly is a statement about the generator. Age misrepresentation is the subtype that
+goals than shots, more passes completed than attempted, and distances no human has run, or
+for a table tennis carrier, matches both players won. That check belongs in ingest
+validation rather than in a model, and it now is: the rule is the sport modules' own check
+(`packages/shared/sports`), the same one ingest runs, so a new sport's rules reach the
+detector without a change to it. The fact that it scores perfectly is a statement about the
+generator. Age misrepresentation is the subtype that
 matters, it carries 9 of the 14 cases, and at 0.632 it is doing about half the work the
 headline 0.759 suggests. Anyone quoting the fraud number should quote this one alongside it.
 

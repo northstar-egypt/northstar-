@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from .config import GeneratorConfig
-from .orm import Organization, PerformanceEntry, enums
+from .orm import Organization, PerformanceEntry, enums, sports
 from .players import PlayerProfile
 from .rng import Rng
 
@@ -150,21 +150,46 @@ def _football_match_metrics(
 
 
 def _table_tennis_metrics(rng: Rng, profile: PlayerProfile, ability: float) -> dict:
-    sets_played = rng.randint(3, 7)
-    sets_won = rng.binomial(sets_played, min(0.85, 0.35 + 0.2 * ability))
-    points_played = sets_played * rng.randint(14, 22)
-    points_won = rng.binomial(points_played, min(0.75, 0.4 + 0.12 * ability))
-    metrics = {
-        "sets_played": sets_played,
-        "sets_won": min(sets_won, sets_played),
-        "points_played": points_played,
-        "points_won": min(points_won, points_played),
-        "service_winners": rng.poisson(3.0 * ability),
-        "unforced_errors": rng.poisson(9.0 / max(ability, 0.4)),
+    """One finished match, played point by point.
+
+    The previous version drew sets played and sets won independently, which produced
+    matches nobody could have played: 2 sets won out of 4, 3 out of 7. The table tennis
+    sport module rejected 681 of 681 rows the first time it ran. Playing the match instead
+    makes every row a real result by construction: sets go to 11, win by 2, and the match
+    stops as soon as one player reaches the winning number of sets.
+
+    Ability moves the chance of winning a point, which is the quantity it actually changes,
+    and everything else (sets, match result, points) follows from that.
+    """
+    best_of = 7 if rng.chance(0.3) else 5
+    target = best_of // 2 + 1
+    p_point = min(0.62, max(0.38, 0.40 + 0.12 * ability))
+
+    sets_won = sets_lost = points_won = points_lost = 0
+    while sets_won < target and sets_lost < target:
+        mine = theirs = 0
+        while not ((mine >= 11 or theirs >= 11) and abs(mine - theirs) >= 2):
+            if rng.chance(p_point):
+                mine += 1
+            else:
+                theirs += 1
+        points_won += mine
+        points_lost += theirs
+        if mine > theirs:
+            sets_won += 1
+        else:
+            sets_lost += 1
+
+    sets = sets_won + sets_lost
+    return {
+        "best_of": best_of,
+        "sets_won": sets_won,
+        "sets_lost": sets_lost,
+        "points_won": points_won,
+        "points_lost": points_lost,
+        "service_winners": rng.poisson(0.6 * sets * ability),
+        "unforced_errors": rng.poisson(2.0 * sets / max(ability, 0.4)),
     }
-    assert metrics["sets_won"] <= metrics["sets_played"]
-    assert metrics["points_won"] <= metrics["points_played"]
-    return metrics
 
 
 def _draw_minutes(rng: Rng, config: GeneratorConfig) -> int:
@@ -250,6 +275,13 @@ def generate_performance_entries(
                 weights=[0.34, 0.22, 0.36, 0.08],
                 k=1,
             )[0]
+
+            # Every generated row must pass its sport module. A failure here is a generator
+            # bug, and it is raised now rather than left for the fraud detector to trip on as
+            # a false positive. The planted fraud rows are added later, in planted.py, and are
+            # the only rows in the dataset that fail.
+            problems = sports.validate(metrics, schema_ref)
+            assert not problems, f"{schema_ref} row fails its sport module: {problems}"
 
             rows.append(
                 PerformanceEntry(

@@ -1,4 +1,5 @@
-# Build context for images built from the repository root (currently docker/seed.Dockerfile).
+# Build context for images built from the repository root (docker/seed.Dockerfile and
+# apps/api/Dockerfile).
 #
 # Without this, `docker build` ships node_modules, .next and the whole git history into the
 # daemon, which turns a small image into a slow one.
@@ -20,3 +21,4 @@ venv/
 # are gitignored precisely so they never travel.
 data/pipelines/synthetic/out/
 out/
+**/*.egg-info/

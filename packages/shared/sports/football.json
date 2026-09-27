@@ -1,0 +1,83 @@
+{
+  "sport": "football",
+  "label": "Football",
+  "roles": {
+    "label": "Position",
+    "values": ["GK", "CB", "RB", "LB", "CDM", "CM", "CAM", "LW", "RW", "ST"]
+  },
+  "usesTier": true,
+  "periods": {
+    "football.match.v1": {
+      "periodType": "match",
+      "label": "Matches",
+      "schema": {
+        "type": "object",
+        "required": [
+          "minutes_played", "shots", "shots_on_target", "goals", "assists", "key_passes",
+          "passes_attempted", "passes_completed", "tackles", "distance_km",
+          "yellow_cards", "red_cards"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "minutes_played": { "type": "integer", "minimum": 0, "maximum": 120, "title": "Minutes", "x-unit": "min" },
+          "goals": { "type": "integer", "minimum": 0, "title": "Goals" },
+          "assists": { "type": "integer", "minimum": 0, "title": "Assists" },
+          "shots": { "type": "integer", "minimum": 0, "title": "Shots" },
+          "shots_on_target": { "type": "integer", "minimum": 0, "title": "On target" },
+          "key_passes": { "type": "integer", "minimum": 0, "title": "Key passes" },
+          "passes_attempted": { "type": "integer", "minimum": 0, "title": "Passes" },
+          "passes_completed": { "type": "integer", "minimum": 0, "title": "Completed" },
+          "tackles": { "type": "integer", "minimum": 0, "title": "Tackles" },
+          "distance_km": { "type": "number", "minimum": 0, "maximum": 15, "title": "Distance", "x-unit": "km" },
+          "yellow_cards": { "type": "integer", "minimum": 0, "maximum": 2, "title": "Yellow" },
+          "red_cards": { "type": "integer", "minimum": 0, "maximum": 1, "title": "Red" }
+        }
+      },
+      "invariants": [
+        { "lte": ["goals", "shots"], "message": "more goals than shots" },
+        { "lte": ["goals", "shots_on_target"], "message": "more goals than shots on target" },
+        { "lte": ["shots_on_target", "shots"], "message": "more shots on target than shots" },
+        { "lte": ["passes_completed", "passes_attempted"], "message": "more passes completed than attempted" },
+        {
+          "ifZero": "minutes_played",
+          "thenZero": [
+            "shots", "shots_on_target", "goals", "assists", "key_passes", "passes_attempted",
+            "passes_completed", "tackles", "distance_km", "yellow_cards", "red_cards"
+          ],
+          "message": "recorded actions in a match the player did not play"
+        }
+      ],
+      "derived": [
+        { "key": "goals_per_90", "label": "Goals per 90", "numerator": ["goals"], "denominator": ["minutes_played"], "scale": 90, "format": "number" },
+        { "key": "shot_conversion", "label": "Shot conversion", "numerator": ["goals"], "denominator": ["shots"], "format": "percent" },
+        { "key": "pass_completion", "label": "Pass completion", "numerator": ["passes_completed"], "denominator": ["passes_attempted"], "format": "percent" }
+      ]
+    },
+    "football.season_aggregate.v1": {
+      "periodType": "season_aggregate",
+      "label": "Season totals",
+      "schema": {
+        "type": "object",
+        "required": ["appearances", "minutes_played", "goals", "assists", "shots", "shots_on_target"],
+        "additionalProperties": false,
+        "properties": {
+          "appearances": { "type": "integer", "minimum": 0, "maximum": 70, "title": "Apps" },
+          "minutes_played": { "type": "integer", "minimum": 0, "title": "Minutes", "x-unit": "min" },
+          "goals": { "type": "integer", "minimum": 0, "title": "Goals" },
+          "assists": { "type": "integer", "minimum": 0, "title": "Assists" },
+          "shots": { "type": "integer", "minimum": 0, "title": "Shots" },
+          "shots_on_target": { "type": "integer", "minimum": 0, "title": "On target" }
+        }
+      },
+      "invariants": [
+        { "lte": ["goals", "shots"], "message": "more goals than shots" },
+        { "lte": ["goals", "shots_on_target"], "message": "more goals than shots on target" },
+        { "lte": ["shots_on_target", "shots"], "message": "more shots on target than shots" }
+      ],
+      "derived": [
+        { "key": "goals_per_90", "label": "Goals per 90", "numerator": ["goals"], "denominator": ["minutes_played"], "scale": 90, "format": "number" },
+        { "key": "shot_conversion", "label": "Shot conversion", "numerator": ["goals"], "denominator": ["shots"], "format": "percent" }
+      ]
+    }
+  }
+}

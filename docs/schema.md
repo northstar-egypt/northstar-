@@ -154,39 +154,46 @@ window). This is where the JSON sport module lives.
 | organization_id  | UUID FK, null | The club/academy context, if any.                              |
 | opponent_org_id  | UUID FK, null | For match-type entries.                                        |
 | metrics          | JSONB         | Sport-specific payload. Validated against schema_ref.          |
-| schema_ref       | text          | Which sport schema + version validated this, e.g. `football@1`. |
+| schema_ref       | text          | Which kind of record, e.g. `football.match.v1`. A sport module defines it. |
 | source           | enum          | `api` / `scrape` / `coach_logged` / `self_submitted` / `import`. |
-| is_validated     | boolean       | Did it pass the sport schema validation on ingest.             |
+| is_validated     | boolean       | Whether the record came from a trusted source (API, coach). Module validity is computed from `schema_ref`. |
 
-Example `metrics` for football (illustrative, not final):
+Example `metrics` for a football match (`football.match.v1`):
 
 ```json
 {
-  "minutes": 90,
+  "minutes_played": 90,
+  "shots": 3,
+  "shots_on_target": 2,
   "goals": 1,
   "assists": 0,
-  "xg": 0.42,
-  "shots": 3,
-  "passes_completed": 41,
-  "distance_km": 10.8
+  "key_passes": 1,
+  "passes_attempted": 40,
+  "passes_completed": 33,
+  "tackles": 2,
+  "distance_km": 10.2,
+  "yellow_cards": 0,
+  "red_cards": 0
 }
 ```
 
-Example `metrics` for table tennis (illustrative, not final):
+Example `metrics` for a table tennis match (`table_tennis.match.v1`):
 
 ```json
 {
-  "matches_played": 5,
-  "matches_won": 4,
-  "sets_won": 13,
-  "sets_lost": 6,
-  "avg_rally_length": 4.2,
-  "service_points_won_pct": 0.61
+  "best_of": 5,
+  "sets_won": 3,
+  "sets_lost": 1,
+  "points_won": 44,
+  "points_lost": 35,
+  "service_winners": 3,
+  "unforced_errors": 6
 }
 ```
 
-The per-sport JSON schemas that validate these payloads live in `packages/shared` so the
-frontend, backend, and pipelines all validate against one source of truth.
+The sport modules that define and validate these payloads live in `packages/shared/sports`,
+one file per sport, so the frontend, backend, pipelines and ML code all read one source of
+truth. See `packages/shared/README.md` for what a module contains.
 
 ## User
 
