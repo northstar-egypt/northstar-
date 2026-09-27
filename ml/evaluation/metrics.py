@@ -174,3 +174,90 @@ class ScoreSet:
 
     def as_dict(self) -> dict:
         return {"title": self.title, "scores": [s.as_dict() for s in self.scores]}
+
+
+# ---------------------------------------------------------------------------
+# Forecast error
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ErrorScore:
+    """One forecaster's error over a set of forecast cases.
+
+    `bias` is mean(predicted - actual), so positive means the forecaster runs tall. MAE and
+    RMSE say how wrong it is; bias says which way, and a model that is systematically short
+    for late maturers is a different finding from one that is merely noisy.
+
+    `missing` counts cases the forecaster declined to answer. They are excluded from the
+    errors rather than filled in, and reported so a model cannot look accurate by staying
+    quiet on the hard cases.
+    """
+
+    forecaster: str
+    n: int
+    mae: float
+    rmse: float
+    bias: float
+    missing: int = 0
+    # 95% interval on MAE from resampling players, not forecast cases. See `error_score`.
+    mae_ci: tuple[float, float] = (0.0, 0.0)
+    note: str = ""
+
+    def as_dict(self) -> dict:
+        return {
+            "forecaster": self.forecaster,
+            "n": self.n,
+            "mae": round(self.mae, 4),
+            "rmse": round(self.rmse, 4),
+            "bias": round(self.bias, 4),
+            "missing": self.missing,
+            "mae_ci95": [round(v, 4) for v in self.mae_ci],
+            "note": self.note,
+        }
+
+
+def error_score(
+    forecaster: str,
+    pairs: list[tuple[str, float | None, float]],
+    *,
+    resamples: int = 1000,
+    seed: int = 0,
+    note: str = "",
+) -> ErrorScore:
+    """Score (player_id, predicted, actual) triples.
+
+    The interval resamples *players*, not cases. One player contributes a forecast from
+    every origin to every later reading, so their cases are strongly correlated, and treating
+    two thousand cases from two hundred children as two thousand independent draws would
+    report an interval several times too narrow.
+    """
+    import random
+
+    answered = [(pid, p, a) for pid, p, a in pairs if p is not None]
+    missing = len(pairs) - len(answered)
+    if not answered:
+        return ErrorScore(forecaster, 0, 0.0, 0.0, 0.0, missing=missing, note=note)
+
+    errors = [p - a for _, p, a in answered]
+    n = len(errors)
+    mae = sum(abs(e) for e in errors) / n
+    rmse = math.sqrt(sum(e * e for e in errors) / n)
+    bias = sum(errors) / n
+
+    by_player: dict[str, list[float]] = {}
+    for pid, p, a in answered:
+        by_player.setdefault(pid, []).append(abs(p - a))
+    players = sorted(by_player)
+    rng = random.Random(seed)
+    maes = []
+    for _ in range(resamples):
+        total = count = 0.0
+        for pid in rng.choices(players, k=len(players)):
+            total += sum(by_player[pid])
+            count += len(by_player[pid])
+        maes.append(total / count)
+    maes.sort()
+    ci = (maes[int(0.025 * resamples)], maes[int(0.975 * resamples) - 1])
+
+    return ErrorScore(forecaster, n, mae, rmse, bias, missing=missing, mae_ci=ci, note=note)
