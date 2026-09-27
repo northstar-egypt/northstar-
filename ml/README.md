@@ -21,7 +21,8 @@ We are graded on measured performance, so every model ships with a harness:
 
 - **Detectors**: precision / recall / F1 against planted ground truth. Done.
 - **Forecasts**: walk-forward validation, MAE / RMSE against two baselines (last-value and
-  population-average). A model that cannot beat those baselines is not done. Not started.
+  population-average). A model that cannot beat those baselines is not done. Height done,
+  see below.
 - **Access control** and **system demo** targets live with their workstreams, not here.
 
 ## Running the detector evaluation
@@ -108,6 +109,72 @@ perfectly is a statement about the generator. Age misrepresentation is the subty
 matters, it carries 9 of the 14 cases, and at 0.632 it is doing about half the work the
 headline 0.759 suggests. Anyone quoting the fraud number should quote this one alongside it.
 
+## Height forecasts, v1
+
+```bash
+python -m ml.run_forecast_eval                                  # the default dataset
+python -m ml.run_forecast_eval --seed-sweep 20260827 7 99 404 555
+```
+
+**How it is validated.** Walk-forward over calendar origins, every 91 days from a year after
+the first measurement. At each origin the forecasters see every measurement dated on or before
+it, for every player, and nothing after. They forecast each player's readings up to a year
+ahead. The origin is shared by all players rather than cut per player, because a per-player
+cut would let the population curves learn from other children's later readings.
+`test_forecasts_at_an_origin_cannot_see_past_it` rewrites everything after an origin and
+checks that the forecasts made at it do not move, and it fails if the leak is put back.
+
+**Headline**: mean absolute error in cm, players under 18 at the origin, five datasets:
+
+| forecaster | 20260827 | 7 | 99 | 404 | 555 | mean |
+| --- | --- | --- | --- | --- | --- | --- |
+| baseline: last value | 3.07 | 3.21 | 3.03 | 3.24 | 3.12 | 3.13 |
+| baseline: population average | 5.39 | 5.57 | 5.36 | 5.74 | 5.02 | 5.42 |
+| **cohort velocity** | 0.88 | 0.93 | 0.91 | 0.81 | 0.89 | **0.89** |
+| centile tracking | 1.82 | 1.98 | 2.07 | 1.78 | 2.18 | 1.97 |
+
+Cohort velocity is the last reading plus how much the median child of that sex grows between
+the two ages, with the growth curve learned from the training window. It beats last value by
+72% and population average by 84%, on every seed. RMSE and a player-resampled 95% interval on
+MAE are in the full output.
+
+**No constant was tuned against these numbers.** Every threshold in `forecasting/models.py`
+was set before the first run and none has changed since. That is also why the adult defect
+below is reported and not fixed.
+
+**The uncertainty band** is the band the player profile needs. It is an 80% interval around
+cohort velocity built from the errors of earlier forecasts whose outcomes had already been
+measured by the origin, so it is walk-forward as well. Observed coverage on the five seeds:
+81.6%, 82.0%, 80.9%, 82.8%, 84.3%, at a mean width of about 3 cm. Slightly wide, never
+narrow.
+
+Read the headline with these in mind.
+
+**The problem as generated is smooth, so the model is close to the floor.** Synthetic heights
+are a growth curve plus 0.55 cm of noise per reading. With that noise on both the last reading
+and the target, a perfect forecaster still scores an MAE of about 0.62 cm. Cohort velocity
+averages 0.70 up to three months ahead and 1.07 at six to twelve months. Real children are measured on
+different stadiometers by different people and grow less tidily, so real error will be higher.
+
+**It gets adults wrong, and last value should be used for them.** Over 18 at the origin, last
+value scores 0.64 and cohort velocity 1.04, with a bias of +0.56 cm. The learned velocity
+curve is still slightly positive past 18, where there are few players to learn from, so the
+model has adults growing about half a centimetre a year. Any forecast shown for an adult
+should be a flat line.
+
+**Late bloomers are harder, as they should be.** MAE 1.12 on the 14 planted late bloomers
+against 0.89 overall, still a third of the best baseline's 3.32. Their spurt comes later than
+the cohort's, which is the same fact the late-bloomer detector is built on.
+
+**Age fraud shows up as a forecast that runs tall.** On the planted age-misrepresentation
+cases cohort velocity has a bias of +0.91 cm, against roughly zero for everyone else. The
+model expects growth for the stated age that the older body has already done. A persistent
+positive forecast residual is therefore a fraud signal the detector does not use yet.
+
+**It is less accurate for girls**: 0.99 against 0.83 for boys. Girls are 34% of the
+population and their reference curve is built from fewer children. The gap is smaller than
+the gap to either baseline, but it is there and it is now measured.
+
 ## What the detectors actually do
 
 All three are threshold rules over a handful of features, not trained models. That is a
@@ -160,7 +227,7 @@ detectors/     late-bloomer, fraud, duplicate + the features they share   done
 evaluation/    metrics and the scoring harness, shared with forecasting   done
 run_eval.py    CLI entry point                                            done
 write_flags.py detector run that writes flags to the database             done
-forecasting/   trajectory models + walk-forward harness                   TODO
+forecasting/   height forecasters + walk-forward harness                 done
 similarity/    embedding + nearest-neighbor search                        TODO
 assistant/     Ollama prompt + retrieval grounding                        TODO
 artifacts/     trained models (gitignored)

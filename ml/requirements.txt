@@ -23,6 +23,7 @@ scikit-learn==1.5.*
 
 pytest==8.3.*
 
-# TODO (forecasting): the trajectory models are where numpy, pandas and a gradient
-#   boosting library actually become necessary. Add them when that lands rather
-#   than in advance, and note why each one is here.
+# The height forecasters (ml/forecasting) are standard-library only as well. v1 is a
+# learned population growth curve, which needs medians and interpolation, not a
+# gradient boosting library. If a trained model replaces it, add the dependency
+# then, and note why it is here.
