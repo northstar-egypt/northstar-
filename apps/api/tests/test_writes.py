@@ -28,6 +28,9 @@ def _years_ago(years: int, extra_days: int = 0) -> str:
     return (date(TODAY.year - years, TODAY.month, min(TODAY.day, 28)) - timedelta(days=extra_days)).isoformat()
 
 
+GUARDIAN = "Hoda Test Guardian"
+
+
 def new_player(**overrides) -> dict:
     body = {
         "fullName": "Karim Test Player",
@@ -38,6 +41,7 @@ def new_player(**overrides) -> dict:
         "primarySport": "football",
         "tier": "youth",
         "position": "ST",
+        "consent": {"signed": True, "guardianName": GUARDIAN},
         "measurements": {
             "measuredAt": TODAY.isoformat(),
             "metrics": [
@@ -146,14 +150,14 @@ def test_minor_status_comes_from_the_date_of_birth_not_the_client(client, auth, 
     body = new_player(isMinor=False, dateOfBirth=_years_ago(12))
     created = client.post("/players", json=body, headers=auth("coach_a")).json()
     assert created["player"]["isMinor"] is True
-    assert created["consentRequired"] is True
+    assert created["consentGrantedBy"] == f"guardian:{GUARDIAN}"
 
 
 def test_adult_is_not_a_minor(client, auth, world):
     body = new_player(dateOfBirth=_years_ago(22), tier="pro")
     created = client.post("/players", json=body, headers=auth("coach_a")).json()
     assert created["player"]["isMinor"] is False
-    assert created["consentRequired"] is False
+    assert created["consentGrantedBy"] == "player"
 
 
 @pytest.mark.parametrize(
@@ -171,11 +175,73 @@ def test_minor_boundary_is_the_birthday(dob, on, minor):
     assert is_minor_on(dob, on) is minor
 
 
-def test_new_minor_is_withheld_from_scouts(client, auth, world):
-    """No consent is written on creation, and absence of consent is not consent."""
+def consents_of(db, player_id) -> list:
+    from app.models.consent import Consent
+
+    return list(db.execute(select(Consent).where(Consent.player_id == player_id)).scalars())
+
+
+def test_sign_up_consent_is_saved_for_every_purpose(client, auth, world, db):
+    created = client.post("/players", json=new_player(), headers=auth("coach_a")).json()
+    rows = consents_of(db, uuid.UUID(created["player"]["id"]))
+    assert {r.purpose for r in rows} == {"data_storage", "analytics", "scouting_visibility"}
+    for row in rows:
+        assert row.granted is True
+        assert row.guardian_name == GUARDIAN
+        assert row.granted_by == f"guardian:{GUARDIAN}"
+        assert row.valid_from == TODAY
+        assert row.valid_until is None
+
+
+def test_an_adult_signs_for_themselves_and_a_guardian_name_is_ignored(client, auth, world, db):
+    body = new_player(dateOfBirth=_years_ago(22), tier="pro")
+    created = client.post("/players", json=body, headers=auth("coach_a")).json()
+    for row in consents_of(db, uuid.UUID(created["player"]["id"])):
+        assert row.granted_by == "player"
+        assert row.guardian_name is None
+
+
+def test_new_minor_is_visible_to_scouts(client, auth, world):
+    """Signing up is consenting, so a new minor is visible to scouts straight away."""
     created = client.post("/players", json=new_player(), headers=auth("coach_a")).json()
     player_id = created["player"]["id"]
+    assert client.get(f"/players/{player_id}/profile", headers=auth("scout")).status_code == 200
+
+
+def test_withdrawn_consent_hides_the_minor_from_scouts_again(client, auth, world, db):
+    created = client.post("/players", json=new_player(), headers=auth("coach_a")).json()
+    player_id = created["player"]["id"]
+    for row in consents_of(db, uuid.UUID(player_id)):
+        if row.purpose == "scouting_visibility":
+            row.granted = False
+    db.commit()
+
     assert client.get(f"/players/{player_id}/profile", headers=auth("scout")).status_code == 404
+    # Their own coach still sees them: consent to be scouted is not consent to exist.
+    assert client.get(f"/players/{player_id}/profile", headers=auth("coach_a")).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("consent", "fragment"),
+    [
+        ({"signed": False, "guardianName": GUARDIAN}, "has not been signed"),
+        ({"signed": True, "guardianName": None}, "named guardian"),
+        ({"signed": True, "guardianName": "   "}, "named guardian"),
+    ],
+)
+def test_no_player_without_sign_up_consent(client, auth, world, db, consent, fragment):
+    body = new_player(fullName="No Consent Player", consent=consent)
+    response = client.post("/players", json=body, headers=auth("coach_a"))
+    assert response.status_code == 422, response.text
+    assert fragment in " ".join(response.json()["detail"]["problems"])
+    assert players_named(db, body["fullName"]) == 0
+
+
+def test_a_request_without_the_consent_form_is_refused(client, auth, world, db):
+    body = new_player(fullName="Missing Consent Field")
+    del body["consent"]
+    assert client.post("/players", json=body, headers=auth("coach_a")).status_code == 422
+    assert players_named(db, body["fullName"]) == 0
 
 
 def test_creation_is_audited(client, auth, world, db):
@@ -185,7 +251,9 @@ def test_creation_is_audited(client, auth, world, db):
     (row,) = audit_rows(db, "player.create", player_id)
     assert row.actor_user_id == world["users"]["coach_a"].id
     assert row.event_metadata["is_minor"] is True
-    assert row.event_metadata["consent_recorded"] is False
+    (grant,) = audit_rows(db, "consent.grant", player_id)
+    assert grant.actor_user_id == world["users"]["coach_a"].id
+    assert grant.event_metadata["granted_by"] == f"guardian:{GUARDIAN}"
     assert len(audit_rows(db, "measurement.create", player_id)) == 1
 
 

@@ -98,8 +98,10 @@ sitting. The rules come from `docs/schema.md` and `docs/threat-model.md`:
 - **coach** sees and edits players in their own organization. A coach with no organization
   sees nobody, because failing closed surfaces a broken account instead of leaking a squad.
 - **scout** reads across the population but **cannot see a minor without a current
-  `scouting_visibility` consent**. In search those players come back marked `withheld` with
-  the name and date of birth stripped, so the screen renders a locked card.
+  `scouting_visibility` consent**. Consent is signed at sign-up (see below), so in normal
+  operation every minor is visible. If a guardian withdraws it, that minor comes back from
+  search marked `withheld` with the name and date of birth stripped, and the screen renders a
+  locked card.
 - **federation** and **admin** read broadly. Only admins edit.
 - **player** sees only their own record, and does not see model flags about themselves.
 
@@ -109,9 +111,12 @@ A player the caller may not see returns **404, not 403**. A distinguishable stat
 an unauthorised caller that the player exists, which for a child without scouting consent is
 exactly the disclosure the rule exists to prevent.
 
-Whether a blocked minor should appear as a locked card or not at all is still an open team
-decision (`docs/wireframes/README.md`). The wireframe drew the locked card, so that is what
-this implements, and the alternative is one filter in the search router.
+**Consent is signed at sign-up.** Joining the platform means signing one consent form covering
+storage, analytics and scouting visibility: a named guardian signs for a minor, the player
+for an adult. `POST /players` refuses a player without it (422) and saves the three consent
+rows and a `consent.grant` audit entry in the same transaction. The synthetic dataset follows
+the same model, so no seeded player is withheld. The consent check still runs on every scout
+request, because withdrawal is the safeguard offered to parents.
 
 ## Tests
 

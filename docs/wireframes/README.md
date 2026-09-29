@@ -70,9 +70,11 @@ request that flags the affected workstreams rather than being made quietly.
 - **Auth and session handling** shapes the login screen. The security track's next task is the
   auth decision record, and the "stay signed in" control on `01-login.html` should not ship
   before that lands.
-- **Consent gating behaviour.** When a scout matches a minor who has not consented to scouting
-  visibility, do they see a locked card or nothing at all? Drawn as a locked card in
-  `05-scout-search.html` so the team has something concrete to react to. Not decided.
+- **Consent gating behaviour. Decided.** Consent is signed at sign-up: an academy joins, and
+  each player's guardian signs one form covering storage, analytics and scouting visibility.
+  So every minor is visible to scouts. A minor is withheld only if the guardian later
+  withdraws consent, and then appears as the locked card drawn in `05-scout-search.html`,
+  without the "request access" prompt.
 - **Embedding model choice** gates the natural language half of scout search. The filters half
   can ship without it.
 - **Maturity offset method** gates the comparison screen's second view, which is the most

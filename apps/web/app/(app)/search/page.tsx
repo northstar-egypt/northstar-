@@ -210,16 +210,7 @@ export default function SearchPage() {
                       </span>
 
                       {r.withheld ? (
-                        <Banner tone="warn">
-                          {r.withheldReason}{" "}
-                          <span className="underline decoration-dotted">
-                            Request access through the academy
-                          </span>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Whether a withheld player should appear at all is an open question.
-                            Showing the card lets a scout chase consent. Hiding it leaks less.
-                          </p>
-                        </Banner>
+                        <Banner tone="warn">{r.withheldReason}</Banner>
                       ) : (
                         <div className="flex flex-wrap items-center gap-1.5">
                           {r.highlights.map((h) => (

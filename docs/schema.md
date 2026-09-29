@@ -239,6 +239,12 @@ One player can have multiple consent records over time and per purpose.
 The application must check relevant consent before exposing a minor's profile to scouts.
 That enforcement is an access-control concern; this table is the record it reads.
 
+Consent is collected at sign-up. Joining the platform means signing one form that covers
+`data_storage`, `analytics` and `scouting_visibility`, signed by a named guardian for a minor
+and by the player for an adult, so every player starts with three granted, open-ended rows.
+Withdrawal is recorded as `granted = false` for the purpose, and a minor without a granted
+`scouting_visibility` row is hidden from scouts again.
+
 ## Flag
 
 A claim one of the models made about a player, and the case a reviewer works on. Added after

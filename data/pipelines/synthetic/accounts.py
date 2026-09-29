@@ -88,52 +88,46 @@ def generate_consents(
     rows: list[Consent] = []
     reference = config.population.reference_date
 
+    """Consent is signed once, at sign-up, for every purpose.
+
+    The operating model: an academy joins the platform, and joining means each player's
+    guardian (or the player, once an adult) signs one form covering storage, analytics and
+    scouting visibility. So every synthetic player holds all three, granted and open-ended.
+    The consent check in `apps/api/app/services/access.py` still runs on every scout
+    request; it simply never finds a missing consent in this dataset. A withdrawal is a
+    row with `granted=False` and hides the minor again, which is the safeguard the pitch
+    promises parents.
+    """
+    rows: list[Consent] = []
+    reference = config.population.reference_date
+
     for profile in profiles:
         player = profile.player
-        # Every player needs storage consent; the other purposes vary, which is
-        # what gives the access-control work something to enforce.
-        purposes = [enums.ConsentPurpose.DATA_STORAGE.value]
-        if rng.chance(0.85):
-            purposes.append(enums.ConsentPurpose.ANALYTICS.value)
-        if rng.chance(0.7):
-            purposes.append(enums.ConsentPurpose.SCOUTING_VISIBILITY.value)
+        # One signature per player: one guardian, one date, one form.
+        if player.is_minor:
+            guardian = rng.faker.eg_full_name("male" if rng.chance(0.72) else "female")
+            granted_by = f"guardian:{guardian}"
+        else:
+            guardian = None
+            granted_by = "player"
+        signed_on = reference - timedelta(days=rng.randint(30, 900))
 
-        for purpose in purposes:
-            if player.is_minor:
-                guardian = rng.faker.eg_full_name("male" if rng.chance(0.72) else "female")
-                granted_by = f"guardian:{guardian}"
-            else:
-                guardian = None
-                granted_by = "player"
-
-            valid_from = reference - timedelta(days=rng.randint(30, 900))
-            # A minor's consent expires and has to be renewed; that is the point
-            # of tracking a window.
-            valid_until = (
-                valid_from + timedelta(days=365 * rng.randint(1, 2))
-                if player.is_minor and rng.chance(0.7)
-                else None
-            )
-            # Scouting visibility is the one guardians most often decline.
-            granted = not (
-                purpose == enums.ConsentPurpose.SCOUTING_VISIBILITY.value
-                and player.is_minor
-                and rng.chance(0.18)
-            )
-
+        for purpose in (
+            enums.ConsentPurpose.DATA_STORAGE.value,
+            enums.ConsentPurpose.ANALYTICS.value,
+            enums.ConsentPurpose.SCOUTING_VISIBILITY.value,
+        ):
             rows.append(
                 Consent(
                     id=rng.uuid(),
                     player_id=profile.id,
                     purpose=purpose,
-                    granted=granted,
+                    granted=True,
                     granted_by=granted_by,
                     guardian_name=guardian,
-                    valid_from=valid_from,
-                    valid_until=valid_until,
-                    document_ref=(
-                        f"consent/{profile.id}/{purpose}.pdf" if rng.chance(0.4) else None
-                    ),
+                    valid_from=signed_on,
+                    valid_until=None,
+                    document_ref=f"consent/{profile.id}/signup.pdf",
                 )
             )
 

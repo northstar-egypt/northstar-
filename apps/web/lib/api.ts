@@ -217,6 +217,8 @@ export interface NewPlayer {
   primarySport: string;
   tier?: string | null;
   position?: string | null;
+  /** The sign-up consent form. For a minor it is signed by a guardian, who must be named. */
+  consent: { signed: boolean; guardianName?: string | null };
   measurements?: MeasurementBatch;
 }
 
@@ -230,7 +232,8 @@ export interface PlayerCreated {
   player: { id: string; isMinor: boolean };
   organizationId: string;
   acknowledgedWarnings: MeasurementWarning[];
-  consentRequired: boolean;
+  /** "player", or "guardian:<name>" for a minor. */
+  consentGrantedBy: string;
 }
 
 /**

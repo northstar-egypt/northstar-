@@ -96,7 +96,7 @@ per role and the API identifies callers by a header that only works in developme
 | ---------- | -------- | ---------------- |
 | Coach      | Dashboard | the squad scoped to that coach's academy, with growth sparklines and how long since each player was measured |
 | Coach      | a player  | growth curve against the population band, percentiles, consent and provenance |
-| Scout      | Search    | try `under 16 striker`. The chips show how the query was read, and minors without scouting consent appear as locked cards |
+| Scout      | Search    | try `under 16 striker`. The chips show how the query was read. Minors are visible because their guardians signed consent at sign-up |
 | Federation | Oversight | national coverage, staleness, flag counts |
 | Federation | Integrity | the review queue. Open a duplicate case: the field-by-field diff is the decision |
 
@@ -137,8 +137,7 @@ docker compose -f docker/docker-compose.yml down -v
 
 Every screen reads from and writes to the real API. What is still missing on them: there is
 no real sign-in (the security track's authentication decision is open, and a development
-header stands in for it), guardian consent is not captured when a coach adds a minor, and an
-existing player cannot be edited yet.
+header stands in for it), and an existing player cannot be edited yet.
 
 ### Running pieces outside Docker
 

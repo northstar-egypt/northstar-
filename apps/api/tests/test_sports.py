@@ -237,6 +237,7 @@ def test_a_new_sport_is_a_config_change(with_squash, client, auth, world, db):
             "dateOfBirth": "2010-03-01",
             "primarySport": "squash",
             "position": "left",
+            "consent": {"signed": True, "guardianName": "Test Guardian"},
             "nationality": ["EG"],
         },
         headers=auth("coach_a"),
@@ -276,6 +277,7 @@ def test_a_role_from_another_sport_is_refused(with_squash, client, auth, world):
             "dateOfBirth": "2010-03-01",
             "primarySport": "squash",
             "position": "ST",
+            "consent": {"signed": True, "guardianName": "Test Guardian"},
         },
         headers=auth("coach_a"),
     )

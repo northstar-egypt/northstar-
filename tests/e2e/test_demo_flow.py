@@ -119,7 +119,7 @@ def test_the_profile_states_what_is_not_known_yet(sign_in, page, identities):
 
 
 # ---------------------------------------------------------------------------
-# Scout search, and the consent boundary
+# Scout search
 # ---------------------------------------------------------------------------
 
 
@@ -137,58 +137,32 @@ def test_search_reports_how_it_read_the_query(sign_in, page):
     assert "position: st" in body
 
 
-def test_a_minor_without_consent_is_shown_as_withheld_and_unnamed(sign_in, page, identities):
-    """The rule most worth catching a regression in.
+def test_signed_up_minors_are_visible_to_scouts(sign_in, page, identities):
+    """Consent is signed at sign-up, so a scout's search holds no locked cards.
 
-    Breaking it leaks a child's identity to a scout who has no consent to see it, and nothing
-    else in this suite would notice.
+    The rule that a minor whose guardian withdraws consent is withheld, and never named, is
+    tested against the API in apps/api/tests (test_access_control.py and test_writes.py),
+    where a withdrawal can be set up directly. Here the seeded dataset has none.
     """
     sign_in("Scout", "/search")
     page.wait_for_timeout(SETTLE_MS)
-    body = text_of(page)
-
-    results = api("/search", identities["scout"]["email"]) if False else None  # POST, see below
-    withheld = _withheld_from_api(identities["scout"]["email"])
-    if not withheld:
-        pytest.skip("no withheld players in this dataset, so there is nothing to check")
-
-    assert "withheld" in body
-    # The names of withheld players must not appear anywhere on the page.
-    for name in withheld:
-        assert name.lower() not in body, f"a withheld player's name reached the page: {name}"
-
-
-def _withheld_from_api(identity: str) -> list[str]:
-    """Names of players the scout may not see, taken from the database rather than the page.
-
-    The API never sends these names, so they are looked up as an admin, which is the only way
-    to check that they are absent from the scout's screen.
-    """
-    admin = None
-    for row in api("/dev/identities"):
-        if row["role"] == "admin":
-            admin = row["email"]
-    if not admin:
-        return []
 
     request = urllib.request.Request(
         f"{API_URL}/search",
         data=json.dumps({"query": "", "limit": 200}).encode(),
-        headers={"Content-Type": "application/json", "X-NorthStar-User": identity},
+        headers={
+            "Content-Type": "application/json",
+            "X-NorthStar-User": identities["scout"]["email"],
+        },
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=10) as response:
-        scout_view = json.load(response)
+        results = json.load(response)["results"]
 
-    blocked_ids = [r["player"]["id"] for r in scout_view["results"] if r["withheld"]]
-    names = []
-    for player_id in blocked_ids[:5]:
-        try:
-            profile = api(f"/players/{player_id}/profile", admin)
-            names.append(profile["player"]["fullName"])
-        except Exception:  # noqa: BLE001
-            continue
-    return names
+    minors = [r for r in results if r["player"].get("isMinor")]
+    assert minors, "the search returned no minors, so there is nothing to check"
+    assert not [r for r in results if r["withheld"]]
+    assert "withheld" not in text_of(page)
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +216,13 @@ def test_the_board_no_longer_claims_there_is_no_flag_table(sign_in, page, identi
 PROFILE_URL = re.compile(r".*/players/[0-9a-f]{8}-[0-9a-f-]{27}$")
 
 
+def _sign_consent_as_guardian(form):
+    """The sign-up consent form. The date of birth above makes the player a minor, so a
+    guardian signs, and Continue stays disabled until they have."""
+    form.get_by_label("Guardian's full name").fill("E2E Guardian")
+    form.get_by_role("checkbox", name="signed the consent form").check()
+
+
 def _fill_new_player(page, name: str, *, height: str, weight: str = ""):
     """Steps 1 and 2 of the add player form, stopping short of saving."""
     page.goto(f"{WEB_URL}/players/new", wait_until="networkidle")
@@ -250,8 +231,9 @@ def _fill_new_player(page, name: str, *, height: str, weight: str = ""):
     # Everything is scoped to `main`, because the nav carries a role switcher whose <select>
     # and buttons would otherwise be matched instead of the form's.
     form = page.locator("main")
-    form.locator("input[autocomplete='off']").fill(name)
+    form.get_by_label("Full name", exact=True).fill(name)
     form.locator("input[type='date']").fill("2011-05-04")
+    _sign_consent_as_guardian(form)
     # Position is a row of buttons rather than a dropdown.
     form.get_by_role("button", name="ST", exact=True).click()
     form.get_by_role("button", name="Continue").click()
@@ -359,8 +341,9 @@ def test_a_coach_can_add_a_table_tennis_player(sign_in, page, identities):
     page.wait_for_timeout(SETTLE_MS)
 
     form = page.locator("main")
-    form.locator("input[autocomplete='off']").fill(name)
+    form.get_by_label("Full name", exact=True).fill(name)
     form.locator("input[type='date']").fill("2011-05-04")
+    _sign_consent_as_guardian(form)
     form.get_by_role("button", name="Table tennis", exact=True).click()
     body = text_of(page)
     assert "playing style" in body
