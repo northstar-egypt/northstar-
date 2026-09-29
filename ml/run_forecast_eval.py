@@ -21,8 +21,23 @@ import sys
 import tempfile
 from pathlib import Path
 
+from ml import challengers
+from ml.forecasting.models import FORECASTERS
 from ml.forecasting.walk_forward import evaluate, render, render_sweep
 from ml.run_eval import DEFAULT_DATA_DIR, _generate
+
+
+def _forecasters(include_challengers: bool) -> dict:
+    """The core four, plus the XGBoost challenger when it is installed and wanted."""
+    if include_challengers and challengers.available():
+        from ml.challengers.xgb_forecast import FORECASTERS as XGBOOST
+
+        return {**FORECASTERS, **XGBOOST}
+    if include_challengers:
+        print(
+            "Challengers skipped: install ml/requirements.txt for xgboost.", file=sys.stderr
+        )
+    return dict(FORECASTERS)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -34,11 +49,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--json", type=Path, default=None)
     parser.add_argument("--seed-sweep", type=int, nargs="+", default=None, metavar="SEED")
+    parser.add_argument(
+        "--no-challengers",
+        action="store_true",
+        help="Score only the four v1 forecasters, without the XGBoost challenger.",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    forecasters = _forecasters(not args.no_challengers)
 
     if args.seed_sweep:
         reports = []
@@ -47,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
                 out_dir = Path(tmp) / str(seed)
                 print(f"generating seed {seed} ...", file=sys.stderr)
                 _generate(seed, out_dir)
-                report = evaluate(out_dir)
+                report = evaluate(out_dir, forecasters)
                 report.data_dir = f"generated, seed {seed}"
                 reports.append(report)
                 print(render(report))
@@ -68,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    report = evaluate(args.data_dir)
+    report = evaluate(args.data_dir, forecasters)
     print(render(report))
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)

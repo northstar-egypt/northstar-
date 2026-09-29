@@ -91,7 +91,9 @@ class ForecastReport:
     origins: list[date]
     players_forecast: int
     cases: int
-    # Group name, then one score per forecaster, in FORECASTERS order.
+    # The forecasters scored, in order: the core four plus any challengers.
+    forecasters: list[str] = field(default_factory=list)
+    # Group name, then one score per forecaster, in `forecasters` order.
     groups: dict[str, list[ErrorScore]] = field(default_factory=dict)
     # Of the headline forecasts that got a band: how many landed inside it, and the mean width.
     interval_cases: int = 0
@@ -107,6 +109,7 @@ class ForecastReport:
             "origins": [o.isoformat() for o in self.origins],
             "players_forecast": self.players_forecast,
             "cases": self.cases,
+            "forecasters": self.forecasters,
             "groups": {k: [s.as_dict() for s in v] for k, v in self.groups.items()},
             "interval": {
                 "model": INTERVAL_MODEL,
@@ -194,7 +197,12 @@ def _interval_errors(cases: list[Case], origin: date) -> dict[str, list[float]]:
     return errors
 
 
-def build_cases(histories: dict[str, PlayerHistory]) -> tuple[list[date], list[Case]]:
+def build_cases(
+    histories: dict[str, PlayerHistory], forecasters: dict | None = None
+) -> tuple[list[date], list[Case]]:
+    """Every forecast case, walk-forward. `forecasters` defaults to the core four; the
+    evaluation adds the challengers (ml/challengers), the API never does."""
+    forecasters = forecasters or FORECASTERS
     origins = origins_for(histories)
     cases: list[Case] = []
     tail = (1 - INTERVAL_COVERAGE) / 2
@@ -214,7 +222,7 @@ def build_cases(histories: dict[str, PlayerHistory]) -> tuple[list[date], list[C
                     continue
                 predictions = {
                     name: forecast(snapshot, seen, target)
-                    for name, forecast in FORECASTERS.items()
+                    for name, forecast in forecasters.items()
                 }
                 errors = past_errors.get(horizon_band((target - origin).days), [])
                 centre = predictions[INTERVAL_MODEL]
@@ -238,20 +246,27 @@ def build_cases(histories: dict[str, PlayerHistory]) -> tuple[list[date], list[C
     return origins, cases
 
 
-def _score_group(cases: list[Case], note: str = "") -> list[ErrorScore]:
+def _score_group(
+    cases: list[Case], note: str = "", names: list[str] | None = None
+) -> list[ErrorScore]:
     return [
         error_score(
             name,
             [(c.player_id, c.predictions[name], c.actual) for c in cases],
             note=note,
         )
-        for name in FORECASTERS
+        for name in (names or list(FORECASTERS))
     ]
 
 
-def evaluate(data_dir: str | Path) -> ForecastReport:
+def evaluate(data_dir: str | Path, forecasters: dict | None = None) -> ForecastReport:
+    forecasters = forecasters or FORECASTERS
     histories, truth = load(data_dir)
-    origins, cases = build_cases(histories)
+    origins, cases = build_cases(histories, forecasters)
+    names = list(forecasters)
+
+    def _score_group_n(group: list[Case], note: str = "") -> list[ErrorScore]:
+        return _score_group(group, note, names)
 
     report = ForecastReport(
         data_dir=str(data_dir),
@@ -259,13 +274,14 @@ def evaluate(data_dir: str | Path) -> ForecastReport:
         origins=origins,
         players_forecast=len({c.player_id for c in cases}),
         cases=len(cases),
+        forecasters=names,
     )
     if not cases:
         report.notes.append("No forecast cases. The dataset spans too little time.")
         return report
 
     growing = [c for c in cases if c.stated_age < 18]
-    report.groups[HEADLINE] = _score_group(growing)
+    report.groups[HEADLINE] = _score_group_n(growing)
     banded = [c for c in growing if c.interval is not None]
     report.interval_cases = len(banded)
     report.interval_missing = len(growing) - len(banded)
@@ -274,15 +290,15 @@ def evaluate(data_dir: str | Path) -> ForecastReport:
         sum(c.interval[1] - c.interval[0] for c in banded) / len(banded) if banded else 0.0
     )
     for label, low, high in HORIZON_BANDS:
-        report.groups[f"  {label} ahead"] = _score_group(
+        report.groups[f"  {label} ahead"] = _score_group_n(
             [c for c in growing if low <= c.horizon_days <= high]
         )
     for sex in ("female", "male"):
-        report.groups[f"  {sex}"] = _score_group([c for c in growing if c.sex == sex])
+        report.groups[f"  {sex}"] = _score_group_n([c for c in growing if c.sex == sex])
     # The relative age audit (ml/evaluation/fairness.py): is a child born late in the
     # selection year forecast worse than one born early? Stated date of birth, as everywhere.
     for quarter in fairness.QUARTERS:
-        report.groups[f"  born {fairness.QUARTER_LABELS[quarter]}"] = _score_group(
+        report.groups[f"  born {fairness.QUARTER_LABELS[quarter]}"] = _score_group_n(
             [c for c in growing if fairness.birth_quarter(histories[c.player_id].dob) == quarter]
         )
 
@@ -294,20 +310,20 @@ def evaluate(data_dir: str | Path) -> ForecastReport:
         if c.get("fraud_type") == "age_misrepresentation"
     }
     if late:
-        report.groups["  planted late bloomers"] = _score_group(
+        report.groups["  planted late bloomers"] = _score_group_n(
             [c for c in growing if c.player_id in late],
             note="from the answer key, never shown to a forecaster",
         )
     if fraud:
-        report.groups["  planted age fraud"] = _score_group(
+        report.groups["  planted age fraud"] = _score_group_n(
             [c for c in growing if c.player_id in fraud],
             note="stated age is wrong, and every model uses stated age",
         )
-    report.groups["18 and over at origin"] = _score_group(
+    report.groups["18 and over at origin"] = _score_group_n(
         [c for c in cases if c.stated_age >= 18],
         note="adults stop growing, so last value is close to perfect here",
     )
-    report.groups["all players"] = _score_group(cases)
+    report.groups["all players"] = _score_group_n(cases)
     return report
 
 
@@ -383,7 +399,7 @@ def render_sweep(reports: list[ForecastReport]) -> str:
         + f" {'mean':>8} {'min':>8} {'max':>8}"
     )
     out.append("-" * _WIDTH)
-    for index, name in enumerate(FORECASTERS):
+    for index, name in enumerate(reports[0].forecasters or list(FORECASTERS)):
         maes = [r.groups[HEADLINE][index].mae for r in reports if HEADLINE in r.groups]
         if not maes:
             continue

@@ -28,6 +28,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ml import challengers
 from ml.detectors import baselines, duplicate, fraud, late_bloomer
 from ml.detectors.features import FeatureSet
 from ml.evaluation import fairness
@@ -52,6 +53,9 @@ class Report:
     sections: list[ScoreSet] = field(default_factory=list)
     # Headline score per detector, pulled out so a sweep can aggregate them.
     headline: dict[str, Score] = field(default_factory=dict)
+    # Head-to-head scores that are not graded headlines: the age-fraud rule and its
+    # isolation-forest challenger, on the same cases. Kept so a sweep can aggregate them.
+    subtypes: dict[str, Score] = field(default_factory=dict)
     # The same detectors split by birth quarter. See ml/evaluation/fairness.py.
     relative_age: list[fairness.QuarterAudit] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -62,6 +66,7 @@ class Report:
             "seed": self.seed,
             "population": self.population,
             "headline": {k: v.as_dict() for k, v in self.headline.items()},
+            "subtypes": {k: v.as_dict() for k, v in self.subtypes.items()},
             "sections": [s.as_dict() for s in self.sections],
             "relative_age": [a.as_dict() for a in self.relative_age],
             "notes": self.notes,
@@ -169,7 +174,7 @@ def evaluate(data_dir: str | Path) -> Report:
     # removed. Leaving them in would count a metric-fraud player that the age rule
     # correctly ignored as a false negative for age fraud, which it is not.
     age_predicted = fraud.detect_age_misrepresentation(features)
-    section.add(
+    report.subtypes["fraud, age: rule"] = section.add(
         score_ids(
             "  rule: age misrepresentation",
             age_predicted,
@@ -178,6 +183,24 @@ def evaluate(data_dir: str | Path) -> Report:
             note=f"the hard subtype, {len(age_truth)} cases",
         )
     )
+    forest_predicted: dict[str, str] | None = None
+    if challengers.available():
+        from ml.challengers import isolation
+
+        forest_predicted = isolation.detect_age_misrepresentation(features)
+        report.subtypes["fraud, age: isolation forest"] = section.add(
+            score_ids(
+                "  challenger: isolation forest",
+                forest_predicted,
+                age_truth,
+                population - metric_truth,
+                note="same cases as the rule above, see ml/challengers/isolation.py",
+            )
+        )
+    else:
+        report.notes.append(
+            "Challengers skipped: install ml/requirements.txt for scikit-learn and xgboost."
+        )
     report.relative_age.append(
         fairness.audit(
             "fraud: age misrepresentation",
@@ -187,6 +210,16 @@ def evaluate(data_dir: str | Path) -> Report:
             quarters,
         )
     )
+    if forest_predicted is not None:
+        report.relative_age.append(
+            fairness.audit(
+                "fraud, age: isolation forest",
+                forest_predicted,
+                age_truth,
+                population - metric_truth,
+                quarters,
+            )
+        )
     section.add(
         score_ids(
             "  rule: impossible metrics",
@@ -433,6 +466,26 @@ def render_sweep(reports: list[Report]) -> str:
             + "  ".join(f"{v:>8.3f}" for v in f1s)
             + f"  {sum(f1s) / len(f1s):>8.3f} {min(f1s):>8.3f} {max(f1s):>8.3f}"
         )
+
+    # The age-fraud rule against its challenger, on the same cases, with counts pooled over
+    # every dataset: nine cases per seed is too few to compare two detectors on one seed.
+    names = [n for n in (reports[0].subtypes if reports else {})]
+    if names:
+        out.append("")
+        out.append(
+            f"{'age misrepresentation':30} {'F1 mean':>8} {'TP':>5} {'FP':>5} {'FN':>5} "
+            f"{'prec':>7} {'recall':>7} {'pooled F1':>10}"
+        )
+        for name in names:
+            scores = [r.subtypes[name] for r in reports if name in r.subtypes]
+            tp, fp, fn = (sum(getattr(s, k) for s in scores) for k in ("tp", "fp", "fn"))
+            precision = tp / (tp + fp) if tp + fp else 0.0
+            recall = tp / (tp + fn) if tp + fn else 0.0
+            pooled = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+            out.append(
+                f"{name:30} {sum(s.f1 for s in scores) / len(scores):>8.3f} {tp:>5} {fp:>5} "
+                f"{fn:>5} {precision:>7.3f} {recall:>7.3f} {pooled:>10.3f}"
+            )
 
     audits = [r.relative_age for r in reports if r.relative_age]
     if audits:
