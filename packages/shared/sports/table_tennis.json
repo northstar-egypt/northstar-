@@ -6,6 +6,7 @@
     "values": ["attacker", "all_round", "defender", "chopper"]
   },
   "usesTier": false,
+  "genders": ["male", "female"],
   "periods": {
     "table_tennis.match.v1": {
       "periodType": "match",

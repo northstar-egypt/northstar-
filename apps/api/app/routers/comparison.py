@@ -57,6 +57,15 @@ def compare(
             detail="Fewer than two of those players are available to you.",
         )
 
+    # Boys and girls are compared separately, everywhere: percentiles, growth curves and
+    # forecasts all use one gender's population. A side-by-side of a boy and a girl would rank
+    # them on a difference that is about gender, not talent, so it is refused outright.
+    if len({player.sex for player in allowed}) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Boys and girls are compared separately. Pick players of one gender.",
+        )
+
     # Preserve the caller's ordering so the columns match what they asked for.
     order = {player_id: index for index, player_id in enumerate(requested)}
     allowed.sort(key=lambda player: order.get(player.id, 0))

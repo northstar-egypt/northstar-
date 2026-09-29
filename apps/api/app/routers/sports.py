@@ -22,6 +22,7 @@ class SportOut(CamelModel):
     role_label: str
     roles: list[str]
     uses_tier: bool
+    genders: list[str]
 
 
 @router.get("/sports", response_model=list[SportOut])
@@ -38,6 +39,7 @@ def list_sports(caller: Caller = Depends(current_user)) -> list[SportOut]:
             role_label=module.role_label,
             roles=module.roles,
             uses_tier=module.uses_tier,
+            genders=module.genders,
         )
         for module in sports.registry().values()
     ]

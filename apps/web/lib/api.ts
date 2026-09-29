@@ -300,6 +300,8 @@ export interface SearchFilters {
   tier?: string | null;
   position?: string | null;
   sport?: string | null;
+  /** Only offered for a sport that registers both genders, which are searched separately. */
+  sex?: "male" | "female" | null;
   egyptOnly?: boolean;
   minAge?: number | null;
   maxAge?: number | null;
@@ -327,6 +329,7 @@ export async function search(
       tier: filters.tier || null,
       position: filters.position || null,
       sport: filters.sport || null,
+      sex: filters.sex || null,
       minAge: filters.minAge ?? null,
       maxAge: filters.maxAge ?? null,
       minHeightCm: filters.minHeightCm ?? null,

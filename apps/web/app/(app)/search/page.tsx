@@ -27,9 +27,9 @@ import {
   Skeleton,
   inputClass,
 } from "@/components/ui";
-import { search } from "@/lib/api";
+import { getSports, search } from "@/lib/api";
 import { pct } from "@/lib/format";
-import type { ParsedQuery, SearchResult } from "@/lib/types";
+import type { ParsedQuery, SearchResult, SportModule } from "@/lib/types";
 
 const TIERS = ["pro", "youth", "diaspora"] as const;
 
@@ -39,18 +39,39 @@ export default function SearchPage() {
   const [tier, setTier] = useState<string | null>("youth");
   const [position, setPosition] = useState("");
   const [egyptOnly, setEgyptOnly] = useState(false);
+  // Sport and gender come from the sport modules. A sport open to boys and girls (table tennis)
+  // is searched one gender at a time, the same way every comparison in the platform keeps them
+  // apart; football registers boys only, so it never asks.
+  const [sports, setSports] = useState<SportModule[]>([]);
+  const [sport, setSport] = useState<string | null>(null);
+  const [sex, setSex] = useState<"male" | "female" | null>(null);
+  const sportModule = sports.find((m) => m.sport === sport) ?? null;
+  const usesTier = sportModule ? sportModule.usesTier : true;
+  const asksSex = (sportModule?.genders.length ?? 0) > 1;
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [parsed, setParsed] = useState<ParsedQuery>({ chips: [] });
   const [busy, setBusy] = useState(false);
 
   async function run(q: string) {
     setBusy(true);
-    const res = await search(q, { tier, position, egyptOnly });
+    const res = await search(q, {
+      tier: usesTier ? tier : null,
+      position,
+      egyptOnly,
+      sport,
+      sex: asksSex ? sex : null,
+    });
     setResults(res.results);
     setParsed(res.parsed);
     setSubmitted(q);
     setBusy(false);
   }
+
+  useEffect(() => {
+    getSports()
+      .then(setSports)
+      .catch(() => setSports([]));
+  }, []);
 
   useEffect(() => {
     run("");
@@ -110,6 +131,44 @@ export default function SearchPage() {
         <Card className="h-fit">
           <SectionTitle>Filters</SectionTitle>
           <div className="flex flex-col gap-3.5">
+            {sports.length > 1 ? (
+              <div className="flex flex-col gap-1.5">
+                <Label>Sport</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {sports.map((m) => (
+                    <Chip
+                      key={m.sport}
+                      onClick={() => {
+                        setSport(sport === m.sport ? null : m.sport);
+                        setSex(null);
+                      }}
+                      active={sport === m.sport}
+                    >
+                      {m.label}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {asksSex ? (
+              <div className="flex flex-col gap-1.5">
+                <Label>Boys or girls</Label>
+                <div className="flex gap-1.5">
+                  <Chip onClick={() => setSex(sex === "male" ? null : "male")} active={sex === "male"}>
+                    boys
+                  </Chip>
+                  <Chip
+                    onClick={() => setSex(sex === "female" ? null : "female")}
+                    active={sex === "female"}
+                  >
+                    girls
+                  </Chip>
+                </div>
+              </div>
+            ) : null}
+
+            {usesTier ? (
             <div className="flex flex-col gap-1.5">
               <Label>Tier</Label>
               <div className="flex flex-wrap gap-1.5">
@@ -124,6 +183,7 @@ export default function SearchPage() {
                 ))}
               </div>
             </div>
+            ) : null}
 
             <div className="flex flex-col gap-1">
               <Label>Position</Label>
@@ -154,6 +214,8 @@ export default function SearchPage() {
                 variant="ghost"
                 onClick={() => {
                   setTier(null);
+                  setSport(null);
+                  setSex(null);
                   setPosition("");
                   setEgyptOnly(false);
                   setQuery("");

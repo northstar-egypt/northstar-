@@ -6,6 +6,7 @@
     "values": ["GK", "CB", "RB", "LB", "CDM", "CM", "CAM", "LW", "RW", "ST"]
   },
   "usesTier": true,
+  "genders": ["male"],
   "periods": {
     "football.match.v1": {
       "periodType": "match",

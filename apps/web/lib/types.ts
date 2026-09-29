@@ -204,6 +204,8 @@ export interface SportModule {
   roleLabel: string;
   roles: string[];
   usesTier: boolean;
+  /** Which genders the sport registers. Football: male only. Table tennis: both, kept apart. */
+  genders: ("male" | "female")[];
 }
 
 export interface PlayerProfile {

@@ -331,7 +331,6 @@ def _fill_new_player(page, name: str, *, height: str, weight: str = ""):
     form = page.locator("main")
     form.get_by_label("Full name", exact=True).fill(name)
     form.locator("input[type='date']").fill("2011-05-04")
-    form.get_by_role("button", name="boy", exact=True).click()
     _sign_consent_as_guardian(form)
     # Position is a row of buttons rather than a dropdown.
     form.get_by_role("button", name="ST", exact=True).click()
@@ -367,6 +366,8 @@ def test_adding_a_player_saves_and_opens_their_profile(sign_in, page, identities
     row = next(r for r in squad if r["player"]["fullName"] == name)
     assert row["player"]["isMinor"] is True
     assert row["heightCm"] == 150
+    # Football registers boys only, so the form never asked and the server recorded it.
+    assert row["player"]["sex"] == "male"
     assert page.url.endswith(row["player"]["id"])
 
 
@@ -444,11 +445,12 @@ def test_a_coach_can_add_a_table_tennis_player(sign_in, page, identities):
     form = page.locator("main")
     form.get_by_label("Full name", exact=True).fill(name)
     form.locator("input[type='date']").fill("2011-05-04")
-    form.get_by_role("button", name="boy", exact=True).click()
     _sign_consent_as_guardian(form)
     form.get_by_role("button", name="Table tennis", exact=True).click()
     body = text_of(page)
     assert "playing style" in body
+    # Table tennis is open to boys and girls, so it asks; football never does.
+    form.get_by_role("button", name="girl", exact=True).click()
     form.get_by_role("button", name="chopper", exact=True).click()
     form.get_by_role("button", name="Continue").click()
     page.wait_for_timeout(1500)
@@ -463,3 +465,4 @@ def test_a_coach_can_add_a_table_tennis_player(sign_in, page, identities):
     assert row["player"]["position"] == "chopper"
     # Tier is a football idea; the table tennis module says so and the API obeyed it.
     assert row["player"]["tier"] is None
+    assert row["player"]["sex"] == "female"
