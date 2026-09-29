@@ -60,9 +60,13 @@ class PopulationBandOut(CamelModel):
 
 class GrowthSeriesOut(CamelModel):
     measured: list[GrowthPointOut] = []
-    # Empty until the forecasting deliverable lands. The web app draws nothing rather than
-    # drawing a line, which is the correct behaviour for "we do not know yet".
+    # From the graded model in ml/forecasting, every point with its 80% band. Empty when there
+    # is not enough to forecast from; `forecast_note` then says why.
     forecast: list[ForecastPointOut] = []
+    # The date the forecast was made from (today), which is not the last measurement date.
+    forecast_from: date | None = None
+    # Which model and how its band was checked, or why there is no forecast.
+    forecast_note: str | None = None
     population: list[PopulationBandOut] = []
     unit: str = "cm"
 

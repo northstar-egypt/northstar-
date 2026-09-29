@@ -43,6 +43,8 @@ export default function NewPlayerPage() {
 
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
+  // Boys and girls grow on different curves, so percentiles and the height forecast need it.
+  const [sex, setSex] = useState<"male" | "female" | "">("");
   const [position, setPosition] = useState<string>("");
   const [nationalities, setNationalities] = useState<string[]>(["EG"]);
   const [egyptEligible, setEgyptEligible] = useState(true);
@@ -75,7 +77,7 @@ export default function NewPlayerPage() {
   const consentComplete =
     consentSigned && (minor !== true || guardianName.trim().length > 1);
   const canContinue =
-    fullName.trim().length > 1 && dob !== "" && position !== "" && consentComplete;
+    fullName.trim().length > 1 && dob !== "" && sex !== "" && position !== "" && consentComplete;
   const canSave = height !== "" && (!implausible || acknowledged);
 
   async function save(confirmWarnings = acknowledged) {
@@ -88,6 +90,7 @@ export default function NewPlayerPage() {
       const created = await createPlayer({
         fullName,
         dateOfBirth: dob,
+        sex,
         position,
         nationality: nationalities,
         isEgyptEligible: egyptEligible,
@@ -158,6 +161,22 @@ export default function NewPlayerPage() {
               className={inputClass}
             />
             {age ? <span className="text-xs text-slate-500">{age} old today</span> : null}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>Sex</Label>
+            <div className="flex gap-1.5">
+              <Chip onClick={() => setSex("male")} active={sex === "male"}>
+                boy
+              </Chip>
+              <Chip onClick={() => setSex("female")} active={sex === "female"}>
+                girl
+              </Chip>
+            </div>
+            <span className="text-xs text-slate-500">
+              Boys and girls grow differently, so growth comparisons and the height forecast need
+              this.
+            </span>
           </div>
 
           {minor === true ? (

@@ -185,6 +185,16 @@ positive forecast residual is therefore a fraud signal the detector does not use
 population and their reference curve is built from fewer children. The gap is smaller than
 the gap to either baseline, but it is there and it is now measured.
 
+**On the player profile.** The API runs this same code, not a copy
+(`apps/api/app/services/forecast.py`), on the rows in its own database. Under 18 it draws
+cohort velocity 3, 6 and 12 months ahead; from 18 it draws a flat line at the last reading,
+because of the adult defect above. The 80% band is learned walk-forward from that database's
+own past forecasts, per horizon, and the profile states how many past readings actually fell
+inside it (82% on the synthetic dataset). It draws nothing, and says why, when a player has
+fewer than two readings, no date of birth or sex, a last reading more than a year old, or when
+there are fewer than 30 past forecasts in a horizon to learn a band from.
+`apps/api/tests/test_forecast.py` checks that the profile's number equals this module's.
+
 ## Relative age audit
 
 Children born early in the selection year are older, bigger and more mature than team-mates

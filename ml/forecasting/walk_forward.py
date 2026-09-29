@@ -164,14 +164,14 @@ def origins_for(histories: dict[str, PlayerHistory]) -> list[date]:
     return origins
 
 
-def _band(days: int) -> str:
+def horizon_band(days: int) -> str:
     for label, low, high in HORIZON_BANDS:
         if low <= days <= high:
             return label
     return HORIZON_BANDS[-1][0]
 
 
-def _quantile(values: list[float], q: float) -> float:
+def quantile(values: list[float], q: float) -> float:
     ordered = sorted(values)
     position = q * (len(ordered) - 1)
     low = int(position)
@@ -190,7 +190,7 @@ def _interval_errors(cases: list[Case], origin: date) -> dict[str, list[float]]:
     for case in cases:
         predicted = case.predictions.get(INTERVAL_MODEL)
         if case.target <= origin and case.stated_age < 18 and predicted is not None:
-            errors.setdefault(_band(case.horizon_days), []).append(case.actual - predicted)
+            errors.setdefault(horizon_band(case.horizon_days), []).append(case.actual - predicted)
     return errors
 
 
@@ -216,10 +216,10 @@ def build_cases(histories: dict[str, PlayerHistory]) -> tuple[list[date], list[C
                     name: forecast(snapshot, seen, target)
                     for name, forecast in FORECASTERS.items()
                 }
-                errors = past_errors.get(_band((target - origin).days), [])
+                errors = past_errors.get(horizon_band((target - origin).days), [])
                 centre = predictions[INTERVAL_MODEL]
                 interval = (
-                    (centre + _quantile(errors, tail), centre + _quantile(errors, 1 - tail))
+                    (centre + quantile(errors, tail), centre + quantile(errors, 1 - tail))
                     if centre is not None and len(errors) >= MIN_INTERVAL_HISTORY
                     else None
                 )

@@ -63,11 +63,18 @@ def test_consent_complete_ignores_scouting_visibility(client, auth, world):
 # ---------------------------------------------------------------------------
 
 
-def test_profile_reports_no_forecast_rather_than_inventing_one(client, auth, world):
+def test_profile_never_forecasts_without_a_band_or_a_reason(client, auth, world):
+    """A forecast point always carries its band, and the note always says which model made it
+    or why there is none. Whether there is a forecast at all depends on how much history the
+    database holds (see test_forecast.py), so this checks the rule, not the count."""
     player_id = world["players"]["adult_a"].id
-    body = client.get(f"/players/{player_id}/profile", headers=auth("coach_a")).json()
-    assert body["growth"]["forecast"] == []
-    assert body["growth"]["measured"], "measured history should be present"
+    growth = client.get(f"/players/{player_id}/profile", headers=auth("coach_a")).json()["growth"]
+    assert growth["measured"], "measured history should be present"
+    assert growth["forecastNote"]
+    for point in growth["forecast"]:
+        assert point["lower"] < point["value"] < point["upper"]
+    if not growth["forecast"]:
+        assert growth["forecastNote"].startswith("No forecast")
 
 
 def test_profile_reports_no_maturity_estimate_and_no_summary(client, auth, world):

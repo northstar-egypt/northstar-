@@ -29,7 +29,7 @@ from app.models.organization import Organization
 from app.models.performance_entry import PerformanceEntry
 from app.models.player import Player
 from app.models.player_organization import PlayerOrganization
-from app.services import cohort, flags
+from app.services import cohort, flags, forecast
 from app.services.access import Caller, consent_complete, consent_state, may_view, permissions
 
 # How many recent height readings the squad sparkline shows.
@@ -157,6 +157,7 @@ def build_profile(db: Session, caller: Caller, player: Player) -> dict:
     sprints = measurement_series(db, [player.id], "sprint_10m_s").get(player.id, [])
 
     age = cohort.age_years(player.date_of_birth, today)
+    height_forecast = forecast.forecast_height(db, player, today=today)
 
     # Population band behind the growth line: the cohort's p25/p50/p75 at each date the
     # player was actually measured, so the band lines up with their points.
@@ -245,9 +246,11 @@ def build_profile(db: Session, caller: Caller, player: Player) -> dict:
         },
         "growth": {
             "measured": [{"date": at, "value": value} for at, value in heights],
-            # Empty until the forecasting deliverable lands. The screen draws nothing
-            # rather than drawing a line, which is right for "we do not know yet".
-            "forecast": [],
+            # The graded model from ml/forecasting, with its walk-forward 80% band. Empty,
+            # with the reason in `forecast_note`, when there is not enough to forecast from.
+            "forecast": height_forecast.points,
+            "forecast_from": height_forecast.origin,
+            "forecast_note": height_forecast.note,
             "population": population,
             "unit": "cm",
         },

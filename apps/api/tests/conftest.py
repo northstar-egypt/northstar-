@@ -74,6 +74,8 @@ def client(db, monkeypatch):
     from app.main import app
     from app.services import cohort
 
+    # The forecast model is cached too, but it is not reset here: rebuilding it costs about
+    # half a second, and only test_forecast.py depends on its contents, which resets it itself.
     # The cohort reference is cached per process and these tests insert new measurements
     # underneath it, so it has to be rebuilt rather than reused from another test.
     cohort.reset_cache()
