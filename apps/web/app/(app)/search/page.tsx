@@ -100,7 +100,8 @@ export default function SearchPage() {
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs text-slate-500">
-              Or use the filters. They work on their own.
+              Names work in Arabic or English, in any common spelling. Or use the filters.
+              They work on their own.
             </span>
             <Button type="submit" variant="primary" disabled={busy}>
               {busy ? "Searching" : "Search"}

@@ -7,7 +7,9 @@ says the filter half should ship first, so that is what this is.
 The query box still does something, and what it does is deliberately modest. A handful of
 patterns map cleanly onto columns: an age or an age range, a height, a position, a tier, a
 sport, "egypt eligible". Those become filters. Anything left over is treated as part of a
-player's name. Terms naming a scouting concept the platform cannot answer yet, such as xG or
+player's name, in Arabic or Latin script and any common spelling (app/names.py), because
+academy records are in Arabic while FootyStats and European sources spell names in Latin.
+Terms naming a scouting concept the platform cannot answer yet, such as xG or
 preferred foot, are recognised and do nothing.
 
 Every term comes back as a chip, and the screen prints them under "How this was read". The
@@ -26,9 +28,10 @@ from __future__ import annotations
 import re
 from datetime import date, timedelta
 
-from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import Select, and_, func, select
 from sqlalchemy.orm import Session
 
+from app import names
 from app.models.enums import FootballTier, Sport
 from app.models.measurement import Measurement
 from app.models.player import Player
@@ -127,7 +130,10 @@ def parse_query(text: str) -> tuple[dict, list[dict], list[str]]:
         chips.append({"label": "eligibility: Egypt", "understood": True})
         remaining = re.sub(r"\begypt[- ]?eligible\b", " ", remaining, flags=re.IGNORECASE)
 
-    for token in re.findall(r"[A-Za-z]+", remaining):
+    # Latin words (an apostrophe may sit inside one: Sa'ad) and Arabic words. Arabic words
+    # were once dropped here without a chip, so an Arabic name did nothing while the screen
+    # showed every player.
+    for token in re.findall(r"[A-Za-z]+(?:['’][A-Za-z]+)*|[ء-ي]+", remaining):
         lowered = token.lower()
         if lowered in _STOPWORDS:
             continue
@@ -150,8 +156,9 @@ def parse_query(text: str) -> tuple[dict, list[dict], list[str]]:
                 {"label": f"{_NO_DATA_TERMS[lowered]}: no data", "understood": False}
             )
         else:
-            # Treated as part of a name. It does change the results, so the chip is marked
-            # understood and states the interpretation rather than implying it was ignored.
+            # Treated as part of a name, matched in either script and any common spelling
+            # (app/names.py). It does change the results, so the chip is marked understood
+            # and states the interpretation rather than implying it was ignored.
             name_terms.append(token)
             chips.append({"label": f"name: {token}", "understood": True})
 
@@ -164,8 +171,10 @@ def apply_filters(
     extra: dict,
     today: date,
     name_terms: list[str] | None = None,
+    db: Session | None = None,
 ) -> Select:
-    """Turn the request plus anything parsed out of the query into SQL predicates."""
+    """Turn the request plus anything parsed out of the query into SQL predicates. Name terms
+    need `db`: they are matched in Python, see `_name_match_ids`."""
     merged = {
         "sport": request.sport or extra.get("sport"),
         "tier": request.tier or extra.get("tier"),
@@ -223,16 +232,26 @@ def apply_filters(
         stmt = stmt.where(Player.id.in_(_height_filter_ids(merged)))
 
     if name_terms:
-        # Plain case-insensitive contains, one clause per word, all of which must match, so
-        # "ahmed hassan" does not return every Ahmed. This is not the natural language search
-        # the screen is eventually for and it is not pretending to be.
-        for word in name_terms:
-            pattern = f"%{word}%"
-            stmt = stmt.where(
-                or_(Player.full_name.ilike(pattern), Player.known_as.ilike(pattern))
-            )
+        if db is None:
+            raise ValueError("name terms are matched in Python and need a database session")
+        stmt = stmt.where(Player.id.in_(_name_match_ids(db, stmt, name_terms)))
 
     return stmt
+
+
+def _name_match_ids(db: Session, stmt: Select, name_terms: list[str]) -> list:
+    """Ids of the players left by every other filter whose name matches every name term.
+
+    Matching runs in Python (app/names.py) because it reads Arabic and Latin spellings as
+    sounds, which SQL cannot do. It reads the names of the players the other filters left,
+    which is a few hundred here. A national database would want a precomputed, indexed key
+    column instead; that is a schema change, so it waits until the size calls for it.
+    """
+    query = " ".join(name_terms)
+    rows = db.execute(
+        stmt.with_only_columns(Player.id, Player.full_name, Player.known_as).order_by(None)
+    ).all()
+    return [pid for pid, full_name, known_as in rows if names.matches(query, full_name, known_as)]
 
 
 def _height_filter_ids(merged: dict):

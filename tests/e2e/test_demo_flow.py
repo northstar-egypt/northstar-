@@ -243,6 +243,20 @@ def test_search_reports_how_it_read_the_query(sign_in, page):
     assert "position: st" in body
 
 
+def test_search_finds_arabic_names_from_a_latin_spelling(sign_in, page):
+    """The seeded names are in Arabic; FootyStats will send Latin. A scout typing Mohamed
+    must find محمد, and see that the word was read as a name."""
+    sign_in("Scout", "/search")
+    page.get_by_placeholder("left footed").fill("Mohamed")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(SETTLE_MS)
+
+    body = text_of(page)
+    assert "name: mohamed" in body
+    assert "محمد" in body
+    assert "no players match" not in body
+
+
 def test_signed_up_minors_are_visible_to_scouts(sign_in, page, identities):
     """Consent is signed at sign-up, so a scout's search holds no locked cards.
 
