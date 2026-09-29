@@ -85,6 +85,7 @@ export function GrowthChart({ series, height = 220 }: { series: GrowthSeries; he
   const min = Math.floor(Math.min(...all) - 2);
   const max = Math.ceil(Math.max(...all) + 2);
 
+  const hasForecast = series.forecast.length > 0;
   const dates = [...series.measured.map((m) => m.date), ...series.forecast.map((f) => f.date)];
   const t0 = new Date(dates[0]).getTime();
   const t1 = new Date(dates[dates.length - 1]).getTime();
@@ -103,15 +104,15 @@ export function GrowthChart({ series, height = 220 }: { series: GrowthSeries; he
     [...series.population].reverse().map((p) => `${x(p.date).toFixed(1)},${y(p.p25).toFixed(1)}`).join(" ");
 
   const lastMeasured = series.measured[series.measured.length - 1];
-  const coneTop = [lastMeasured, ...series.forecast.map((f) => ({ date: f.date, value: f.upper }))];
-  const coneBottom = [
-    ...series.forecast.map((f) => ({ date: f.date, value: f.lower })),
+  // The cone's outline: out along the upper edge from the last measurement, then back along the
+  // lower edge from the furthest point. Tracing both edges in the same direction would make the
+  // polygon cross itself.
+  const coneOutline = [
     lastMeasured,
-  ].reverse();
-  const cone =
-    coneTop.map((p) => `${x(p.date).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ") +
-    " " +
-    coneBottom.reverse().map((p) => `${x(p.date).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
+    ...series.forecast.map((f) => ({ date: f.date, value: f.upper })),
+    ...[...series.forecast].reverse().map((f) => ({ date: f.date, value: f.lower })),
+  ];
+  const cone = coneOutline.map((p) => `${x(p.date).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
 
   const ticks = [min, Math.round((min + max) / 2), max];
 
@@ -141,36 +142,49 @@ export function GrowthChart({ series, height = 220 }: { series: GrowthSeries; he
 
         <polygon points={popBand} fill="#334155" opacity="0.45" />
 
-        <polygon points={cone} fill="#38bdf8" opacity="0.16" />
-        <path
-          d={line([lastMeasured, ...series.forecast.map((f) => ({ date: f.date, value: f.value }))])}
-          fill="none"
-          stroke="#38bdf8"
-          strokeWidth="1.5"
-          strokeDasharray="4 3"
-        />
+        {hasForecast ? (
+          <>
+            <polygon points={cone} fill="#38bdf8" opacity="0.16" />
+            <path
+              d={line([lastMeasured, ...series.forecast.map((f) => ({ date: f.date, value: f.value }))])}
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth="1.5"
+              strokeDasharray="4 3"
+            />
+          </>
+        ) : null}
 
         <path d={line(series.measured)} fill="none" stroke="#e2e8f0" strokeWidth="2" />
         {series.measured.map((m) => (
           <circle key={m.date} cx={x(m.date)} cy={y(m.value)} r="2.5" fill="#e2e8f0" />
         ))}
 
-        <line
-          x1={x(lastMeasured.date)}
-          x2={x(lastMeasured.date)}
-          y1={pad.top}
-          y2={height - pad.bottom}
-          stroke="#475569"
-          strokeWidth="1"
-          strokeDasharray="2 3"
-        />
+        {/*
+          "Today" is the date the forecast was made from. It is not the last measurement: a
+          player measured four months ago has four months of cone before today, and marking
+          the last measurement as today would hide that.
+        */}
+        {hasForecast && series.forecastFrom ? (
+          <line
+            x1={x(series.forecastFrom)}
+            x2={x(series.forecastFrom)}
+            y1={pad.top}
+            y2={height - pad.bottom}
+            stroke="#475569"
+            strokeWidth="1"
+            strokeDasharray="2 3"
+          />
+        ) : null}
 
         <text x={pad.left} y={height - 6} fill="#64748b" fontSize="9">
           {shortDate(dates[0])}
         </text>
-        <text x={x(lastMeasured.date)} y={height - 6} fill="#94a3b8" fontSize="9" textAnchor="middle">
-          today
-        </text>
+        {hasForecast && series.forecastFrom ? (
+          <text x={x(series.forecastFrom)} y={height - 6} fill="#94a3b8" fontSize="9" textAnchor="middle">
+            today
+          </text>
+        ) : null}
         <text x={width - pad.right} y={height - 6} fill="#64748b" fontSize="9" textAnchor="end">
           {shortDate(dates[dates.length - 1])}
         </text>
@@ -180,9 +194,11 @@ export function GrowthChart({ series, height = 220 }: { series: GrowthSeries; he
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-4 bg-slate-200" /> measured
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-4 bg-sky-400/20" /> forecast range
-        </span>
+        {hasForecast ? (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-4 bg-sky-400/20" /> forecast, 80% range
+          </span>
+        ) : null}
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-4 bg-slate-600/60" /> 25th to 75th for their age
         </span>

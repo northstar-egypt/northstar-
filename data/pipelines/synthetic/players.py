@@ -152,6 +152,12 @@ def generate_players(rng: Rng, config: GeneratorConfig) -> list[PlayerProfile]:
             if rng.chance(pop.table_tennis_fraction)
             else enums.Sport.FOOTBALL.value
         )
+        # The sport module says which genders the sport registers: football is boys only,
+        # table tennis is open to both. Gender is still drawn first, so the order of random
+        # draws, and with it everything else about the player, stays as it was.
+        allowed = sports.registry()[sport].genders
+        if sex not in allowed:
+            sex = allowed[0]
 
         if based_abroad:
             # An eligible diaspora player is a dual national. A non-eligible one

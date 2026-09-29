@@ -236,6 +236,7 @@ def test_a_new_sport_is_a_config_change(with_squash, client, auth, world, db):
             "fullName": "Squash Test Player",
             "dateOfBirth": "2010-03-01",
             "primarySport": "squash",
+            "sex": "male",
             "position": "left",
             "consent": {"signed": True, "guardianName": "Test Guardian"},
             "nationality": ["EG"],
@@ -276,6 +277,7 @@ def test_a_role_from_another_sport_is_refused(with_squash, client, auth, world):
             "fullName": "Wrong Role",
             "dateOfBirth": "2010-03-01",
             "primarySport": "squash",
+            "sex": "male",
             "position": "ST",
             "consent": {"signed": True, "guardianName": "Test Guardian"},
         },
@@ -380,3 +382,91 @@ def test_a_player_does_not_see_integrity_problems_on_their_own_record(
     ).json()
     entries = body["performance"][0]["entries"]
     assert entries and all(e["problems"] is None for e in entries)
+
+
+# ---------------------------------------------------------------------------
+# Gender: which players a sport registers, and keeping boys and girls apart
+# ---------------------------------------------------------------------------
+
+
+def test_football_registers_boys_only_and_table_tennis_both():
+    registry = sports.registry()
+    assert registry["football"].genders == ["male"]
+    assert registry["table_tennis"].genders == ["male", "female"]
+
+
+def test_the_sports_endpoint_lists_the_genders(client, auth, world):
+    listed = {s["sport"]: s for s in client.get("/sports", headers=auth("coach_a")).json()}
+    assert listed["football"]["genders"] == ["male"]
+    assert listed["table_tennis"]["genders"] == ["male", "female"]
+
+
+def test_an_unknown_gender_in_a_module_is_refused(tmp_path):
+    module = json.loads((sports.default_modules_dir() / "table_tennis.json").read_text("utf-8"))
+    module["genders"] = ["male", "other"]
+    (tmp_path / "table_tennis.json").write_text(json.dumps(module), encoding="utf-8")
+    sports.registry.cache_clear()
+    try:
+        with pytest.raises(sports.ModuleError, match="genders"):
+            sports.registry(str(tmp_path))
+    finally:
+        sports.registry.cache_clear()
+
+
+def _new(**overrides) -> dict:
+    body = {
+        "fullName": f"Gender Test {uuid.uuid4().hex[:6]}",
+        "dateOfBirth": "2012-03-01",
+        "primarySport": "football",
+        "tier": "youth",
+        "position": "ST",
+        "nationality": ["EG"],
+        "consent": {"signed": True, "guardianName": "Test Guardian"},
+    }
+    body.update(overrides)
+    return body
+
+
+def test_a_footballer_is_recorded_as_a_boy_without_being_asked(client, auth, world):
+    created = client.post("/players", json=_new(), headers=auth("coach_a"))
+    assert created.status_code == 201, created.text
+    assert created.json()["player"]["sex"] == "male"
+
+
+def test_a_girl_cannot_be_registered_for_football(client, auth, world):
+    response = client.post("/players", json=_new(sex="female"), headers=auth("coach_a"))
+    assert response.status_code == 422
+    assert "male players only" in " ".join(response.json()["detail"]["problems"])
+
+
+def test_table_tennis_needs_to_know_boy_or_girl(client, auth, world):
+    body = _new(primarySport="table_tennis", tier=None, position="attacker")
+    response = client.post("/players", json=body, headers=auth("coach_a"))
+    assert response.status_code == 422
+    assert "Gender is required" in " ".join(response.json()["detail"]["problems"])
+
+    body["sex"] = "female"
+    created = client.post("/players", json=body, headers=auth("coach_a"))
+    assert created.status_code == 201, created.text
+    assert created.json()["player"]["sex"] == "female"
+
+
+def test_a_boy_and_a_girl_are_not_compared_side_by_side(client, auth, world, db):
+    from app.models.player import Player
+
+    boy = world["players"]["adult_a"]
+    girl = Player(
+        id=uuid.uuid4(),
+        full_name="Comparison Girl",
+        date_of_birth=boy.date_of_birth,
+        sex="female",
+        nationality=["EG"],
+        primary_sport="table_tennis",
+        is_minor=False,
+    )
+    db.add(girl)
+    db.flush()
+    assert boy.sex == "male"
+    response = client.get(f"/compare?players={boy.id},{girl.id}", headers=auth("admin"))
+    assert response.status_code == 400
+    assert "compared separately" in response.json()["detail"]

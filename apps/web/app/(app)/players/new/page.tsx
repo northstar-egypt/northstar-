@@ -43,6 +43,9 @@ export default function NewPlayerPage() {
 
   const [fullName, setFullName] = useState("");
   const [dob, setDob] = useState("");
+  // Only asked when the sport registers both genders (table tennis). Football is male only, so
+  // the question never appears and the server records it.
+  const [sex, setSex] = useState<"male" | "female" | "">("");
   const [position, setPosition] = useState<string>("");
   const [nationalities, setNationalities] = useState<string[]>(["EG"]);
   const [egyptEligible, setEgyptEligible] = useState(true);
@@ -74,8 +77,13 @@ export default function NewPlayerPage() {
 
   const consentComplete =
     consentSigned && (minor !== true || guardianName.trim().length > 1);
+  const asksSex = (sportModule?.genders.length ?? 0) > 1;
   const canContinue =
-    fullName.trim().length > 1 && dob !== "" && position !== "" && consentComplete;
+    fullName.trim().length > 1 &&
+    dob !== "" &&
+    (!asksSex || sex !== "") &&
+    position !== "" &&
+    consentComplete;
   const canSave = height !== "" && (!implausible || acknowledged);
 
   async function save(confirmWarnings = acknowledged) {
@@ -88,6 +96,7 @@ export default function NewPlayerPage() {
       const created = await createPlayer({
         fullName,
         dateOfBirth: dob,
+        sex: asksSex ? sex : (sportModule?.genders[0] ?? null),
         position,
         nationality: nationalities,
         isEgyptEligible: egyptEligible,
@@ -160,6 +169,7 @@ export default function NewPlayerPage() {
             {age ? <span className="text-xs text-slate-500">{age} old today</span> : null}
           </div>
 
+
           {minor === true ? (
             <Banner tone="info" title={`This player is a minor${age ? `, ${age}` : ""}`}>
               Their guardian signs the sign-up consent form below, on their behalf.
@@ -176,6 +186,7 @@ export default function NewPlayerPage() {
                     onClick={() => {
                       setSport(m.sport);
                       setPosition("");
+                      setSex("");
                     }}
                     active={sport === m.sport}
                   >
@@ -183,6 +194,24 @@ export default function NewPlayerPage() {
                   </Chip>
                 ))}
               </div>
+            </div>
+          ) : null}
+
+          {asksSex ? (
+            <div className="flex flex-col gap-1.5">
+              <Label>Gender</Label>
+              <div className="flex gap-1.5">
+                <Chip onClick={() => setSex("male")} active={sex === "male"}>
+                  boy
+                </Chip>
+                <Chip onClick={() => setSex("female")} active={sex === "female"}>
+                  girl
+                </Chip>
+              </div>
+              <span className="text-xs text-slate-500">
+                {sportModule?.label} is open to boys and girls, who are always compared
+                separately.
+              </span>
             </div>
           ) : null}
 

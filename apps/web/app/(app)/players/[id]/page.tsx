@@ -35,6 +35,18 @@ import { useAuth } from "@/lib/auth";
 import { num, ordinal, shortDate } from "@/lib/format";
 import type { PerformanceSection, PlayerProfile, SummaryStat } from "@/lib/types";
 
+/** "8 readings over 2.4 years", from the player's own measurements. */
+function measuredSpan(measured: { date: string }[]): string {
+  if (measured.length === 0) return "no readings";
+  if (measured.length === 1) return "1 reading";
+  const days =
+    (new Date(measured[measured.length - 1].date).getTime() - new Date(measured[0].date).getTime()) /
+    86_400_000;
+  const years = days / 365.25;
+  const span = years >= 1 ? `${years.toFixed(1)} years` : `${Math.round(days / 30.44)} months`;
+  return `${measured.length} readings over ${span}`;
+}
+
 export default function PlayerProfilePage() {
   // The route segment is read with useParams rather than taken as a `params` prop. From Next 15
   // that prop is a Promise, and unwrapping it in a client component needs React 19. This hook is
@@ -145,14 +157,16 @@ export default function PlayerProfilePage() {
       {/* growth and maturity */}
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         <Card>
-          <SectionTitle action={<span className="text-xs text-slate-500">3 years</span>}>
+          <SectionTitle
+            action={<span className="text-xs text-slate-500">{measuredSpan(data.growth.measured)}</span>}
+          >
             Height over time
           </SectionTitle>
           <GrowthChart series={data.growth} />
-          <p className="mt-2 text-xs text-slate-500">
-            The forecast is drawn as a widening band because that is what the model actually
-            knows. A line would imply a confidence it does not have.
-          </p>
+          {/* Which model, how its band was checked on this database, or why there is none. */}
+          {data.growth.forecastNote ? (
+            <p className="mt-2 text-xs text-slate-500">{data.growth.forecastNote}</p>
+          ) : null}
         </Card>
 
         <Card>

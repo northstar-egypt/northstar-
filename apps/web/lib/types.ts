@@ -127,6 +127,10 @@ export interface ForecastPoint {
 export interface GrowthSeries {
   measured: { date: string; value: number }[];
   forecast: ForecastPoint[];
+  /** The date the forecast was made from (today), not the last measurement. */
+  forecastFrom?: string | null;
+  /** Which model and how its band was checked, or why there is no forecast. */
+  forecastNote?: string | null;
   /** Population reference band for this age and sex, drawn behind the player's line. */
   population: { date: string; p25: number; p50: number; p75: number }[];
   unit: string;
@@ -200,6 +204,8 @@ export interface SportModule {
   roleLabel: string;
   roles: string[];
   usesTier: boolean;
+  /** Which genders the sport registers. Football: male only. Table tennis: both, kept apart. */
+  genders: ("male" | "female")[];
 }
 
 export interface PlayerProfile {

@@ -128,8 +128,9 @@ table, stop. It almost certainly belongs in the JSON metrics field with a schema
 ### The quality bar
 
 - **Never invent a number, a result, or a value on a screen.** If something is not known yet,
-  the screen and the docs say so. The profile shows no forecast line rather than a guessed
-  one, and a percentile from too few players is left out. A change that makes a screen look
+  the screen and the docs say so. The profile's height forecast is always drawn with its 80%
+  band, and when there is too little history it draws nothing and says why; a percentile from
+  too few players is left out. A change that makes a screen look
   better by making something up is a regression.
 - **Report what you found, including null and unflattering results.** If a score went down,
   or an expected effect did not appear, that goes in the PR and the README, with the number.

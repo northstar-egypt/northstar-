@@ -174,16 +174,54 @@ def test_a_player_profile_renders_real_measurements(sign_in, page, identities):
 
 
 def test_the_profile_states_what_is_not_known_yet(sign_in, page, identities):
-    """The forecast and the maturity estimate are absent, and the screen says so.
+    """No forecast point without its band, and no maturity or summary that does not exist.
 
-    This is the assertion that fails the day somebody makes the chart draw a confident line
-    through data the models cannot actually predict yet.
+    This is the assertion that fails the day somebody makes the chart draw a confident line,
+    or fills the maturity and summary slots with placeholders.
     """
     squad = api("/players", identities["coach"]["email"])
     profile = api(f"/players/{squad[0]['player']['id']}/profile", identities["coach"]["email"])
-    assert profile["growth"]["forecast"] == []
+    for point in profile["growth"]["forecast"]:
+        assert point["lower"] < point["value"] < point["upper"]
+    assert profile["growth"]["forecastNote"]
     assert profile["maturity"] is None
     assert profile["summary"] is None
+
+
+def test_the_profile_draws_the_forecast_band(sign_in, page, identities):
+    """The chart draws the cone, says which model made it, and the cone is a proper shape.
+
+    The outline check is a regression test: the cone was once traced with both edges in the
+    same direction, which drew a polygon that crossed itself.
+    """
+    sign_in("Coach", "/dashboard")
+    squad = api("/players", identities["coach"]["email"])
+    player = next(
+        (
+            row["player"]
+            for row in squad
+            if api(f"/players/{row['player']['id']}/profile", identities["coach"]["email"])[
+                "growth"
+            ]["forecast"]
+        ),
+        None,
+    )
+    assert player, "no player in this squad has a forecast, so there is nothing to check"
+
+    page.goto(f"{WEB_URL}/players/{player['id']}", wait_until="networkidle")
+    page.wait_for_timeout(SETTLE_MS)
+    body = text_of(page)
+    assert "forecast, 80% range" in body
+    assert "cohort velocity" in body or "growth has finished" in body
+    assert "today" in body
+
+    chart = page.locator("svg[aria-label^='Height over time']")
+    cone = chart.locator("polygon[fill='#38bdf8']").get_attribute("points")
+    xs = [float(pair.split(",")[0]) for pair in cone.split()]
+    # Out along the top: x rises. Back along the bottom: x falls. Anything else crosses.
+    turn = xs.index(max(xs))
+    assert xs[: turn + 1] == sorted(xs[: turn + 1])
+    assert xs[turn + 1 :] == sorted(xs[turn + 1 :], reverse=True)
 
 
 # ---------------------------------------------------------------------------
@@ -321,11 +359,15 @@ def test_adding_a_player_saves_and_opens_their_profile(sign_in, page, identities
     page.wait_for_timeout(SETTLE_MS)
 
     assert name.lower() in text_of(page)
+    # One reading is not enough to forecast from, and the profile says so instead of drawing.
+    assert "at least two height measurements" in text_of(page)
 
     squad = api("/players", identities["coach"]["email"])
     row = next(r for r in squad if r["player"]["fullName"] == name)
     assert row["player"]["isMinor"] is True
     assert row["heightCm"] == 150
+    # Football registers boys only, so the form never asked and the server recorded it.
+    assert row["player"]["sex"] == "male"
     assert page.url.endswith(row["player"]["id"])
 
 
@@ -407,6 +449,8 @@ def test_a_coach_can_add_a_table_tennis_player(sign_in, page, identities):
     form.get_by_role("button", name="Table tennis", exact=True).click()
     body = text_of(page)
     assert "playing style" in body
+    # Table tennis is open to boys and girls, so it asks; football never does.
+    form.get_by_role("button", name="girl", exact=True).click()
     form.get_by_role("button", name="chopper", exact=True).click()
     form.get_by_role("button", name="Continue").click()
     page.wait_for_timeout(1500)
@@ -421,3 +465,4 @@ def test_a_coach_can_add_a_table_tennis_player(sign_in, page, identities):
     assert row["player"]["position"] == "chopper"
     # Tier is a football idea; the table tennis module says so and the API obeyed it.
     assert row["player"]["tier"] is None
+    assert row["player"]["sex"] == "female"

@@ -89,6 +89,9 @@ class SportModule:
     role_label: str
     roles: list[str]
     uses_tier: bool
+    # Which genders this sport registers. Players are only ever compared within one gender
+    # (percentiles, growth curves, forecasts), so a sport open to both keeps them apart.
+    genders: list[str] = field(default_factory=lambda: ["male", "female"])
     periods: dict[str, Period] = field(default_factory=dict)
 
 
@@ -175,10 +178,20 @@ def load_module(path: Path) -> SportModule:
             role_label=raw["roles"]["label"],
             roles=list(raw["roles"]["values"]),
             uses_tier=bool(raw["usesTier"]),
+            genders=_genders(path.name, raw.get("genders", ["male", "female"])),
             periods=periods,
         )
     except KeyError as exc:
         raise ModuleError(f"{path.name}: missing {exc}") from exc
+
+
+_KNOWN_GENDERS = ("male", "female")
+
+
+def _genders(name: str, values: list) -> list[str]:
+    if not values or any(value not in _KNOWN_GENDERS for value in values):
+        raise ModuleError(f"{name}: genders must be a non-empty list drawn from {_KNOWN_GENDERS}")
+    return list(dict.fromkeys(values))
 
 
 @lru_cache

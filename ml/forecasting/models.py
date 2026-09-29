@@ -36,7 +36,7 @@ The four forecasters
                        how paediatric growth charts are read, and it is exactly the assumption
                        a late bloomer breaks. They slide down the centiles while their peers
                        spurt, then climb back, so this model runs tall for them through the
-                       early teens (bias +1.0 cm across five seeds).
+                       early teens (bias +1.3 cm across five seeds).
 """
 
 from __future__ import annotations

@@ -138,6 +138,17 @@ def check_player(payload: PlayerCreateIn, today: date) -> list[str]:
     # table tennis player with a football tier would be counted in football tier totals on
     # the oversight screen, and a "ST" chopper is a typo nobody would catch later.
     module = sports.registry()[payload.primary_sport]
+    # The sport module says which genders it registers. Boys and girls are only ever compared
+    # separately, so a sport open to both needs to know which one this player is.
+    if payload.sex is not None and payload.sex not in module.genders:
+        problems.append(
+            f"{module.label} on NorthStar registers {' and '.join(module.genders)} players only."
+        )
+    elif payload.sex is None and len(module.genders) > 1:
+        problems.append(
+            f"Gender is required for {module.label.lower()}: boys and girls are compared "
+            f"separately."
+        )
     if payload.tier is not None and not module.uses_tier:
         problems.append(f"Tier does not apply to {module.label.lower()}.")
     if payload.position is not None and payload.position not in module.roles:
@@ -352,11 +363,15 @@ def create_player(
             raise NeedsConfirmation(warnings)
 
     minor = is_minor_on(payload.date_of_birth, today)
+    # A sport that registers one gender does not ask; the check above has already refused any
+    # other value.
+    module = sports.registry()[payload.primary_sport]
+    sex = payload.sex if payload.sex is not None else module.genders[0]
     player = Player(
         full_name=payload.full_name,
         known_as=payload.known_as,
         date_of_birth=payload.date_of_birth,
-        sex=payload.sex,
+        sex=sex,
         nationality=payload.nationality,
         is_egypt_eligible=payload.is_egypt_eligible,
         primary_sport=payload.primary_sport,

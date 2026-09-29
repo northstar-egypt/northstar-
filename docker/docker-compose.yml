@@ -49,6 +49,8 @@ services:
       - ../apps/api:/app
       # The sport modules, so editing one takes effect on restart without a rebuild.
       - ../packages/shared/sports:/shared/sports:ro
+      # The ML package, for the profile's height forecast (app/services/forecast.py).
+      - ../ml:/opt/northstar/ml:ro
     depends_on:
       db:
         condition: service_healthy
