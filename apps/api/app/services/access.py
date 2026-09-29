@@ -16,16 +16,17 @@ and `docs/threat-model.md` (threat 1, broken access control), not from invention
 Two principles the rest of the API depends on:
 
 **Consent gates minors, not adults.** `docs/schema.md`: "The application must check relevant
-consent before exposing a minor's profile to scouts." A minor without a granted, in-date
-`scouting_visibility` consent is not visible to a scout. Their own coach still sees them,
-because the coach is the one who logged them and consent for scouting visibility is not
-consent to exist.
+consent before exposing a minor's profile to scouts." Consent is signed at sign-up (a guardian
+signs for a minor when the academy registers them), so in normal operation every minor is
+visible to scouts and this check passes. It still runs on every request, because a guardian
+can withdraw consent, and a minor without a granted, in-date `scouting_visibility` consent is
+then not visible to a scout. Their own coach still sees them, because consent for scouting
+visibility is not consent to exist.
 
-**Withheld is not the same as absent.** A scout who matches a minor without consent gets a
-result marked `withheld` with the identifying fields stripped, rather than a silently shorter
-list. Whether that is right is still open (see docs/wireframes/README.md, "Consent gating
-behaviour"), and the wireframe drew the locked card, so that is what this implements. The
-shape makes the other choice a one-line change in the search service.
+**Withheld is not the same as absent.** A scout who matches a minor whose consent was
+withdrawn gets a result marked `withheld` with the identifying fields stripped, rather than a
+silently shorter list. The shape makes the other choice a one-line change in the search
+service.
 
 What is deliberately NOT here: authentication. There is no session, no token and no password
 check, because the auth approach is an open decision on the board. `app.deps` resolves a
@@ -207,7 +208,8 @@ def may_view(db: Session, caller: Caller, player: Player) -> tuple[bool, str | N
         if state.get(ConsentPurpose.SCOUTING_VISIBILITY.value):
             return True, None
         return False, (
-            "This player is a minor and has no current consent for scouting visibility."
+            "This player is a minor and their guardian's consent to be seen by scouts is not "
+            "in effect, usually because it was withdrawn."
         )
 
     return False, "Your role does not permit viewing player records."

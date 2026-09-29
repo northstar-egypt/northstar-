@@ -67,6 +67,27 @@ class MeasurementBatchIn(CamelModel):
     acknowledge_warnings: bool = False
 
 
+class SignupConsentIn(CamelModel):
+    """The sign-up consent form: one signature covering storage, analytics and scouting.
+
+    Joining the platform means signing it, so a player cannot be added without it. For a
+    minor the signature is a guardian's and the guardian must be named; for an adult it is
+    the player's own and `guardian_name` is ignored. Whether a guardian is needed is decided
+    on the server from the date of birth, like `is_minor`.
+    """
+
+    signed: bool
+    guardian_name: str | None = Field(default=None, max_length=200)
+
+    @field_validator("guardian_name")
+    @classmethod
+    def _guardian(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        return value or None
+
+
 class PlayerCreateIn(CamelModel):
     full_name: str = Field(min_length=2, max_length=200)
     known_as: str | None = Field(default=None, max_length=100)
@@ -80,6 +101,7 @@ class PlayerCreateIn(CamelModel):
     # Required for an admin, optional for a coach, who always adds to their own. See
     # `access.may_create_player`.
     organization_id: uuid.UUID | None = None
+    consent: SignupConsentIn
     # The first visit, saved in the same transaction as the player. Optional, but the add
     # player screen always sends one, and doing it in one request means a failed measurement
     # cannot leave behind a player the coach was told was not saved.
@@ -152,7 +174,5 @@ class PlayerCreatedOut(CamelModel):
     organization_id: uuid.UUID
     measurements: list[MeasurementOut] = []
     acknowledged_warnings: list[MeasurementWarningOut] = []
-    # True for a minor with no consent on record, which is every minor at creation. Consent
-    # capture is not built on the add player screen yet, so the client is told plainly that
-    # this child is not visible to scouts and why.
-    consent_required: bool
+    # Who signed the sign-up consent: "player" or "guardian:<name>".
+    consent_granted_by: str

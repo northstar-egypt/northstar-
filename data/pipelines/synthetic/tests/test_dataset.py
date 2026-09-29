@@ -24,6 +24,7 @@ from data.pipelines.synthetic.affiliations import find_overlaps
 from data.pipelines.synthetic.config import GeneratorConfig
 from data.pipelines.synthetic.dataset import build_dataset
 from data.pipelines.synthetic.ground_truth import duplicate_pairs, label_vectors
+from data.pipelines.synthetic.orm import enums
 from data.pipelines.synthetic.performance import assert_consistent
 from data.pipelines.synthetic.players import MINOR_AGE
 from data.pipelines.synthetic.writer import row_to_dict, verify_round_trip
@@ -318,6 +319,18 @@ def test_minors_consent_requires_a_named_guardian(ds):
     for c in minor_consents:
         assert c.guardian_name, "a minor's consent has no guardian"
         assert c.granted_by.startswith("guardian:")
+
+
+def test_every_player_signed_up_with_consent_for_every_purpose(ds):
+    """Joining means signing, so no synthetic player is hidden from scouts."""
+    purposes = {p.value for p in enums.ConsentPurpose}
+    held: dict = {}
+    for c in ds.consents:
+        assert c.granted is True
+        assert c.valid_until is None
+        held.setdefault(c.player_id, set()).add(c.purpose)
+    for p in ds.players:
+        assert held.get(p.id) == purposes, f"{p.id} did not sign up for every purpose"
 
 
 def test_adults_consent_for_themselves(ds):

@@ -69,7 +69,8 @@ changes what that is.
 assertions check values that can only have come from the database, such as the organization
 name on the caller's account and counts that match what the API reports.
 
-**The access-control boundary.** A scout's search is expected to contain withheld cards, and
-a withheld card is expected to carry no name. That is the rule most worth catching a
-regression in, because breaking it leaks a child's identity and nothing else in the suite
-would notice.
+**The consent model.** Consent is signed at sign-up, so a scout's search of the seeded data
+is expected to hold minors and no withheld cards, and adding a player fills in the guardian's
+consent before Continue unlocks. The other half of the rule, that a minor whose guardian
+withdraws consent is withheld and never named, is tested against the API in `apps/api/tests`,
+where a withdrawal can be set up directly.

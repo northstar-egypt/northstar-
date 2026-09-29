@@ -159,9 +159,10 @@ def create_player(
     all saved or none are. The affiliation is not optional, because a player with no current
     organization is invisible to every coach and would be saved only to be lost.
 
-    Minor status is computed here from the date of birth, never taken from the client. No
-    consent is recorded, so a new minor is not visible to scouts until a guardian's consent
-    is captured, and the response says so.
+    Minor status is computed here from the date of birth, never taken from the client. The
+    sign-up consent form is required and saved in the same transaction: a guardian's
+    signature for a minor, the player's own for an adult. So a new player is visible to
+    scouts from the start, and a later withdrawal is what would hide a minor again.
     """
     organization_id, reason = may_create_player(caller, payload.organization_id)
     if organization_id is None:
@@ -184,7 +185,9 @@ def create_player(
         organization_id=organization_id,
         measurements=[MeasurementOut.model_validate(row) for row in measurements],
         acknowledged_warnings=warnings,
-        consent_required=player.is_minor,
+        consent_granted_by=(
+            f"guardian:{payload.consent.guardian_name}" if player.is_minor else "player"
+        ),
     )
 
 

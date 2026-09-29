@@ -32,7 +32,13 @@ from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
 from app import sports
-from app.models.enums import MeasurementSource, PlayerOrganizationRole, PlayerStatus
+from app.models.consent import Consent
+from app.models.enums import (
+    ConsentPurpose,
+    MeasurementSource,
+    PlayerOrganizationRole,
+    PlayerStatus,
+)
 from app.models.measurement import Measurement
 from app.models.organization import Organization
 from app.models.player import Player
@@ -118,6 +124,15 @@ def check_player(payload: PlayerCreateIn, today: date) -> list[str]:
             problems.append(f"Date of birth makes this player {age}, under {MIN_AGE_YEARS}.")
         elif age > MAX_AGE_YEARS:
             problems.append(f"Date of birth makes this player {age}, over {MAX_AGE_YEARS}.")
+
+    # Joining the platform means signing the consent form, so there is no player without it.
+    # A child cannot sign for themselves: the form must name the guardian who did.
+    if not payload.consent.signed:
+        problems.append("The sign-up consent form has not been signed.")
+    elif dob <= today and is_minor_on(dob, today) and not payload.consent.guardian_name:
+        problems.append(
+            "This player is a minor, so the consent form must be signed by a named guardian."
+        )
 
     # Whether tiers apply, and what a player's role can be, is the sport module's call. A
     # table tennis player with a football tier would be counted in football tier totals on
@@ -364,6 +379,21 @@ def create_player(
             end_date=None,
         )
     )
+    guardian = payload.consent.guardian_name if minor else None
+    granted_by = f"guardian:{guardian}" if minor else "player"
+    for purpose in ConsentPurpose:
+        db.add(
+            Consent(
+                player_id=player.id,
+                purpose=purpose.value,
+                granted=True,
+                granted_by=granted_by,
+                guardian_name=guardian,
+                valid_from=today,
+                valid_until=None,
+                document_ref=None,
+            )
+        )
     db.add(
         AuditLog(
             actor_user_id=actor_user_id,
@@ -373,9 +403,19 @@ def create_player(
             event_metadata={
                 "organization_id": str(organization_id),
                 "is_minor": minor,
-                # No consent rows are written here. Absence of consent is not consent, and
-                # the add player screen does not capture a guardian yet.
-                "consent_recorded": False,
+            },
+        )
+    )
+    db.add(
+        AuditLog(
+            actor_user_id=actor_user_id,
+            action="consent.grant",
+            entity_type="player",
+            entity_id=player.id,
+            event_metadata={
+                "granted_by": granted_by,
+                "purposes": [purpose.value for purpose in ConsentPurpose],
+                "at": "signup",
             },
         )
     )

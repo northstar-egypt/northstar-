@@ -7,8 +7,9 @@
  * on a pitch. Two behaviours here are deliberate and should survive review:
  *
  *   1. Minor status is computed from the date of birth and announced immediately, in place,
- *      before the coach can move on. Nobody should add a 13 year old without being told that
- *      consent is now required.
+ *      and it changes who signs the sign-up consent form: a named guardian for a minor, the
+ *      player for an adult. Joining the platform means signing it, so the coach cannot
+ *      continue without it, and once signed the player is visible to scouts.
  *   2. Implausible values raise a question, never a block. A coach who genuinely measured a
  *      12 cm jump must be able to save it, because that is exactly the observation the late
  *      bloomer and anomaly detectors need. What must never happen is that it passes silently.
@@ -45,6 +46,8 @@ export default function NewPlayerPage() {
   const [position, setPosition] = useState<string>("");
   const [nationalities, setNationalities] = useState<string[]>(["EG"]);
   const [egyptEligible, setEgyptEligible] = useState(true);
+  const [consentSigned, setConsentSigned] = useState(false);
+  const [guardianName, setGuardianName] = useState("");
 
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
@@ -69,7 +72,10 @@ export default function NewPlayerPage() {
   const implausible =
     height !== "" && (Number.isNaN(heightNum) || heightNum < 100 || heightNum > 220);
 
-  const canContinue = fullName.trim().length > 1 && dob !== "" && position !== "";
+  const consentComplete =
+    consentSigned && (minor !== true || guardianName.trim().length > 1);
+  const canContinue =
+    fullName.trim().length > 1 && dob !== "" && position !== "" && consentComplete;
   const canSave = height !== "" && (!implausible || acknowledged);
 
   async function save(confirmWarnings = acknowledged) {
@@ -88,6 +94,7 @@ export default function NewPlayerPage() {
         primarySport: sport,
         // Only sports whose module uses the football tier model get one.
         tier: sportModule?.usesTier ? "youth" : null,
+        consent: { signed: consentSigned, guardianName: minor ? guardianName : null },
         measurements: {
           measuredAt,
           metrics: [
@@ -131,6 +138,7 @@ export default function NewPlayerPage() {
           <div className="flex flex-col gap-1">
             <Label>Full name</Label>
             <input
+              aria-label="Full name"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               className={inputClass}
@@ -153,9 +161,8 @@ export default function NewPlayerPage() {
           </div>
 
           {minor === true ? (
-            <Banner tone="warn" title={`This player is a minor${age ? `, ${age}` : ""}`}>
-              Guardian consent is required before this profile can be seen by scouts. You can add
-              them now and capture consent on the next step.
+            <Banner tone="info" title={`This player is a minor${age ? `, ${age}` : ""}`}>
+              Their guardian signs the sign-up consent form below, on their behalf.
             </Banner>
           ) : null}
 
@@ -229,6 +236,37 @@ export default function NewPlayerPage() {
               className="h-4 w-4 accent-sky-500"
             />
           </label>
+
+          <div className="flex flex-col gap-2 rounded-md border border-slate-800 bg-slate-900/40 px-3 py-3">
+            <Label>Sign-up consent</Label>
+            {minor === true ? (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-slate-400">Guardian&apos;s full name</span>
+                <input
+                  aria-label="Guardian's full name"
+                  value={guardianName}
+                  onChange={(e) => setGuardianName(e.target.value)}
+                  className={inputClass}
+                  autoComplete="off"
+                />
+              </div>
+            ) : null}
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={consentSigned}
+                onChange={(e) => setConsentSigned(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-sky-500"
+              />
+              <span>
+                {minor === true ? "The guardian has" : "The player has"} signed the consent form
+                for storing their data, analysing it, and showing their profile to scouts.
+              </span>
+            </label>
+            <span className="text-xs text-slate-500">
+              Consent can be withdrawn at any time, which hides a minor from scouts again.
+            </span>
+          </div>
 
           <Button variant="primary" disabled={!canContinue} onClick={() => setStep(2)}>
             Continue
@@ -393,7 +431,6 @@ export default function NewPlayerPage() {
       <Card className="border-dashed">
         <SectionTitle>Not built on this screen</SectionTitle>
         <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-slate-500">
-          <li>Guardian consent capture, which should be part of step 2 when a player is a minor.</li>
           <li>Editing an existing player. Same form, loaded with values, once the API can serve one.</li>
         </ul>
       </Card>
