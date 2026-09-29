@@ -23,6 +23,10 @@ role-based web application for coaches, scouts, federations, and players.
   late-bloomer detection.
 - **Diaspora tier**: Egypt-eligible players in foreign leagues, tracked from public
   European data (Transfermarkt-style sources).
+- **Team gap analysis** (pro analytics branch, added 2026-09-29): where a club or the national
+  team is weak, and which players (Egyptian league or Egypt-eligible abroad) are strong
+  exactly there. Built on FootyStats team and player season stats. Design and open decisions:
+  `docs/decisions/0003-team-gap-analysis.md`.
 
 ### Table tennis module (generalization proof)
 - ITTF/WTT results data (scraped) plus self-submitted player profiles for players seeking
