@@ -28,10 +28,10 @@ withdrawn gets a result marked `withheld` with the identifying fields stripped, 
 silently shorter list. The shape makes the other choice a one-line change in the search
 service.
 
-What is deliberately NOT here: authentication. There is no session, no token and no password
-check, because the auth approach is an open decision on the board. `app.deps` resolves a
-caller from a development header and this module decides what that caller may see. When real
-auth lands it replaces the resolution step and leaves these rules untouched.
+What is deliberately NOT here: authentication. `app.security` and `app.deps` establish who is
+calling (a signed session, re-checked against the database on every request); this module
+only decides what that caller may see and do. The two are kept apart so the rules can be read
+without reading the cryptography, and the other way round.
 """
 
 from __future__ import annotations

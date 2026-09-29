@@ -109,9 +109,8 @@ class ConsentOut(CamelModel):
 class SessionUserOut(CamelModel):
     """Who the API believes is calling.
 
-    Served by `/me` so the frontend can stop guessing. Until the security track's auth
-    decision lands this is resolved from a development header, and `/me` says so in its
-    docstring rather than leaving it to be discovered.
+    Served by `/me` and returned by `/auth/login`. The session token itself is never in it;
+    it travels only in the HttpOnly cookie.
     """
 
     id: uuid.UUID

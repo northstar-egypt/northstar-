@@ -44,7 +44,7 @@ The API comes up on http://localhost:8000. `GET /docs` has the interactive docum
 | `GET /oversight?sport=football` | federation aggregates, counts only |
 | `GET /integrity/flags` | the review queue: fraud, duplicate and anomaly |
 | `POST /integrity/flags/{id}/decision` | record a decision, with its reason |
-| `GET /dev/identities` | development only, accounts the role switcher can act as |
+| `GET /dev/identities` | development only, one demo account per role for the login screen |
 
 Write endpoints for player data (`POST /players`, `POST /players/{id}/measurements`) are not
 built yet.
@@ -72,23 +72,36 @@ decided what and why, and an `audit_log` row. The reason is required, and that i
 bureaucracy: each decision plus its reason is a labelled example, and labelled examples are
 what the detectors' precision and recall are computed from.
 
-## Authentication: there is none yet
+## Authentication
 
-The auth approach is an open decision on the project board, so rather than pick one, the API
-resolves a caller from a request header:
+Email and password, checked against an argon2id hash, start a session: a signed token (JWT)
+in an **HttpOnly, SameSite=Lax** cookie that page scripts cannot read. Every request re-checks
+the token and reloads the account from the database, so a deactivated account or a changed
+role applies at once. The design, the threats it answers and its known gaps are in
+`docs/threat-model.md` under "Authentication and sessions".
+
+| Endpoint | What it does |
+| --- | --- |
+| `POST /auth/login` | checks `{email, password}`, sets the session cookie, returns who signed in |
+| `POST /auth/logout` | clears the cookie |
+| `GET /me` | who the session belongs to, 401 when signed out |
+
+From a script or curl, sign in once and reuse the cookie:
 
 ```bash
-curl -H "X-NorthStar-User: coach.001@northstar.test" http://localhost:8000/players
+curl -c jar.txt -H "Content-Type: application/json" \
+  -d '{"email":"coach.001@northstar.test","password":"northstar-demo"}' \
+  http://localhost:8000/auth/login
+curl -b jar.txt http://localhost:8000/players
 ```
 
-This is honoured **only** when `ENVIRONMENT=development`. Anywhere else every endpoint that
-needs a caller returns 401, because no other identity source exists. Anyone who can reach the
-API in development can act as any user including an admin, which is fine for a local stack of
-synthetic data and is not fine for anything else. `GET /dev/identities` lists one account per
-role so you do not have to go digging in psql.
+Every synthetic account's password is `northstar-demo`, published on purpose because the data
+is synthetic. `GET /dev/identities` (development only) lists one account per role for the
+login screen's demo buttons, which sign in through the same `POST /auth/login`.
 
-When real sessions land, `app/deps.py::current_user` is the only function that changes.
-Everything downstream takes a caller and does not care where it came from.
+Configuration: `JWT_SECRET` signs the tokens. The development default is public, so outside
+`ENVIRONMENT=development` the API refuses to start unless it is set to at least 32 random
+characters. `SESSION_HOURS` (default 8) sets the session length.
 
 ## Access control
 

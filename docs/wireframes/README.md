@@ -67,9 +67,10 @@ request that flags the affected workstreams rather than being made quietly.
 
 ## Decisions these wireframes are waiting on
 
-- **Auth and session handling** shapes the login screen. The security track's next task is the
-  auth decision record, and the "stay signed in" control on `01-login.html` should not ship
-  before that lands.
+- **Auth and session handling. Decided.** Email and password, and an 8 hour session in an
+  HttpOnly cookie (see `docs/threat-model.md`). The "stay signed in" control drawn on
+  `01-login.html` is not built: a longer-lived session would need a revocable server-side
+  session store first.
 - **Consent gating behaviour. Decided.** Consent is signed at sign-up: an academy joins, and
   each player's guardian signs one form covering storage, analytics and scouting visibility.
   So every minor is visible to scouts. A minor is withheld only if the guardian later

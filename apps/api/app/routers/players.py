@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import current_user
 from app.models.player import Player
-from app.schemas.core import MeasurementOut, PlayerOut, SessionUserOut
+from app.schemas.core import MeasurementOut, PlayerOut
 from app.schemas.views import PlayerProfileOut, SquadRowOut
 from app.schemas.writes import (
     MeasurementBatchIn,
@@ -34,24 +34,6 @@ from app.services.access import (
 )
 
 router = APIRouter(tags=["players"])
-
-
-@router.get("/me", response_model=SessionUserOut)
-def me(caller: Caller = Depends(current_user)) -> SessionUserOut:
-    """Who the API believes is calling.
-
-    Until the security track's auth decision lands this reflects the development identity
-    header, not a session. See `app.deps`.
-    """
-    return SessionUserOut(
-        id=caller.user_id,
-        full_name=caller.full_name,
-        email=caller.email,
-        role=caller.role,
-        organization_id=caller.organization_id,
-        organization_name=caller.organization_name,
-        linked_player_id=caller.linked_player_id,
-    )
 
 
 @router.get("/players", response_model=list[SquadRowOut])

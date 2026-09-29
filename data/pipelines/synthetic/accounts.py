@@ -16,13 +16,16 @@ from datetime import date, timedelta
 
 from .config import GeneratorConfig
 from .orm import AuditLog, Consent, Organization, User, enums
+
+from app.security import demo_password_hash  # noqa: E402  (orm puts apps/api on the path)
 from .players import PlayerProfile
 from .reference import AUDIT_ACTIONS
 from .rng import Rng
 
-# A placeholder that is obviously not a real hash, so nobody can mistake this for
-# a credential. The security track's decision record settles the real algorithm.
-PLACEHOLDER_HASH = "$synthetic$not-a-real-hash$do-not-use"
+# Every synthetic account's password is `app.security.DEMO_PASSWORD`, published on purpose
+# so a reviewer can sign in as any role. The stored value is a real argon2id hash of it, made
+# deterministically from the user id so the output stays byte-identical run to run, and at a
+# low cost that the first sign-in upgrades. See `app.security.demo_password_hash`.
 
 
 def generate_users(
@@ -40,10 +43,13 @@ def generate_users(
         name = rng.faker.eg_full_name(rng.choice(["male", "female"]))
         # Deterministic, collision-free, and obviously synthetic.
         local = f"{role}.{len(users) + 1:03d}"
+        # Drawn here, before `is_active` below, which is the order the draws always had.
+        # Changing the order of random draws would change every later value in the dataset.
+        user_id = rng.uuid()
         return User(
-            id=rng.uuid(),
+            id=user_id,
             email=f"{local}@northstar.test",
-            password_hash=PLACEHOLDER_HASH,
+            password_hash=demo_password_hash(user_id),
             full_name=name,
             role=role,
             organization_id=organization_id,

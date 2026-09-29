@@ -86,8 +86,9 @@ def page(browser):
 def sign_in(page):
     """Sign in through the login screen as one of the demo roles.
 
-    Goes through the real login screen rather than seeding localStorage, because the account
-    it picks comes from the API and that lookup is part of what is being tested.
+    The demo buttons call the real POST /auth/login with the published demo password, so this
+    exercises the same sign-in a person would, and the browser then holds a real session
+    cookie.
     """
 
     def _sign_in(role: str, expect_url: str) -> None:

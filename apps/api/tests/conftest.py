@@ -208,10 +208,14 @@ def world(db):
     consent(people["adult_b"], ConsentPurpose.SCOUTING_VISIBILITY.value, True)
 
     def user(role: str, organization: Organization | None, linked: Player | None = None) -> User:
+        from app.security import demo_password_hash
+
+        user_id = uuid.uuid4()
         row = User(
-            id=uuid.uuid4(),
+            id=user_id,
             email=f"{role}.{uuid.uuid4().hex[:8]}@test.invalid",
-            password_hash="not-a-real-hash",
+            # A real argon2id hash of the demo password, so the login tests can sign in.
+            password_hash=demo_password_hash(user_id),
             full_name=f"Test {role}",
             role=role,
             organization_id=organization.id if organization else None,
@@ -247,9 +251,14 @@ def world(db):
 
 @pytest.fixture
 def auth(world):
-    """Headers acting as a named user from `world`."""
+    """Headers acting as a named user from `world`: a real signed session token.
+
+    Sent as a bearer token rather than a cookie, the way a script or the /docs page would.
+    The cookie path is tested on its own in test_auth.py.
+    """
+    from app.security import issue_token
 
     def _headers(who: str) -> dict[str, str]:
-        return {"X-NorthStar-User": world["users"][who].email}
+        return {"Authorization": f"Bearer {issue_token(world['users'][who].id)}"}
 
     return _headers
