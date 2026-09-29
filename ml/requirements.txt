@@ -24,15 +24,16 @@
 # The challenger models (ml/challengers), which put the methods the thesis names through the
 # same evaluation as the v1 models: an isolation forest for age misrepresentation, and XGBoost
 # for the height forecast. Only the challengers import these; the v1 detectors and forecasters
-# stay standard library only, and the API never imports ml/challengers. Without them the
-# harness still runs and says the challengers were skipped.
+# stay standard library only. Without them the harness still runs and says the challengers
+# were skipped.
 # scikit-learn also cross-checks our precision/recall/F1 in ml/tests/test_metrics.py.
 scikit-learn==1.5.*
-xgboost==3.0.*
+# xgboost is NOT pinned here. XGBoost won, and the API now runs it on the player profile, so
+# it is pinned once in apps/api/requirements.txt, which data/pipelines/requirements.txt pulls
+# in. A second pin here would install two copies of the library (xgboost and xgboost-cpu)
+# into one environment.
 
 pytest==8.3.*
 
-# The height forecasters (ml/forecasting) are standard-library only as well. v1 is a
-# learned population growth curve, which needs medians and interpolation, not a
-# gradient boosting library. If a trained model replaces it, add the dependency
-# then, and note why it is here.
+# The v1 height forecasters (ml/forecasting) are standard-library only as well. The profile
+# now draws the XGBoost challenger, which is why xgboost is an API dependency (see above).

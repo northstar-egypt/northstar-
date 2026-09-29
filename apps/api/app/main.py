@@ -4,6 +4,8 @@ Creates the FastAPI app, wires CORS for the web frontend, and mounts routers. Ke
 thin: feature logic belongs in routers and services, not here.
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -19,10 +21,20 @@ from app.routers import (
     search,
     sports,
 )
+from app.services import forecast
 
 settings = get_settings()
 
-app = FastAPI(title=settings.app_name)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # The profile's height forecast takes seconds to build; start it now, in the background,
+    # so the first profile opened does not wait. See app/services/forecast.py.
+    forecast.warm_up()
+    yield
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

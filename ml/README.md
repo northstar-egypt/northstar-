@@ -199,17 +199,10 @@ growth curve is learned from very few children. It still beats last value for gi
 but not by much. This is the price of a small population, and it is why the profile learns
 the uncertainty band separately for each gender (below).
 
-**On the player profile.** The API runs this same code, not a copy
-(`apps/api/app/services/forecast.py`), on the rows in its own database. Under 18 it draws
-cohort velocity 3, 6 and 12 months ahead; from 18 it draws a flat line at the last reading,
-because of the adult defect above. The 80% band is learned walk-forward from that database's
-own past forecasts, per horizon and **per gender**, and the profile states how many past
-readings for that gender fell inside it (on the synthetic dataset: 82% for boys, 77% for girls,
-the latter from only 48 checks). A band pooled across genders would be far too narrow for girls.
-It draws nothing, and says why, when a player has fewer than two readings, no date of birth or
-gender, a last reading more than a year old, or when there are fewer than 30 past forecasts for
-their age group and gender in a horizon (adult girls, on the synthetic data).
-`apps/api/tests/test_forecast.py` checks that the profile's number equals this module's.
+**On the player profile.** The profile drew cohort velocity until the XGBoost challenger
+beat it; it now draws XGBoost for under-18s. See "On the player profile" under Challenger
+models below. From 18 it still draws a flat line at the last reading, because of the adult
+defect above.
 
 ## Challenger models
 
@@ -224,8 +217,9 @@ python -m ml.run_forecast_eval --seed-sweep 20260827 7 99 404 555      # include
 python -m ml.run_eval --seed-sweep 20260827 7 99 404 555 $(seq 1000 1014)  # includes the forest
 ```
 
-Both need `ml/requirements.txt` (scikit-learn, xgboost). Without them the harness runs the v1
-models alone and says the challengers were skipped. The API never imports them.
+The isolation forest needs scikit-learn (`ml/requirements.txt`); XGBoost is pinned in
+`apps/api/requirements.txt`, because the profile now runs it. Without them the harness runs
+the v1 models alone and says the challengers were skipped.
 
 ### Height forecast: XGBoost wins, mostly on the hard cases
 
@@ -259,8 +253,38 @@ though the per-seed 95% intervals overlap. Read it this way:
 - **Age fraud:** its bias on planted cases is +0.41 against +0.21, a slightly stronger version
   of the "runs tall" signal noted above, still small.
 
-The player profile still draws cohort velocity. Switching it to XGBoost would need XGBoost in
-the API image and a band calibrated on XGBoost's own errors; that is a separate change.
+**Its band holds, per gender.** The profile learns its 80% band for each gender separately,
+from earlier forecasts whose outcome was already measured. Checked that way (walk-forward,
+under 18, pooled over the five datasets; printed at the end of the sweep):
+
+| band around | boys: inside | boys: width | girls: inside | girls: width |
+| --- | --- | --- | --- | --- |
+| cohort velocity | 81.0% of 12,550 | 2.55 cm | 73.0% of 126 | 4.69 cm |
+| **XGBoost** | **80.2%** of 11,197 | **2.46 cm** | **77.4%** of 106 | **2.82 cm** |
+
+For boys both are close to the nominal 80%, XGBoost's a little closer and a little narrower.
+For girls XGBoost's band is 40% narrower and closer to nominal, though a hundred checks is a
+small sample and both undercover. XGBoost has fewer checks because it declines at the earliest
+origins, when there are too few readings to train on (fewer than 200 pairs).
+
+**On the player profile.** The API runs this same code, not a copy
+(`apps/api/app/services/forecast.py`), on the rows in its own database. Under 18 it draws
+XGBoost 3, 6 and 12 months ahead; from 18 a flat line at the last reading, because last value
+is still the best model for adults. The band comes from XGBoost's own past errors on that
+database, per horizon and per gender, and the profile states how many past readings for that
+gender fell inside it. On the local synthetic dataset: 81% for boys (2,130 of 2,637), 81% for
+girls (42 of 52). It draws nothing, and says why, when a player has fewer than two readings,
+no date of birth or gender, a last reading more than a year old, or fewer than 30 past
+forecasts for their age group and gender in a horizon (adult girls, on the synthetic data).
+`apps/api/tests/test_forecast.py` checks that the profile's number equals the evaluated
+forecaster's, and `ml/tests/test_challengers.py` that it trains without scikit-learn, which
+the API image does not have.
+
+The model takes about nine seconds to build inside the API container (a walk-forward run with
+an XGBoost fit at every origin). The API builds it in the background when it starts and
+rebuilds it in the background every five minutes, so a profile does not wait for it. A
+player's own readings are read fresh on every request, so a height a coach has just logged
+moves that player's forecast at once.
 
 ### Age misrepresentation: isolation forest ties, and the rule stays
 

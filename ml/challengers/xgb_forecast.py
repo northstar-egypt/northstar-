@@ -26,6 +26,10 @@ forecast made at that origin.
 Hyperparameters, fixed before the first run and never changed: 300 trees of depth 4, learning
 rate 0.05, row and column subsampling 0.8, at least 5 rows per leaf. Standard, conservative
 defaults for a few thousand tabular rows.
+
+It won the evaluation (ml/README.md, "Challenger models"), so the player profile now draws it
+for under-18s (apps/api/app/services/forecast.py). It stays in this package, beside the
+isolation forest that did not win, so the evaluation that promoted it is still one command.
 """
 
 from __future__ import annotations
@@ -46,17 +50,22 @@ from ml.forecasting.models import (
 
 NAME = "challenger: xgboost"
 
+# XGBoost's native training API rather than its scikit-learn wrapper (XGBRegressor), because
+# the wrapper needs scikit-learn installed and the API image, which runs this model, does not
+# have it. Same settings under their native names, and the evaluation output is byte-identical
+# to the XGBRegressor version.
+ROUNDS = 300
 PARAMS = dict(
-    n_estimators=300,
+    objective="reg:squarederror",
     max_depth=4,
-    learning_rate=0.05,
+    eta=0.05,
     subsample=0.8,
     colsample_bytree=0.8,
     min_child_weight=5,
     reg_lambda=1.0,
     tree_method="hist",
-    random_state=0,
-    n_jobs=1,
+    seed=0,
+    nthread=1,
 )
 
 # Training pairs further apart than this are not like anything the model is asked. Forecasts
@@ -96,7 +105,8 @@ def _features(
     ]
 
 
-def _train(snapshot: Snapshot) -> xgb.XGBRegressor | None:
+def train(snapshot: Snapshot) -> xgb.Booster | None:
+    """One model from every reading in the snapshot, or None when there are too few rows."""
     rows: list[list[float]] = []
     targets: list[float] = []
     for history in snapshot.players.values():
@@ -110,21 +120,32 @@ def _train(snapshot: Snapshot) -> xgb.XGBRegressor | None:
                 targets.append(cm - last_cm)
     if len(rows) < MIN_TRAINING_ROWS:
         return None
-    model = xgb.XGBRegressor(**PARAMS)
-    model.fit(np.asarray(rows, dtype=float), np.asarray(targets, dtype=float))
-    return model
+    data = xgb.QuantileDMatrix(np.asarray(rows, dtype=float), np.asarray(targets, dtype=float))
+    return xgb.train(PARAMS, data, num_boost_round=ROUNDS)
 
 
 # One model per snapshot. The snapshot object itself is held, so its id cannot be reused by a
 # later snapshot while the cache still points at it.
-_cache: tuple[Snapshot, xgb.XGBRegressor | None] | None = None
+_cache: tuple[Snapshot, xgb.Booster | None] | None = None
 
 
-def _model_for(snapshot: Snapshot) -> xgb.XGBRegressor | None:
+def _model_for(snapshot: Snapshot) -> xgb.Booster | None:
     global _cache
     if _cache is None or _cache[0] is not snapshot:
-        _cache = (snapshot, _train(snapshot))
+        _cache = (snapshot, train(snapshot))
     return _cache[1]
+
+
+def predict(
+    model: xgb.Booster | None, snapshot: Snapshot, history: PlayerHistory, target: date
+) -> float | None:
+    """The forecast from a model already trained on `snapshot`. The API trains once and keeps
+    the model itself (app/services/forecast.py) rather than sharing the cache above between
+    request threads."""
+    if model is None or len(history.heights) < 2:
+        return None
+    x = np.asarray([_features(snapshot, history.sex, history.dob, history.heights, target)])
+    return history.heights[-1][1] + float(model.inplace_predict(x)[0])
 
 
 def xgboost_forecast(
@@ -133,11 +154,7 @@ def xgboost_forecast(
     """Same signature as the v1 forecasters in ml/forecasting/models.py."""
     if len(history.heights) < 2:
         return None
-    model = _model_for(snapshot)
-    if model is None:
-        return None
-    x = np.asarray([_features(snapshot, history.sex, history.dob, history.heights, target)])
-    return history.heights[-1][1] + float(model.predict(x)[0])
+    return predict(_model_for(snapshot), snapshot, history, target)
 
 
 FORECASTERS = {NAME: xgboost_forecast}

@@ -78,10 +78,11 @@ def population(db, world):
 
 
 def test_the_profile_forecast_is_the_graded_model(db, population):
-    """Same number as ml/forecasting's cohort velocity on the same rows, to the millimetre."""
+    """Same number as the evaluated XGBoost forecaster on the same rows, to the millimetre."""
     # The service first: importing it is what puts the repository's ml/ on the path.
     from app.services import forecast
-    from ml.forecasting.models import Snapshot, cohort_velocity
+    from ml.challengers.xgb_forecast import xgboost_forecast
+    from ml.forecasting.models import Snapshot
 
     child = population["kids"][0]
     result = forecast.forecast_height(db, child, today=TODAY)
@@ -90,8 +91,63 @@ def test_the_profile_forecast_is_the_graded_model(db, population):
     histories = forecast._histories(db)
     snapshot = Snapshot(TODAY, histories)
     for point in result.points:
-        expected = cohort_velocity(snapshot, histories[str(child.id)], point["date"])
+        expected = xgboost_forecast(snapshot, histories[str(child.id)], point["date"])
         assert point["value"] == pytest.approx(round(expected, 1))
+
+
+def test_a_new_measurement_moves_the_forecast_at_once(db, population):
+    """The model is cached, but the player's own readings are not: a height a coach has just
+    logged must change that player's forecast on the next page load."""
+    from app.models.measurement import Measurement
+    from app.services import forecast
+
+    child = population["kids"][6]
+    before = forecast.forecast_height(db, child, today=TODAY)
+    last = max(child.measurements, key=lambda m: m.measured_at)
+    db.add(
+        Measurement(
+            player_id=child.id,
+            measured_at=TODAY,
+            metric="height_cm",
+            value=last.value + Decimal("4.0"),
+            unit="cm",
+            source="coach_logged",
+        )
+    )
+    db.flush()
+    after = forecast.forecast_height(db, child, today=TODAY)
+    assert after.points[0]["value"] > before.points[0]["value"]
+
+
+def test_an_out_of_date_model_is_served_while_one_refresh_runs(db, population, monkeypatch):
+    """Building takes seconds, so a model from yesterday is used at once and rebuilt in the
+    background, never by the request itself, and never by two threads at a time."""
+    import threading
+
+    from app.services import forecast
+
+    forecast.forecast_height(db, population["kids"][0], today=TODAY)
+    built = forecast._get_model(db, TODAY)
+
+    started = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def fake_refresh(today, generation):
+        calls.append(today)
+        started.set()
+        release.wait(5)
+        with forecast._lock:
+            forecast._refreshing = False
+
+    monkeypatch.setattr(forecast, "_refresh_in_background", fake_refresh)
+    tomorrow = TODAY + timedelta(days=1)
+    result = forecast.forecast_height(db, population["kids"][0], today=tomorrow)
+    assert result.points, "the out-of-date model should still answer"
+    assert forecast._get_model(db, tomorrow) is built
+    assert started.wait(5)
+    assert calls == [tomorrow], "exactly one refresh, however many requests arrive"
+    release.set()
 
 
 def test_every_point_carries_a_band_around_it(db, population):
@@ -117,7 +173,7 @@ def test_a_growing_child_is_forecast_to_grow(db, population):
 
 
 def test_an_adult_gets_a_flat_line(db, population):
-    """The evaluation showed the model keeps adults growing, so they get last value."""
+    """Last value is still the best model for adults in the evaluation, so they get it."""
     from app.services import forecast
 
     adult = population["adults"][0]
@@ -197,7 +253,7 @@ def test_the_profile_endpoint_carries_the_forecast(client, auth, db, population)
     growth = client.get(f"/players/{child.id}/profile", headers=auth("admin")).json()["growth"]
     assert len(growth["forecast"]) == 3
     assert growth["forecastFrom"] == TODAY.isoformat()
-    assert growth["forecastNote"].startswith("Cohort velocity")
+    assert growth["forecastNote"].startswith("XGBoost")
     for point in growth["forecast"]:
         assert point["lower"] < point["value"] < point["upper"]
 
