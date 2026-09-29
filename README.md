@@ -88,9 +88,9 @@ browser:
 northstar-seed  | [seed] done. the stack has data.
 ```
 
-Then open **http://localhost:3000** and sign in. There is no password: the security
-workstream has not chosen an auth approach yet, so the login screen offers one real account
-per role and the API identifies callers by a header that only works in development.
+Then open **http://localhost:3000** and sign in. Every synthetic account's password is
+`northstar-demo`, and the login screen offers one demo account per role; each button signs in
+for real through `POST /auth/login`, which sets an HttpOnly session cookie.
 
 | Sign in as | Lands on | Worth looking at |
 | ---------- | -------- | ---------------- |
@@ -135,9 +135,9 @@ docker compose -f docker/docker-compose.yml down -v
 
 ### What is not built
 
-Every screen reads from and writes to the real API. What is still missing on them: there is
-no real sign-in (the security track's authentication decision is open, and a development
-header stands in for it), and an existing player cannot be edited yet.
+Every screen reads from and writes to the real API, behind a real sign-in. What is still
+missing on them: an existing player cannot be edited yet, and there is no password reset or
+sign-in rate limiting (see "Known gaps" in `docs/threat-model.md`).
 
 ### Running pieces outside Docker
 

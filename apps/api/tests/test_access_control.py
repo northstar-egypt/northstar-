@@ -33,8 +33,19 @@ def test_no_identity_is_rejected(client, world, path):
 
 
 def test_unknown_user_is_rejected(client, world):
-    response = client.get("/players", headers={"X-NorthStar-User": "nobody@test.invalid"})
-    assert response.status_code == 401
+    """A correctly signed token for an account that does not exist is still no caller."""
+    import uuid
+
+    from app.security import issue_token
+
+    headers = {"Authorization": f"Bearer {issue_token(uuid.uuid4())}"}
+    assert client.get("/players", headers=headers).status_code == 401
+
+
+def test_the_old_development_header_is_ignored(client, world):
+    """Before real sign-in, a header named the caller. It must not work any more."""
+    headers = {"X-NorthStar-User": world["users"]["admin"].email}
+    assert client.get("/players", headers=headers).status_code == 401
 
 
 def test_inactive_user_is_rejected(client, auth):
@@ -47,23 +58,24 @@ def test_health_needs_no_identity(client):
     assert client.get("/health").status_code == 200
 
 
-def test_identity_header_is_refused_outside_development(client, auth, monkeypatch):
-    """The development stand-in must not work anywhere else, including by accident.
+def test_a_token_signed_with_another_key_is_refused(client, auth, monkeypatch):
+    """A session made with the published development key must not open a real deployment.
 
-    This is the test that stops the header becoming a back door if the module is ever
-    deployed with the environment set to anything other than development.
+    `auth` signs with the development key. The server below runs with its own key, as any
+    non-development environment must, and has to refuse the token.
     """
     from app.config import Settings, get_settings
 
+    headers = auth("admin")
     get_settings.cache_clear()
     monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("JWT_SECRET", "x" * 48)
     try:
         assert Settings().environment == "production"
-        response = client.get("/players", headers=auth("admin"))
-        assert response.status_code == 401
-        assert "not implemented" in response.json()["detail"].lower()
+        assert client.get("/players", headers=headers).status_code == 401
     finally:
         monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.delenv("JWT_SECRET", raising=False)
         get_settings.cache_clear()
 
 
@@ -264,16 +276,19 @@ def test_dev_identities_lists_one_account_per_role(client, world):
     assert {"coach", "scout", "federation", "admin"} <= roles
     for row in body:
         assert row["email"]
+        assert row["demoPassword"]
 
 
 def test_dev_identities_is_refused_outside_development(client, monkeypatch):
-    """Gated by the same check as the identity header, so the two cannot drift apart."""
+    """It lists accounts and the demo password, so nowhere but development may serve it."""
     from app.config import get_settings
 
     get_settings.cache_clear()
     monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("JWT_SECRET", "x" * 48)
     try:
         assert client.get("/dev/identities").status_code == 404
     finally:
         monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.delenv("JWT_SECRET", raising=False)
         get_settings.cache_clear()

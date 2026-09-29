@@ -1,17 +1,13 @@
-"""Development-only helpers.
+"""Development-only helpers: the demo accounts the login screen offers.
 
-There is exactly one endpoint here and it exists because the web app's role switcher needs
-real identities to act as. Without it, "wire the web app to the real API" is blocked on
-somebody pasting UUIDs out of psql.
+The synthetic generator creates every account with the same published password
+(`app.security.DEMO_PASSWORD`). This endpoint lists one active account per role, and the
+password, so the login screen can offer "sign in as the coach" buttons that go through the
+real `POST /auth/login`. Nothing here bypasses authentication: it only saves typing an email.
 
-Like the identity header in `app.deps`, this is refused unless
-`settings.environment == "development"`, and it is refused by the same check so the two
-cannot drift apart. It exposes the email addresses of active accounts, which in a real
-deployment would be a disclosure worth having a meeting about. In a local stack holding
-synthetic data it is the difference between a demo that runs and one that does not.
-
-Everything in this file goes away with the security track's auth implementation. It is in its
-own router so that removal is deleting one file and one `include_router` line.
+It is refused unless `settings.environment == "development"`. It exposes the email addresses
+of active accounts and a password, which is fine for a local stack of synthetic data and not
+for anything else. It is in its own router so removing it is one file and one line.
 """
 
 from __future__ import annotations
@@ -25,6 +21,7 @@ from app.db import get_db
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.core import CamelModel
+from app.security import DEMO_PASSWORD
 
 router = APIRouter(tags=["development"], prefix="/dev")
 
@@ -37,14 +34,12 @@ class DevIdentityOut(CamelModel):
     organization_id: str | None = None
     organization_name: str | None = None
     linked_player_id: str | None = None
+    demo_password: str
 
 
 @router.get("/identities", response_model=list[DevIdentityOut])
 def identities(db: Session = Depends(get_db)) -> list[DevIdentityOut]:
-    """One active account per role, for the development role switcher.
-
-    Returns the value to send in the `X-NorthStar-User` header. Refused outside development.
-    """
+    """One active account per role, with the demo password. Refused outside development."""
     if get_settings().environment != "development":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -75,6 +70,7 @@ def identities(db: Session = Depends(get_db)) -> list[DevIdentityOut]:
                 linked_player_id=(
                     str(user.linked_player_id) if user.linked_player_id else None
                 ),
+                demo_password=DEMO_PASSWORD,
             )
         )
     return out

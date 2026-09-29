@@ -3,98 +3,83 @@
 /**
  * Session state for the web app.
  *
- * IMPORTANT: this is still not authentication. There is no auth endpoint on the API. The
- * security workstream owns that decision and it has not been made, so this module picks a real
- * account from the database and remembers which one, rather than verifying anybody.
+ * The session itself is an HttpOnly cookie the API sets at sign-in (see `lib/api.ts` and
+ * `apps/api/app/security.py`). This module never sees the token. It asks the API `/me` who
+ * the session belongs to, and keeps that answer for the screens to render from.
  *
- * What changed when the API landed: the accounts are real. They come from `/dev/identities`,
- * which the API serves only in development and which returns the value to put in the
- * `X-NorthStar-User` header. That header is how every request in `lib/api.ts` identifies
- * itself, which means the role switcher now changes what the server sends rather than what the
- * browser draws.
+ * What it deliberately does NOT do:
+ *   - decide what data the user may see. The API does that, in
+ *     `apps/api/app/services/access.py`. Every screen treats the role as a hint for what to
+ *     render, never as the enforcement boundary.
+ *   - store anything about the session in localStorage, where a script could read it.
  *
- * What it deliberately still does NOT do, because doing it here would be security theatre:
- *   - verify a password
- *   - decide what data the user may see
- *
- * Access control belongs in the API, and now it is there: `apps/api/app/services/access.py`.
- * Every screen treats role as a hint for what to render, never as the enforcement boundary.
- *
- * When real auth lands, `signIn` calls a login endpoint that returns a token, the identity in
- * localStorage becomes that token, and `ROUTE_ROLES` below stays exactly as it is.
+ * Demo accounts: in development the API lists one synthetic account per role with the
+ * published demo password (`/dev/identities`). `signInAs` signs in as one of them through the
+ * real `POST /auth/login`, so the demo buttons exercise exactly the path a real user takes.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { getDevIdentities, IDENTITY_KEY, type DevIdentity } from "./api";
+import {
+  ApiError,
+  getDevIdentities,
+  getSession,
+  login,
+  logout,
+  type DevIdentity,
+} from "./api";
 import type { SessionUser, UserRole } from "./types";
-
-const STORAGE_KEY = "northstar.devSession";
 
 interface AuthState {
   user: SessionUser | null;
+  /** False until the API has answered whether there is a session. */
   ready: boolean;
-  /** Accounts the API will accept. Empty when the API is unreachable or not in development. */
-  identities: Record<string, DevIdentity>;
-  /** Set when the identity list could not be loaded, so the login screen can say why. */
+  /** Demo accounts by role. Empty outside development or when the API is unreachable. */
+  demoAccounts: Record<string, DevIdentity>;
+  /** Set when the API could not be reached at all, so the login screen can say why. */
   error: string | null;
-  signIn: (role: UserRole) => void;
-  signOut: () => void;
-  /** Development only. Goes away with the real auth implementation. */
-  switchRole: (role: UserRole) => void;
+  /** Resolves with the signed-in user, or rejects with the API's message. */
+  signIn: (email: string, password: string) => Promise<SessionUser>;
+  /** Development only: sign in as the demo account for a role. */
+  signInAs: (role: UserRole) => Promise<SessionUser>;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
-function toSessionUser(identity: DevIdentity): SessionUser {
-  return {
-    id: identity.id,
-    fullName: identity.fullName,
-    email: identity.email,
-    role: identity.role as UserRole,
-    organizationId: identity.organizationId,
-    organizationName: identity.organizationName,
-    linkedPlayerId: identity.linkedPlayerId,
-  };
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
-  const [identities, setIdentities] = useState<Record<string, DevIdentity>>({});
+  const [demoAccounts, setDemoAccounts] = useState<Record<string, DevIdentity>>({});
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let alive = true;
 
+    // Is there already a session? A 401 just means signed out.
+    getSession()
+      .then((session) => {
+        if (alive) setUser(session);
+      })
+      .catch((err) => {
+        if (!alive) return;
+        if (!(err instanceof ApiError && err.isAuth)) {
+          setError(err?.message ?? "Could not reach the API. Is it running?");
+        }
+      })
+      .finally(() => {
+        if (alive) setReady(true);
+      });
+
+    // Demo accounts exist only in development. Anything else, including a 404, means none.
     getDevIdentities()
       .then((rows) => {
         if (!alive) return;
         const byRole: Record<string, DevIdentity> = {};
         for (const row of rows) byRole[row.role] = row;
-        setIdentities(byRole);
-
-        // Restore the previous session only if that role still resolves to an account. A
-        // stored role whose account has gone is a signed-out app, not a broken one.
-        try {
-          const stored = window.localStorage.getItem(STORAGE_KEY);
-          if (stored && byRole[stored]) {
-            setUser(toSessionUser(byRole[stored]));
-            window.localStorage.setItem(IDENTITY_KEY, byRole[stored].email);
-          }
-        } catch {
-          // localStorage can throw in private browsing. A signed out app is the right
-          // fallback, so there is nothing to do here.
-        }
+        setDemoAccounts(byRole);
       })
-      .catch((err) => {
-        if (!alive) return;
-        setError(
-          err?.message ??
-            "Could not load accounts from the API. Is it running, and seeded with the synthetic dataset?",
-        );
-      })
-      .finally(() => {
-        if (alive) setReady(true);
+      .catch(() => {
+        if (alive) setDemoAccounts({});
       });
 
     return () => {
@@ -102,41 +87,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const apply = useCallback(
-    (role: UserRole) => {
-      const identity = identities[role];
-      if (!identity) {
-        setError(`The API has no active ${role} account to act as.`);
-        return;
-      }
-      setUser(toSessionUser(identity));
-      setError(null);
-      try {
-        window.localStorage.setItem(STORAGE_KEY, role);
-        // What `lib/api.ts` attaches to every request.
-        window.localStorage.setItem(IDENTITY_KEY, identity.email);
-      } catch {
-        // Not being able to persist the session is survivable for the session itself, but
-        // every API call reads the identity from localStorage, so without it nothing loads.
-        setError("This browser is blocking local storage, so the API cannot identify you.");
-      }
+  const signIn = useCallback(async (email: string, password: string) => {
+    const session = await login(email, password);
+    setUser(session);
+    setError(null);
+    return session;
+  }, []);
+
+  const signInAs = useCallback(
+    async (role: UserRole) => {
+      const account = demoAccounts[role];
+      if (!account) throw new Error(`There is no active ${role} demo account.`);
+      return signIn(account.email, account.demoPassword);
     },
-    [identities],
+    [demoAccounts, signIn],
   );
 
-  const signOut = useCallback(() => {
-    setUser(null);
+  const signOut = useCallback(async () => {
     try {
-      window.localStorage.removeItem(STORAGE_KEY);
-      window.localStorage.removeItem(IDENTITY_KEY);
-    } catch {
-      // See above.
+      await logout();
+    } finally {
+      // Signed out on screen even if the request failed: the cookie expires on its own, and
+      // a user who clicked "sign out" must not be left looking at the previous session.
+      setUser(null);
     }
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ user, ready, identities, error, signIn: apply, signOut, switchRole: apply }),
-    [user, ready, identities, error, apply, signOut],
+    () => ({ user, ready, demoAccounts, error, signIn, signInAs, signOut }),
+    [user, ready, demoAccounts, error, signIn, signInAs, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

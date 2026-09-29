@@ -15,10 +15,10 @@
  *
  * Identity
  * --------
- * There is no authentication yet; the security track owns that decision. The API resolves a
- * caller from an `X-NorthStar-User` header and honours it only when it is running in
- * development. `lib/auth.tsx` puts the chosen account in localStorage and this module attaches
- * it. When real sessions land, `authHeaders` is the only function here that changes.
+ * The session is an HttpOnly cookie set by `POST /auth/login`. This code never sees the token,
+ * which is the point: a script injected into the page cannot read it either. Every request
+ * below is sent with `credentials: "include"` so the browser attaches the cookie, and the API
+ * decides who is calling. `lib/auth.tsx` only asks `/me` who that is.
  */
 
 import type {
@@ -38,9 +38,6 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000
 /** Kept so any remaining reference reads false rather than breaking the build. */
 export const USING_FIXTURES = false;
 
-/** Where `lib/auth.tsx` stores the account the role switcher is acting as. */
-export const IDENTITY_KEY = "northstar.devIdentity";
-
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -52,7 +49,7 @@ export class ApiError extends Error {
     this.name = "ApiError";
   }
 
-  /** True when the caller is not signed in, or the API refuses the stand-in identity. */
+  /** True when the caller is not signed in, or the session has expired. */
   get isAuth(): boolean {
     return this.status === 401;
   }
@@ -63,26 +60,16 @@ export class ApiError extends Error {
   }
 }
 
-function authHeaders(): Record<string, string> {
-  try {
-    const identity = window.localStorage.getItem(IDENTITY_KEY);
-    return identity ? { "X-NorthStar-User": identity } : {};
-  } catch {
-    // localStorage throws in private browsing. An unauthenticated request that gets a clean
-    // 401 is a better outcome than a crash inside a render.
-    return {};
-  }
-}
-
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...init,
       cache: "no-store",
+      // Sends the session cookie. The API only accepts it from the web app's own origin.
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...authHeaders(),
         ...(init.headers ?? {}),
       },
     });
@@ -131,9 +118,25 @@ export async function getHealth(): Promise<Health> {
 
 /* ------------------------------------------------------------------ identity */
 
-/** Who the API believes is calling. Useful for confirming the header actually worked. */
+/** Who the current session belongs to. Rejects with a 401 `ApiError` when signed out. */
 export async function getSession(): Promise<SessionUser> {
   return request<SessionUser>("/me");
+}
+
+/**
+ * Sign in. On success the API sets the session cookie and returns who signed in. A wrong
+ * email and a wrong password produce the same 401 and the same message, on purpose.
+ */
+export async function login(email: string, password: string): Promise<SessionUser> {
+  return request<SessionUser>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+/** Sign out. Clears the session cookie. Safe to call when already signed out. */
+export async function logout(): Promise<void> {
+  return request<void>("/auth/logout", { method: "POST" });
 }
 
 export interface DevIdentity {
@@ -144,14 +147,15 @@ export interface DevIdentity {
   organizationId: string | null;
   organizationName: string | null;
   linkedPlayerId: string | null;
+  /** The published password of every synthetic account. */
+  demoPassword: string;
 }
 
 /**
- * Accounts the development role switcher can act as.
+ * Synthetic demo accounts, one per role, for the login screen's demo buttons.
  *
- * Development only. The API returns 404 for this outside development, which is what will
- * happen the moment real authentication exists, and `lib/auth.tsx` treats that as "the role
- * switcher is over" rather than as an error.
+ * Development only: the API returns 404 elsewhere, and `lib/auth.tsx` then simply shows no
+ * demo buttons. The buttons sign in through the real `login` above; this saves typing.
  */
 export async function getDevIdentities(): Promise<DevIdentity[]> {
   return request<DevIdentity[]>("/dev/identities");

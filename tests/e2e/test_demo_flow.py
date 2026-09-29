@@ -11,6 +11,7 @@ would have made the suite worthless on the day it was most needed.
 
 from __future__ import annotations
 
+import http.cookiejar
 import json
 import re
 import urllib.request
@@ -21,11 +22,38 @@ import pytest
 from conftest import API_URL, SETTLE_MS, WEB_URL, text_of
 
 
-def api(path: str, identity: str | None = None):
-    request = urllib.request.Request(f"{API_URL}{path}")
-    if identity:
-        request.add_header("X-NorthStar-User", identity)
-    with urllib.request.urlopen(request, timeout=10) as response:
+_sessions: dict[str, urllib.request.OpenerDirector] = {}
+
+
+def _session(email: str) -> urllib.request.OpenerDirector:
+    """A cookie-holding client signed in as `email` through the real POST /auth/login."""
+    if email not in _sessions:
+        demo = {row["email"]: row for row in api("/dev/identities")}
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        )
+        body = json.dumps({"email": email, "password": demo[email]["demoPassword"]}).encode()
+        request = urllib.request.Request(
+            f"{API_URL}/auth/login",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        opener.open(request, timeout=10).close()
+        _sessions[email] = opener
+    return _sessions[email]
+
+
+def api(path: str, identity: str | None = None, *, body: dict | None = None):
+    """Call the API, signed in as `identity` (an email) when one is given."""
+    request = urllib.request.Request(
+        f"{API_URL}{path}",
+        data=json.dumps(body).encode() if body is not None else None,
+        headers={"Content-Type": "application/json"},
+        method="POST" if body is not None else "GET",
+    )
+    opener = _session(identity) if identity else urllib.request.build_opener()
+    with opener.open(request, timeout=10) as response:
         return json.load(response)
 
 
@@ -45,6 +73,46 @@ def test_login_offers_accounts_the_api_will_accept(page):
     page.wait_for_timeout(SETTLE_MS)
     for role in ("Coach", "Scout", "Federation", "Player"):
         assert page.get_by_role("button", name=role).count() == 1, role
+
+
+def test_a_wrong_password_is_refused_on_screen(page, identities):
+    page.goto(f"{WEB_URL}/login", wait_until="networkidle")
+    page.get_by_label("Email").fill(identities["coach"]["email"])
+    page.get_by_label("Password").fill("not-the-password")
+    page.get_by_role("button", name="Sign in", exact=True).click()
+    page.wait_for_timeout(SETTLE_MS)
+    assert "email or password is incorrect" in text_of(page)
+    assert page.url.endswith("/login")
+
+
+def test_typing_the_credentials_signs_in(page, identities):
+    """The form itself, not only the demo buttons."""
+    coach = identities["coach"]
+    page.goto(f"{WEB_URL}/login", wait_until="networkidle")
+    page.get_by_label("Email").fill(coach["email"])
+    page.get_by_label("Password").fill(coach["demoPassword"])
+    page.get_by_role("button", name="Sign in", exact=True).click()
+    page.wait_for_url("**/dashboard", timeout=20000)
+
+
+def test_the_session_cookie_is_invisible_to_page_scripts(sign_in, page):
+    """HttpOnly: the one property that makes a cookie safer than a token in localStorage."""
+    sign_in("Coach", "/dashboard")
+    cookies = {c["name"]: c for c in page.context.cookies()}
+    assert cookies["northstar_session"]["httpOnly"] is True
+    assert cookies["northstar_session"]["sameSite"] == "Lax"
+    assert "northstar_session" not in page.evaluate("document.cookie")
+    # And nothing about the session was left in storage a script can read.
+    assert page.evaluate("JSON.stringify(Object.keys(window.localStorage))") == "[]"
+
+
+def test_signing_out_ends_the_session(sign_in, page):
+    sign_in("Coach", "/dashboard")
+    page.get_by_role("button", name="Sign out").click()
+    page.wait_for_url("**/login", timeout=20000)
+    # Going back to a protected screen now lands on the login page, because /me says 401.
+    page.goto(f"{WEB_URL}/dashboard", wait_until="networkidle")
+    page.wait_for_url("**/login", timeout=20000)
 
 
 def test_signing_in_as_a_coach_reaches_their_own_dashboard(sign_in, page, identities):
@@ -147,17 +215,9 @@ def test_signed_up_minors_are_visible_to_scouts(sign_in, page, identities):
     sign_in("Scout", "/search")
     page.wait_for_timeout(SETTLE_MS)
 
-    request = urllib.request.Request(
-        f"{API_URL}/search",
-        data=json.dumps({"query": "", "limit": 200}).encode(),
-        headers={
-            "Content-Type": "application/json",
-            "X-NorthStar-User": identities["scout"]["email"],
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=10) as response:
-        results = json.load(response)["results"]
+    results = api(
+        "/search", identities["scout"]["email"], body={"query": "", "limit": 200}
+    )["results"]
 
     minors = [r for r in results if r["player"].get("isMinor")]
     assert minors, "the search returned no minors, so there is nothing to check"

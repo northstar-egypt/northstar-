@@ -8,7 +8,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import comparison, dev, health, integrity, oversight, players, search, sports
+from app.routers import (
+    auth,
+    comparison,
+    dev,
+    health,
+    integrity,
+    oversight,
+    players,
+    search,
+    sports,
+)
 
 settings = get_settings()
 
@@ -23,13 +33,15 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(players.router)
 app.include_router(search.router)
 app.include_router(comparison.router)
 app.include_router(oversight.router)
 app.include_router(integrity.router)
 app.include_router(sports.router)
-# Development only, refused unless environment=development. Delete with the auth work.
+# Development only, refused unless environment=development: the demo accounts the login
+# screen offers. See app/routers/dev.py.
 app.include_router(dev.router)
 
 
@@ -38,7 +50,3 @@ def root() -> dict[str, str]:
     """Tiny landing payload so hitting the API root is not a 404."""
     return {"name": settings.app_name, "docs": "/docs", "health": "/health"}
 
-
-
-# Authentication is not implemented. app/deps.py resolves a caller from a development header
-# and refuses outside environment=development. See the auth decision on the board.

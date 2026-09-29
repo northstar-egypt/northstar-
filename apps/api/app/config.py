@@ -6,7 +6,12 @@ the repo-root .env (see .env.example); in Docker they are injected by docker-com
 
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The signing key a local stack uses when none is configured. Public, because it is in this
+# file, so it is refused anywhere but development (see `_refuse_the_development_secret`).
+DEVELOPMENT_JWT_SECRET = "northstar-development-only-signing-key-do-not-deploy"
 
 
 class Settings(BaseSettings):
@@ -25,6 +30,37 @@ class Settings(BaseSettings):
     # Where the sport modules live (packages/shared/sports). Unset means "find them from the
     # repository checkout", which is right for local runs; the API image sets it explicitly.
     sport_modules_dir: str | None = None
+
+    # Sessions: a signed token in an HttpOnly cookie. See app/security.py.
+    jwt_secret: str = DEVELOPMENT_JWT_SECRET
+    session_hours: int = 8
+    # Send the cookie over HTTPS only. Unset means "everywhere except development", because
+    # the local stack runs on plain http://localhost.
+    cookie_secure: bool | None = None
+
+    @property
+    def session_cookie_secure(self) -> bool:
+        if self.cookie_secure is not None:
+            return self.cookie_secure
+        return self.environment != "development"
+
+    @model_validator(mode="after")
+    def _refuse_the_development_secret(self) -> "Settings":
+        """Outside development, a missing or weak signing key stops the API from starting.
+
+        Anyone holding the key can mint a session for any account, including an admin, and
+        the development key is published in this file. Failing at startup is louder than a
+        warning nobody reads.
+        """
+        if self.environment != "development" and (
+            self.jwt_secret == DEVELOPMENT_JWT_SECRET or len(self.jwt_secret) < 32
+        ):
+            raise ValueError(
+                "JWT_SECRET must be set to a random value of at least 32 characters outside "
+                "development. Generate one with: python -c \"import secrets; "
+                "print(secrets.token_urlsafe(48))\""
+            )
+        return self
 
 
 @lru_cache

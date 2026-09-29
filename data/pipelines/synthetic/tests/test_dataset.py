@@ -478,7 +478,15 @@ def test_audit_log_uses_the_renamed_attribute(ds):
 
 
 def test_no_real_looking_credentials(ds):
-    """CLAUDE.md: no secrets in anything committed."""
+    """CLAUDE.md: no secrets in anything committed.
+
+    Every synthetic account's hash opens with the published demo password and nothing else,
+    so the dataset carries no credential that is not already public.
+    """
+    from app.security import DEMO_PASSWORD, verify_password
+
     for user in ds.users:
-        assert user.password_hash.startswith("$synthetic$")
+        assert user.password_hash.startswith("$argon2id$")
+        assert verify_password(user.password_hash, DEMO_PASSWORD)
+        assert not verify_password(user.password_hash, "any-other-password")
         assert user.email.endswith("@northstar.test")

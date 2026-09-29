@@ -41,7 +41,7 @@ app/
 components/
   ui.tsx                buttons, cards, chips, tables, banners
   charts.tsx            sparkline, growth curve, percentile bar, bars, stacks
-  nav.tsx               top navigation and the development role switcher
+  nav.tsx               top navigation and the development demo-account switcher
   api-status.tsx        connectivity indicator, the one real API call
 lib/
   api.ts                every call to the outside world, and every TODO
@@ -66,15 +66,19 @@ also mean approving two dependencies.
 
 ## Authentication
 
-There is none, and `lib/auth.tsx` says so at the top. It holds a role in localStorage so the
-role-dependent screens can be reviewed. It verifies no password and decides no permissions.
+The login form calls `POST /auth/login`. The API sets an HttpOnly session cookie, which this
+app never sees: `lib/api.ts` sends every request with `credentials: "include"` and the browser
+attaches it. `lib/auth.tsx` asks `/me` who the session belongs to. Nothing about the session is
+kept in localStorage, where a script could read it. The design is in `docs/threat-model.md`.
 
 The rule the whole app follows: **role is a hint for what to render, never the enforcement
 boundary.** If the API sends a field the current role should not see, hiding it in the browser
-has not protected anything. Access control belongs in the API, and it is the security
-workstream's next task.
+has not protected anything. Access control is in the API (`apps/api/app/services/access.py`).
 
-The role switcher in the top bar is development only and disappears with real sign in.
+In development the login screen lists one synthetic demo account per role (password
+`northstar-demo`), and the top bar has a switcher. Both sign in for real through the same
+endpoint; they only save typing. Outside development the API does not list demo accounts and
+neither appears.
 
 ## Run with Docker (recommended)
 

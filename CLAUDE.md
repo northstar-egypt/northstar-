@@ -193,8 +193,12 @@ docker compose -f docker/docker-compose.yml up --build
 - **Consent is signed at sign-up.** Joining the platform means a guardian signs one form for
   storage, analytics and scouting visibility, so every minor is visible to scouts. The
   consent check still runs because a guardian can withdraw. `POST /players` requires the form.
-- **Authentication is not built yet** and the approach is being decided. Do not add login,
-  JWT, sessions or an auth library in an unrelated task.
+- **Authentication is built: our own JWT, in an HttpOnly cookie.** argon2id passwords, an
+  8 hour signed session, SameSite=Lax plus an Origin check against forgery, and the account
+  re-checked in the database on every request. Code in `apps/api/app/security.py`,
+  `deps.py` and `routers/auth.py`; design and known gaps in `docs/threat-model.md`. Do not
+  swap in an auth library or move the token into localStorage. Every synthetic account's
+  password is `northstar-demo`.
 - **Table tennis matters as much as football.** It is the proof that the engine is not
   football-only, so do not treat it as optional.
 
