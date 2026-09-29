@@ -49,9 +49,9 @@
         }
       ],
       "derived": [
-        { "key": "goals_per_90", "label": "Goals per 90", "numerator": ["goals"], "denominator": ["minutes_played"], "scale": 90, "format": "number" },
-        { "key": "shot_conversion", "label": "Shot conversion", "numerator": ["goals"], "denominator": ["shots"], "format": "percent" },
-        { "key": "pass_completion", "label": "Pass completion", "numerator": ["passes_completed"], "denominator": ["passes_attempted"], "format": "percent" }
+        { "key": "goals_per_90", "label": "Goals per 90", "numerator": ["goals"], "denominator": ["minutes_played"], "scale": 90, "format": "number", "search": { "better": "higher", "minBasis": 5, "describe": ["scores many goals", "a prolific goal scorer", "a high number of goals per game", "بيسجل أهداف كتير"], "keywords": ["goals", "scoring", "scorer", "scores", "prolific", "goalscorer", "هداف", "أجوان"] } },
+        { "key": "shot_conversion", "label": "Shot conversion", "numerator": ["goals"], "denominator": ["shots"], "format": "percent", "search": { "better": "higher", "minBasis": 5, "describe": ["turns a high share of his shots into goals", "an efficient, clinical finisher", "rarely misses when he shoots", "بيحول الفرص لأهداف"], "keywords": ["clinical", "finisher", "finishing", "conversion"] } },
+        { "key": "pass_completion", "label": "Pass completion", "numerator": ["passes_completed"], "denominator": ["passes_attempted"], "format": "percent", "search": { "better": "higher", "minBasis": 5, "describe": ["completes a high percentage of his passes", "an accurate, safe passer who keeps the ball", "rarely loses the ball when passing", "تمريراته بتوصل صح"], "keywords": ["passer", "passing", "passes", "possession", "تمريراته"] } }
       ]
     },
     "football.season_aggregate.v1": {
@@ -76,8 +76,8 @@
         { "lte": ["shots_on_target", "shots"], "message": "more shots on target than shots" }
       ],
       "derived": [
-        { "key": "goals_per_90", "label": "Goals per 90", "numerator": ["goals"], "denominator": ["minutes_played"], "scale": 90, "format": "number" },
-        { "key": "shot_conversion", "label": "Shot conversion", "numerator": ["goals"], "denominator": ["shots"], "format": "percent" }
+        { "key": "goals_per_90", "label": "Goals per 90", "numerator": ["goals"], "denominator": ["minutes_played"], "scale": 90, "format": "number", "search": { "better": "higher", "minBasis": 1 } },
+        { "key": "shot_conversion", "label": "Shot conversion", "numerator": ["goals"], "denominator": ["shots"], "format": "percent", "search": { "better": "higher", "minBasis": 1 } }
       ]
     }
   }

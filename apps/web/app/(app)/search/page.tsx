@@ -7,9 +7,10 @@
  * element that makes that work is the interpretation strip: it shows what the sentence was
  * turned into, so a scout can tell a real absence of results from a misread query.
  *
- * The natural language half needs embeddings, which the ML track deferred until they pick a
- * model. The filter half does not, so it is written to work first and the sentence box is
- * clearly marked as the part that is not real yet.
+ * The sentence box is read on the server (apps/api/app/services/search.py): patterns become
+ * filters, phrases are read as things the platform computes (app/concepts.py, with a local
+ * embedding model), and the rest as names in Arabic or Latin spelling. The chips say which,
+ * and an amber chip changed nothing.
  */
 
 import Link from "next/link";
@@ -100,8 +101,8 @@ export default function SearchPage() {
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs text-slate-500">
-              Names work in Arabic or English, in any common spelling. Or use the filters.
-              They work on their own.
+              Describe players in words, or type a name in Arabic or English. Or use the
+              filters. They work on their own.
             </span>
             <Button type="submit" variant="primary" disabled={busy}>
               {busy ? "Searching" : "Search"}

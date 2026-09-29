@@ -243,6 +243,19 @@ def test_search_reports_how_it_read_the_query(sign_in, page):
     assert "position: st" in body
 
 
+def test_search_reads_a_described_player(sign_in, page):
+    """A phrase becomes a computed filter, and an ask with no data behind it says so."""
+    sign_in("Scout", "/search")
+    page.get_by_placeholder("left footed").fill("small for his age, left footed")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(SETTLE_MS)
+
+    body = text_of(page)
+    assert "height: bottom quarter for age and gender" in body
+    assert "preferred foot: no data" in body
+    assert "no players match" not in body
+
+
 def test_search_finds_arabic_names_from_a_latin_spelling(sign_in, page):
     """The seeded names are in Arabic; FootyStats will send Latin. A scout typing Mohamed
     must find محمد, and see that the word was read as a name."""

@@ -45,7 +45,7 @@
         }
       ],
       "derived": [
-        { "key": "match_win_rate", "label": "Matches won", "shareWhere": { "gt": ["sets_won", "sets_lost"] }, "format": "percent" },
+        { "key": "match_win_rate", "label": "Matches won", "shareWhere": { "gt": ["sets_won", "sets_lost"] }, "format": "percent", "search": { "better": "higher", "minBasis": 5, "describe": ["wins most of the matches he plays", "has a strong win-loss record", "usually beats his opponents", "بيكسب أغلب مبارياته"], "keywords": ["wins", "winning", "winner", "win"] } },
         { "key": "set_win_rate", "label": "Sets won", "numerator": ["sets_won"], "denominator": ["sets_won", "sets_lost"], "format": "percent" },
         { "key": "point_win_rate", "label": "Points won", "numerator": ["points_won"], "denominator": ["points_won", "points_lost"], "format": "percent" }
       ]

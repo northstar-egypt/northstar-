@@ -30,6 +30,17 @@ Rules JSON Schema cannot express, such as "no more goals than shots", are the mo
   raceTo    [a, b], bestOf: field        a finished race: exactly one side reached
                                          best_of // 2 + 1 and the other did not
   atLeast   field, perUnit: f, value: n  field >= n * f
+
+A derived statistic can also be made searchable, which lets a scout ask for it in words
+("scoring well") on the search screen (app/concepts.py):
+
+  "search": { "better": "higher" | "lower",
+              "minBasis": n,                  records needed before a player counts
+              "describe": ["...", ...],       what asking for it sounds like; needed once
+                                              per statistic, in whichever period comes first
+              "keywords": ["...", ...] }      single words that mean it on their own
+
+A player matches when they are in the better quarter of their sport and tier for it.
 """
 
 from __future__ import annotations
@@ -155,6 +166,24 @@ def _check_rules(ref: str, schema: dict, invariants: list[dict], derived: list[d
             _check_fields(ref, stat, stat["shareWhere"]["gt"], properties)
         else:
             _check_fields(ref, stat, [*stat["numerator"], *stat["denominator"]], properties)
+        search = stat.get("search")
+        if search is not None:
+            unknown = set(search) - {"better", "minBasis", "describe", "keywords"}
+            if unknown or search.get("better") not in ("higher", "lower"):
+                raise ModuleError(
+                    f"{ref}.{stat['key']}: search takes better (higher or lower), minBasis, "
+                    f"describe and keywords, got {sorted(search)}"
+                )
+            keywords = search.get("keywords", [])
+            if not isinstance(keywords, list) or not all(
+                isinstance(k, str) and k and " " not in k for k in keywords
+            ):
+                raise ModuleError(f"{ref}.{stat['key']}: search.keywords must be single words")
+            if not isinstance(search.get("minBasis"), int) or search["minBasis"] < 1:
+                raise ModuleError(f"{ref}.{stat['key']}: search.minBasis must be a whole number >= 1")
+            describe = search.get("describe", [])
+            if not isinstance(describe, list) or not all(isinstance(d, str) and d for d in describe):
+                raise ModuleError(f"{ref}.{stat['key']}: search.describe must be a list of phrases")
 
 
 def load_module(path: Path) -> SportModule:
@@ -172,6 +201,19 @@ def load_module(path: Path) -> SportModule:
                 invariants=spec.get("invariants", []),
                 derived=spec.get("derived", []),
             )
+        described = {
+            stat["key"]
+            for period in periods.values()
+            for stat in period.derived
+            if stat.get("search", {}).get("describe")
+        }
+        for period in periods.values():
+            for stat in period.derived:
+                if "search" in stat and stat["key"] not in described:
+                    raise ModuleError(
+                        f"{path.name}: {stat['key']} is searchable but no period describes "
+                        f"what asking for it sounds like (search.describe)"
+                    )
         return SportModule(
             sport=raw["sport"],
             label=raw["label"],

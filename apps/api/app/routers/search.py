@@ -1,8 +1,7 @@
 """Scout search.
 
-Filters only. The natural language half needs an embedding model the ML track has not
-chosen, and rather than fake it the query box reports which of the scout's words it actually
-used. See `app.services.search`.
+Filters, names in either script, and phrases read as things the platform computes, with a
+chip for every word saying what it did. See `app.services.search` and `app.concepts`.
 """
 
 from __future__ import annotations
@@ -13,6 +12,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app import concepts
 from app.db import get_db
 from app.deps import current_user
 from app.models.player import Player
@@ -38,7 +38,14 @@ def search(
     does, and switching to omitting them entirely is one filter here.
     """
     today = date.today()
-    parsed_filters, chips, name_terms = search_service.parse_query(request.query)
+    parsed_filters, chips, name_terms = search_service.parse_query(
+        request.query,
+        # A player's own account does not see the models' flags, so cannot search by one.
+        can_use_flags=not caller.is_player,
+        # Only fetched when there are words to read: loading it can take seconds right
+        # after the API starts, and an empty query does not need it.
+        reader=concepts.get_reader() if request.query.strip() else None,
+    )
 
     stmt = search_service.apply_filters(
         _base_query(caller), request, parsed_filters, today, name_terms, db
@@ -90,9 +97,9 @@ def search(
                 organization_name=org_names.get(player.id),
                 age_label=cohort.age_label(player.date_of_birth, today),
                 height_cm=height_cm,
-                # Every result satisfies every filter equally, so there is nothing to rank
-                # by. A fabricated relevance score would imply an ordering the filters do
-                # not produce. This becomes real with the embedding half.
+                # Every result satisfies every filter equally, concepts included (they are
+                # filters too), so there is nothing to rank by. A fabricated relevance score
+                # would imply an ordering the filters do not produce.
                 match_score=1.0,
                 highlights=search_service.highlights(player, height_cm, age),
                 trend=[value for _, value in series[-views.TREND_POINTS :]],

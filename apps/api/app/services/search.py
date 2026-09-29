@@ -1,16 +1,15 @@
 """Scout search: structured filters, plus an honest account of the query text.
 
-The natural language half of this screen needs sentence-transformer embeddings and the
-embedding model choice is still open (`docs/wireframes/README.md`). `apps/web/lib/api.ts`
-says the filter half should ship first, so that is what this is.
+The query box reads a scout's sentence in three layers:
 
-The query box still does something, and what it does is deliberately modest. A handful of
-patterns map cleanly onto columns: an age or an age range, a height, a position, a tier, a
-sport, "egypt eligible". Those become filters. Anything left over is treated as part of a
-player's name, in Arabic or Latin script and any common spelling (app/names.py), because
-academy records are in Arabic while FootyStats and European sources spell names in Latin.
-Terms naming a scouting concept the platform cannot answer yet, such as xG or
-preferred foot, are recognised and do nothing.
+1. Patterns that map cleanly onto columns: an age or an age range, a height, a position, a
+   tier, a sport, "egypt eligible". Those become filters.
+2. The rest is split into phrases (at commas, "and", "but", "with"...), and each phrase is
+   read by app/concepts.py as one of a fixed list of things the platform computes ("small
+   for his age" is the bottom quarter of height for age), or as an ask it has no data for
+   ("left footed"). Keywords first, then a local embedding model for phrases keywords miss.
+3. A phrase that is neither is a name, matched in Arabic or Latin script and any common
+   spelling (app/names.py).
 
 Every term comes back as a chip, and the screen prints them under "How this was read". The
 rule those chips have to keep is simple and is the whole reason this file is careful:
@@ -31,12 +30,12 @@ from datetime import date, timedelta
 from sqlalchemy import Select, and_, func, select
 from sqlalchemy.orm import Session
 
-from app import names
+from app import concepts, names
 from app.models.enums import FootballTier, Sport
 from app.models.measurement import Measurement
 from app.models.player import Player
 from app.schemas.views import SearchRequest
-from app.services import cohort
+from app.services import cohort, concept_filter
 
 # Positions the generator produces. Kept here rather than in a database lookup because the
 # position value set is an open question in docs/schema.md and hard-coding it in one place is
@@ -54,44 +53,29 @@ _STOPWORDS = {
     "players", "player", "show", "me", "find", "years", "year", "old", "yo",
 }
 
-# Terms a scout will reasonably type that this search cannot serve. They get a chip marked
-# `understood: false` and change nothing, which is the case the frontend fixture illustrates
-# with "left footed: no data". Listing them explicitly is better than letting them fall
-# through to the name matcher and silently return zero players.
-_NO_DATA_TERMS = {
-    "xg": "expected goals",
-    "goals": "goals per 90",
-    "assists": "assists per 90",
-    "percentile": "percentile filters",
-    "footed": "preferred foot",
-    "lefty": "preferred foot",
-    "righty": "preferred foot",
-    "potential": "potential rating",
-    "breakout": "breakout flag",
-    "similar": "similarity search",
-    "fast": "speed relative to peers",
-    "quick": "speed relative to peers",
-    "tall": "height relative to peers",
-    "strong": "strength",
-}
+# Where one phrase ends and the next begins: punctuation, and joining words standing alone.
+_PHRASE_BREAK = re.compile(
+    r"[,;.!?،]|\b(?:and|but|with|who|also|plus)\b|(?<!\S)(?:و|لكن|بس|وكمان)(?!\S)",
+    re.IGNORECASE,
+)
 
 
-def parse_query(text: str) -> tuple[dict, list[dict], list[str]]:
+def parse_query(
+    text: str, *, can_use_flags: bool = True, reader: concepts.Reader | None = None
+) -> tuple[dict, list[dict], list[str]]:
     """Pull what can be understood out of a query string.
 
-    Returns (filters, chips, name_terms). Every token ends up in exactly one chip, so the
-    chips account for everything the scout typed. The screen renders them under the heading
-    "How this was read", and `understood: false` is styled as a warning.
+    Returns (filters, chips, name_terms). Every word ends up in a chip, so the chips account
+    for everything the scout typed. The screen renders them under the heading "How this was
+    read", and `understood: false` is styled as a warning.
 
     The contract that heading implies, and which this function keeps: **a chip marked
     `understood: false` changed nothing about the results.** Anything that did affect the
-    search is marked true and says how, in the `key: value` style the frontend fixture uses.
+    search is marked true and says how.
 
-    That rules out the tempting shortcut of treating every unrecognised word as a name filter
-    while greying it out. "under 17 striker fast ahmed" would then return nothing, because no
-    Egyptian player is named "fast", while the screen claimed the word was ignored. Words that
-    name a concept this search cannot serve are listed in `_NO_DATA_TERMS` and genuinely do
-    nothing; the rest are treated as name fragments and say so.
+    `filters["concepts"]` lists the concepts to filter on (app/concepts.py). A caller who may
+    not see flags (a player's own account) cannot filter on one: the chip says so and the
+    search is unaffected. `reader` is the embedding model; None reads with keywords alone.
     """
     filters: dict = {}
     chips: list[dict] = []
@@ -130,38 +114,52 @@ def parse_query(text: str) -> tuple[dict, list[dict], list[str]]:
         chips.append({"label": "eligibility: Egypt", "understood": True})
         remaining = re.sub(r"\begypt[- ]?eligible\b", " ", remaining, flags=re.IGNORECASE)
 
-    # Latin words (an apostrophe may sit inside one: Sa'ad) and Arabic words. Arabic words
-    # were once dropped here without a chip, so an Arabic name did nothing while the screen
-    # showed every player.
-    for token in re.findall(r"[A-Za-z]+(?:['’][A-Za-z]+)*|[ء-ي]+", remaining):
-        lowered = token.lower()
-        if lowered in _STOPWORDS:
+    wanted: list[str] = []
+    for phrase in _PHRASE_BREAK.split(remaining):
+        words: list[str] = []
+        for token in concepts.WORD.findall(phrase):
+            lowered = token.lower()
+            if lowered in _STOPWORDS:
+                continue
+            if lowered in _POSITIONS:
+                filters["position"] = _POSITIONS[lowered]
+                chips.append({"label": f"position: {_POSITIONS[lowered]}", "understood": True})
+            elif lowered in {tier.value for tier in FootballTier}:
+                filters["tier"] = lowered
+                chips.append({"label": f"tier: {lowered}", "understood": True})
+            elif lowered in {"football", "footballer"}:
+                filters["sport"] = Sport.FOOTBALL.value
+                chips.append({"label": "sport: football", "understood": True})
+            elif lowered in {"tabletennis", "pingpong"}:
+                filters["sport"] = Sport.TABLE_TENNIS.value
+                chips.append({"label": "sport: table tennis", "understood": True})
+            else:
+                words.append(token)
+        if not words:
             continue
-        if lowered in _POSITIONS:
-            filters["position"] = _POSITIONS[lowered]
-            chips.append({"label": f"position: {_POSITIONS[lowered]}", "understood": True})
-        elif lowered in {tier.value for tier in FootballTier}:
-            filters["tier"] = lowered
-            chips.append({"label": f"tier: {lowered}", "understood": True})
-        elif lowered in {"football", "footballer"}:
-            filters["sport"] = Sport.FOOTBALL.value
-            chips.append({"label": "sport: football", "understood": True})
-        elif lowered in {"tabletennis", "pingpong"}:
-            filters["sport"] = Sport.TABLE_TENNIS.value
-            chips.append({"label": "sport: table tennis", "understood": True})
-        elif lowered in _NO_DATA_TERMS:
-            # Recognised as a real scouting concept, and nothing here can answer it. The chip
-            # says so and the search is unaffected.
-            chips.append(
-                {"label": f"{_NO_DATA_TERMS[lowered]}: no data", "understood": False}
-            )
-        else:
-            # Treated as part of a name, matched in either script and any common spelling
-            # (app/names.py). It does change the results, so the chip is marked understood
-            # and states the interpretation rather than implying it was ignored.
-            name_terms.append(token)
-            chips.append({"label": f"name: {token}", "understood": True})
 
+        reading = concepts.read(words, reader)
+        for concept, how, source in reading.concepts:
+            label = concept.label if how == "keyword" else f'{concept.label} (read from "{source}")'
+            if not concept.answerable:
+                # Recognised as a real scouting ask, and nothing here can answer it.
+                chips.append({"label": label, "understood": False})
+            elif concept.kind == "flag" and not can_use_flags:
+                chips.append({"label": f"{label}: not available to your account", "understood": False})
+            else:
+                wanted.append(concept.id)
+                chips.append({"label": label, "understood": True})
+        for word in reading.unused:
+            # Part of a phrase already read as a concept; it did not narrow anything.
+            chips.append({"label": f"{word}: not used", "understood": False})
+        for word in reading.leftover:
+            # Treated as part of a name, in either script and any common spelling
+            # (app/names.py). It does change the results, so the chip says how.
+            name_terms.append(word)
+            chips.append({"label": f"name: {word}", "understood": True})
+
+    if wanted:
+        filters["concepts"] = list(dict.fromkeys(wanted))
     return filters, chips, name_terms
 
 
@@ -174,7 +172,8 @@ def apply_filters(
     db: Session | None = None,
 ) -> Select:
     """Turn the request plus anything parsed out of the query into SQL predicates. Name terms
-    need `db`: they are matched in Python, see `_name_match_ids`."""
+    and concepts need `db`: they are matched in Python (`_name_match_ids`,
+    services/concept_filter.py)."""
     merged = {
         "sport": request.sport or extra.get("sport"),
         "tier": request.tier or extra.get("tier"),
@@ -231,10 +230,17 @@ def apply_filters(
     if merged["min_height_cm"] is not None or merged["max_height_cm"] is not None:
         stmt = stmt.where(Player.id.in_(_height_filter_ids(merged)))
 
-    if name_terms:
+    if name_terms or extra.get("concepts"):
         if db is None:
-            raise ValueError("name terms are matched in Python and need a database session")
+            raise ValueError("names and concepts are matched in Python and need a session")
+    if name_terms:
         stmt = stmt.where(Player.id.in_(_name_match_ids(db, stmt, name_terms)))
+    if extra.get("concepts"):
+        by_id = {c.id: c for c in concepts.all_concepts()}
+        wanted = [by_id[cid] for cid in extra["concepts"] if cid in by_id]
+        stmt = stmt.where(
+            Player.id.in_(concept_filter.matching_ids(db, stmt, wanted, today))
+        )
 
     return stmt
 

@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import concepts
 from app.config import get_settings
 from app.routers import (
     auth,
@@ -28,9 +29,11 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # The profile's height forecast takes seconds to build; start it now, in the background,
-    # so the first profile opened does not wait. See app/services/forecast.py.
+    # The profile's height forecast takes seconds to build, and the search's embedding model
+    # a second or two to load; start both now, in the background, so the first request does
+    # not wait. See app/services/forecast.py and app/concepts.py.
     forecast.warm_up()
+    concepts.warm_up()
     yield
 
 

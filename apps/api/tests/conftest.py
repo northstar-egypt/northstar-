@@ -78,7 +78,10 @@ def client(db, monkeypatch):
     # half a second, and only test_forecast.py depends on its contents, which resets it itself.
     # The cohort reference is cached per process and these tests insert new measurements
     # underneath it, so it has to be rebuilt rather than reused from another test.
+    from app.services import concept_filter
+
     cohort.reset_cache()
+    concept_filter.reset_cache()
 
     app.dependency_overrides[get_db] = lambda: db
     try:
@@ -86,6 +89,7 @@ def client(db, monkeypatch):
     finally:
         app.dependency_overrides.clear()
         cohort.reset_cache()
+        concept_filter.reset_cache()
 
 
 # ---------------------------------------------------------------------------
