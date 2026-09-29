@@ -121,11 +121,56 @@ def test_the_harness_scores_the_forest_on_the_same_cases_as_the_rule(small_datas
     assert any(a.detector == "fraud, age: isolation forest" for a in report.relative_age)
 
 
-def test_the_api_never_needs_the_challengers():
-    """The profile forecast runs the v1 model only; importing it must not pull in xgboost."""
+def test_the_api_takes_only_the_challenger_that_won():
+    """XGBoost won and the profile runs it. The isolation forest did not, so the API must not
+    import it, or scikit-learn, which the API image does not install."""
     import pathlib
 
     source = pathlib.Path(__file__).resolve().parents[2] / "apps" / "api" / "app"
     for path in source.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
-        assert "ml.challengers" not in text and "xgboost" not in text, path
+        assert "isolation" not in text and "sklearn" not in text, path
+
+
+def test_xgboost_trains_without_scikit_learn():
+    """The API image has no scikit-learn. XGBoost's scikit-learn wrapper refuses to run
+    without it, which once passed every test here and then failed in the container. Run in a
+    fresh interpreter with scikit-learn made unimportable."""
+    import pathlib
+    import subprocess
+    import sys
+
+    script = (
+        "import sys; sys.modules['sklearn'] = None\n"
+        "from datetime import timedelta\n"
+        "from ml.challengers import xgb_forecast\n"
+        "from ml.forecasting.models import Snapshot\n"
+        "from ml.tests.test_forecasting import START, linear_population\n"
+        "snapshot = Snapshot(START + timedelta(days=730), linear_population())\n"
+        "assert xgb_forecast.train(snapshot) is not None\n"
+    )
+    root = pathlib.Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [sys.executable, "-c", script], cwd=root, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_the_api_trains_the_same_model_the_evaluation_scores():
+    """`train` + `predict`, which the API calls, give exactly what `xgboost_forecast`, which
+    the evaluation calls, gives on the same snapshot."""
+    from datetime import timedelta
+
+    histories = linear_population()
+    origin = START + timedelta(days=2 * 365)
+    visible = {
+        pid: PlayerHistory(h.player_id, h.sex, h.dob, [r for r in h.heights if r[0] <= origin])
+        for pid, h in histories.items()
+    }
+    snapshot = Snapshot(origin, visible)
+    model = xgb_forecast.train(snapshot)
+    for history in list(visible.values())[:5]:
+        target = origin + timedelta(days=182)
+        assert xgb_forecast.predict(model, snapshot, history, target) == pytest.approx(
+            xgb_forecast.xgboost_forecast(snapshot, history, target)
+        )

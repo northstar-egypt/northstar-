@@ -8,9 +8,11 @@ place?" is answered with numbers rather than assumed. See "Challenger models" in
 
 Kept apart from the v1 code on purpose:
 
-- These need numpy, scikit-learn and xgboost (`ml/requirements.txt`). The v1 detectors and
-  forecasters stay standard library only, and the API, which runs the v1 forecaster on the
-  profile, never imports this package.
+- These need numpy, scikit-learn and xgboost. The v1 detectors and forecasters stay standard
+  library only.
+- XGBoost won its evaluation, so the API imports `xgb_forecast` for the profile's height
+  forecast (under 18). It never imports the isolation forest, which did not win, or
+  scikit-learn.
 - Every hyperparameter was fixed before the first run and none was changed afterwards. Tuning
   a challenger on the seeds it is reported on would be the same mistake the README warns about
   for the detectors' thresholds.

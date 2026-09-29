@@ -212,7 +212,7 @@ def test_the_profile_draws_the_forecast_band(sign_in, page, identities):
     page.wait_for_timeout(SETTLE_MS)
     body = text_of(page)
     assert "forecast, 80% range" in body
-    assert "cohort velocity" in body or "growth has finished" in body
+    assert "xgboost" in body or "growth has finished" in body
     assert "today" in body
 
     chart = page.locator("svg[aria-label^='Height over time']")

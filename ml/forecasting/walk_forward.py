@@ -100,6 +100,9 @@ class ForecastReport:
     interval_hits: int = 0
     interval_width: float = 0.0
     interval_missing: int = 0
+    # The band learned per gender, the way the profile learns it: model -> gender ->
+    # [inside, banded, summed width]. For INTERVAL_MODEL and any challenger scored.
+    gender_bands: dict[str, dict[str, list[float]]] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
@@ -120,6 +123,17 @@ class ForecastReport:
                 else None,
                 "mean_width_cm": round(self.interval_width, 4),
                 "without_interval": self.interval_missing,
+            },
+            "interval_per_gender": {
+                model: {
+                    sex: {
+                        "cases": int(n),
+                        "observed_coverage": round(hits / n, 4),
+                        "mean_width_cm": round(width / n, 4),
+                    }
+                    for sex, (hits, n, width) in by_sex.items()
+                }
+                for model, by_sex in self.gender_bands.items()
             },
             "notes": self.notes,
         }
@@ -195,6 +209,40 @@ def _interval_errors(cases: list[Case], origin: date) -> dict[str, list[float]]:
         if case.target <= origin and case.stated_age < 18 and predicted is not None:
             errors.setdefault(horizon_band(case.horizon_days), []).append(case.actual - predicted)
     return errors
+
+
+def band_coverage(cases: list[Case], predicted, key) -> dict[tuple, list[float]]:
+    """How often an 80% band around any model's forecasts held, checked walk-forward.
+
+    `predicted(case)` is the model's forecast (None to skip the case) and `key(case)` the
+    group a band is learned for, for example (gender, horizon band). At each origin a case's
+    band comes only from the errors of earlier forecasts in the same group whose outcome had
+    been measured by then, as in `_interval_errors`. Returns key -> [readings inside the band,
+    forecasts that had a band, summed band width in cm].
+
+    The player profile checks its band with this (apps/api/app/services/forecast.py), and the
+    evaluation reports it per gender, so the coverage the profile states and the one in
+    ml/README.md are the same computation.
+    """
+    tail = (1 - INTERVAL_COVERAGE) / 2
+    tallies: dict[tuple, list[float]] = {}
+    for origin in sorted({case.origin for case in cases}):
+        past: dict[tuple, list[float]] = {}
+        for case in cases:
+            value = predicted(case)
+            if case.target <= origin and value is not None:
+                past.setdefault(key(case), []).append(case.actual - value)
+        for case in cases:
+            value = predicted(case)
+            errors = past.get(key(case), [])
+            if case.origin != origin or value is None or len(errors) < MIN_INTERVAL_HISTORY:
+                continue
+            low, high = value + quantile(errors, tail), value + quantile(errors, 1 - tail)
+            tally = tallies.setdefault(key(case), [0, 0, 0.0])
+            tally[0] += low <= case.actual <= high
+            tally[1] += 1
+            tally[2] += high - low
+    return tallies
 
 
 def build_cases(
@@ -289,6 +337,19 @@ def evaluate(data_dir: str | Path, forecasters: dict | None = None) -> ForecastR
     report.interval_width = (
         sum(c.interval[1] - c.interval[0] for c in banded) / len(banded) if banded else 0.0
     )
+    for name in [INTERVAL_MODEL] + [n for n in names if n not in FORECASTERS]:
+        tallies = band_coverage(
+            growing,
+            lambda case, name=name: case.predictions.get(name),
+            lambda case: (case.sex, horizon_band(case.horizon_days)),
+        )
+        by_sex: dict[str, list[float]] = {}
+        for (sex, _), (hits, n, width) in tallies.items():
+            total = by_sex.setdefault(sex, [0, 0, 0.0])
+            total[0] += hits
+            total[1] += n
+            total[2] += width
+        report.gender_bands[name] = by_sex
     for label, low, high in HORIZON_BANDS:
         report.groups[f"  {label} ahead"] = _score_group_n(
             [c for c in growing if low <= c.horizon_days <= high]
@@ -385,6 +446,19 @@ def render(report: ForecastReport) -> str:
             f"history for a band and got none."
         )
 
+    if report.gender_bands:
+        out.append("")
+        out.append(
+            f"Uncertainty band learned per gender, as the player profile learns it, {HEADLINE}"
+        )
+        out.append("-" * _WIDTH)
+        for model, by_sex in report.gender_bands.items():
+            for sex, (hits, n, width) in sorted(by_sex.items()):
+                out.append(
+                    f"{model:34} {sex:7} nominal {INTERVAL_COVERAGE:.0%}, observed "
+                    f"{hits / n:.1%} ({int(hits)} of {int(n)}), mean width {width / n:.2f} cm"
+                )
+
     for note in report.notes:
         out.append(f"NOTE: {note}")
     return "\n".join(out)
@@ -408,4 +482,21 @@ def render_sweep(reports: list[ForecastReport]) -> str:
             + " ".join(f"{v:>9.2f}" for v in maes)
             + f" {sum(maes) / len(maes):>8.2f} {min(maes):>8.2f} {max(maes):>8.2f}"
         )
+
+    pooled: dict[tuple[str, str], list[float]] = {}
+    for report in reports:
+        for model, by_sex in report.gender_bands.items():
+            for sex, tally in by_sex.items():
+                total = pooled.setdefault((model, sex), [0, 0, 0.0])
+                for i in range(3):
+                    total[i] += tally[i]
+    if pooled:
+        out.append("")
+        out.append(f"Band learned per gender, pooled over the {len(reports)} datasets")
+        out.append("-" * _WIDTH)
+        for (model, sex), (hits, n, width) in pooled.items():
+            out.append(
+                f"{model:34} {sex:7} observed {hits / n:.1%} ({int(hits)} of {int(n)}), "
+                f"mean width {width / n:.2f} cm"
+            )
     return "\n".join(out)

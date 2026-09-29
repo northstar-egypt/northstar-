@@ -15,8 +15,8 @@ WORKDIR /app
 COPY apps/api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# The sport modules, the ML package (standard library only, for the forecaster), then the
-# application code.
+# The sport modules, the ML package (for the profile's height forecast, XGBoost; its
+# dependency is in requirements.txt above), then the application code.
 COPY packages/shared/sports /shared/sports
 COPY ml /opt/northstar/ml
 COPY apps/api .

@@ -14,5 +14,14 @@ python-dotenv==1.0.*
 # Authentication. See app/security.py and docs/threat-model.md.
 PyJWT==2.10.*                 # signs and checks the session token
 argon2-cffi==23.1.*           # password hashing (argon2id)
+
+# The profile's height forecast for under-18s is XGBoost (app/services/forecast.py runs
+# ml/challengers/xgb_forecast.py). xgboost-cpu is the same library without the GPU build:
+# 5 MB on Linux, where plain xgboost is 90 MB and pulls in NVIDIA's NCCL. It publishes no
+# macOS wheel, and the macOS xgboost wheel is CPU-only anyway, hence the markers. This is the
+# one place xgboost is pinned; ml/requirements.txt gets it through data/pipelines.
+xgboost-cpu==3.0.*; sys_platform != "darwin"
+xgboost==3.0.*; sys_platform == "darwin"
+numpy==2.*                    # xgboost's input format; also installed by xgboost itself
 # TODO (data/ml workstreams): pandas, numpy, scikit-learn, etc. may live in their own
 #   requirements files under data/ and ml/ to keep the API image lean.
