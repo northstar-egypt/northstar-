@@ -47,7 +47,9 @@ table, stop. It almost certainly belongs in the JSON metrics field with a schema
 - **Backend / data**: Python 3.11+, FastAPI, PostgreSQL, SQLAlchemy 2.0 + Alembic (migrations),
   pandas, NumPy, scikit-learn, statsmodels, sentence-transformers, Playwright (scraping),
   Faker (synthetic data), Ollama (local LLM).
-- **Frontend**: Next.js 14+ (App Router), TypeScript, Tailwind, shadcn/ui, Recharts.
+- **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind. UI primitives are our own
+  (`apps/web/components/ui.tsx`) and charts are hand-written SVG (`components/charts.tsx`);
+  there is no shadcn/ui or Recharts dependency.
 - **Infra**: Docker + docker-compose for local dev (Postgres + API + web + Ollama).
   GitHub Actions for CI later.
 - Everything is free / self-hosted. The only paid service is the FootyStats API subscription.
@@ -116,6 +118,81 @@ table, stop. It almost certainly belongs in the JSON metrics field with a schema
   public and git history is permanent: once it is pushed, it has been cloned, and you cannot
   take it back. Test fixtures must come from `data/pipelines/synthetic`. See `.gitignore`,
   which blocks the common data file types to make the mistake harder.
+
+## How we work (read before starting any task)
+
+### The quality bar
+
+- **Never invent a number, a result, or a value on a screen.** If something is not known yet,
+  the screen and the docs say so. The profile shows no forecast line rather than a guessed
+  one, and a percentile from too few players is left out. A change that makes a screen look
+  better by making something up is a regression.
+- **Report what you found, including null and unflattering results.** If a score went down,
+  or an expected effect did not appear, that goes in the PR and the README, with the number.
+- **Published numbers must not move silently.** The ML numbers in `ml/README.md` are what the
+  project is graded on. If your change touches shared code (the generator, `ml/detectors`,
+  `ml/evaluation`), re-run `python -m ml.run_eval` and `python -m ml.run_forecast_eval` and
+  show they did not change, or explain why they did. Thresholds are tuned on seeds 101, 202
+  and 303 and reported on others; never tune on a reported seed.
+- **Every PR says how it was verified**: the commands you ran and what they printed.
+
+### Running things
+
+All commands run from the repository root unless stated.
+
+```bash
+# Python environment: make it OUTSIDE the repo (the repo must not contain a venv)
+python -m venv ../northstar-venv
+../northstar-venv/Scripts/pip install -r data/pipelines/requirements.txt \
+    -r ml/requirements.txt -r apps/api/requirements-dev.txt     # bin/ instead of Scripts/ on Mac/Linux
+
+# Postgres, then the schema (the API tests need both)
+docker compose -f docker/docker-compose.yml up -d db
+cd apps/api && alembic upgrade head && cd ../..
+
+# Tests
+cd apps/api && pytest -q && cd ../..            # API. SKIPS (does not fail) with no database
+pytest -q data/pipelines/synthetic/tests        # generator
+pytest -q ml/tests                              # detectors, forecasts, fairness audit
+cd apps/web && npx tsc --noEmit && cd ../..     # web type-check
+# tests/e2e drives the real app in Firefox; it needs the full stack. See tests/e2e/README.md.
+
+# The whole app with data
+docker compose -f docker/docker-compose.yml up --build
+```
+
+- On Windows set `PYTHONIOENCODING=utf-8` first. Player names are Arabic and some output
+  prints them.
+- After pulling new code, start the stack with `--build`. Without it Docker keeps running
+  an old image, and the app fails in ways that look like new bugs.
+- The browser tests use **Firefox**, not Chrome.
+
+### Git and pull requests
+
+- Branch from `main`. Never commit to `main` directly. One topic per PR.
+- Conventional Commits for titles (`feat(ml): ...`, `ci: ...`, `docs: ...`, `fix(api): ...`).
+- The PR body says what changed, why, and how it was verified.
+- `CODEOWNERS` routes every PR to @BModz for review.
+- Update the project board (below) when you start and when you finish.
+
+### Known traps (do not "fix" these by accident)
+
+- `npm run lint` in `apps/web` has never worked: eslint is not installed and `next lint` no
+  longer exists in Next 16. It needs its own task; leave it alone otherwise.
+- `npm ls` exits non-zero and prints `invalid: "8.4.31" from node_modules/next`. That is the
+  deliberate postcss security override in the root `package.json`, not a broken install.
+- `data/pipelines/requirements.txt` pulls in the API's pins with `-r`. Do not copy the pins
+  into it; duplicated pins caused a dependency conflict before.
+
+### Decisions already made (do not reopen without asking)
+
+- **Consent is signed at sign-up.** Joining the platform means a guardian signs one form for
+  storage, analytics and scouting visibility, so every minor is visible to scouts. The
+  consent check still runs because a guardian can withdraw. `POST /players` requires the form.
+- **Authentication is not built yet** and the approach is being decided. Do not add login,
+  JWT, sessions or an auth library in an unrelated task.
+- **Table tennis matters as much as football.** It is the proof that the engine is not
+  football-only, so do not treat it as optional.
 
 ## Project tracking (keep this current)
 
