@@ -7,6 +7,7 @@ results (forecasts, flags, similarity, embeddings) back to it.
 ## Scope
 
 - **Forecasting** of player trajectories with uncertainty bands. Per-position age curves.
+  XGBoost as a challenger to the v1 model, see "Challenger models".
 - **Detectors**: late-bloomer, fraud, duplicate. Measured with precision / recall / F1
   against the **planted ground truth** in the synthetic dataset. Built, see below.
 - **Sustainability flags**: xG vs actual for football.
@@ -209,6 +210,85 @@ It draws nothing, and says why, when a player has fewer than two readings, no da
 gender, a last reading more than a year old, or when there are fewer than 30 past forecasts for
 their age group and gender in a horizon (adult girls, on the synthetic data).
 `apps/api/tests/test_forecast.py` checks that the profile's number equals this module's.
+
+## Challenger models
+
+The thesis proposes two machine-learning methods: gradient-boosted forecasting (XGBoost) and
+isolation-forest anomaly detection. The v1 models above are transparent rules and curves that
+already beat the graded baselines. `ml/challengers/` puts the two proposed methods through the
+**same** evaluation, on the same seeds, with every setting fixed before the first run, so the
+question "does the more complex model earn its place?" is answered with numbers.
+
+```bash
+python -m ml.run_forecast_eval --seed-sweep 20260827 7 99 404 555      # includes XGBoost
+python -m ml.run_eval --seed-sweep 20260827 7 99 404 555 $(seq 1000 1014)  # includes the forest
+```
+
+Both need `ml/requirements.txt` (scikit-learn, xgboost). Without them the harness runs the v1
+models alone and says the challengers were skipped. The API never imports them.
+
+### Height forecast: XGBoost wins, mostly on the hard cases
+
+XGBoost learns the change in height from eight numbers known at the last reading, including
+cohort velocity's own answer and the player's own recent growth rate, so it can learn when to
+trust the child over the cohort. It trains inside each walk-forward snapshot, and the same
+no-lookahead test that guards the v1 models passes for it (`test_challengers.py`).
+
+MAE in cm, mean of five seeds, same cases for every model:
+
+| group | XGBoost | cohort velocity | last value |
+| --- | --- | --- | --- |
+| **under 18 (headline)** | **0.80** | 0.86 | 3.19 |
+| boys under 18 | 0.78 | 0.80 | 3.21 |
+| girls under 18 | **1.25** | 2.26 | 2.74 |
+| planted late bloomers | **1.04** | 1.20 | 3.39 |
+| 6 to 12 months ahead | 0.94 | 1.02 | 4.63 |
+| 18 and over | 0.68 | 0.91 | **0.64** |
+
+It wins on all five seeds (0.85, 0.80, 0.77, 0.78, 0.81 against 0.87, 0.86, 0.88, 0.82, 0.88),
+though the per-seed 95% intervals overlap. Read it this way:
+
+- **For boys it is barely different** (0.78 against 0.80). On the smooth growth the generator
+  makes, cohort velocity is already close to the 0.62 cm noise floor, and there is little left
+  to learn.
+- **The gain is on the hard cases.** Girls: 1.25 against 2.26, because XGBoost learns from
+  boys and girls together with gender as one input, instead of a girls-only curve from a dozen
+  children. Late bloomers: 1.04 against 1.20, because it can follow the child's own late spurt.
+- **It mostly fixes the adult defect** (0.68 against cohort velocity's 0.91, bias +0.07
+  against +0.40), but last value is still the best model for adults.
+- **Age fraud:** its bias on planted cases is +0.41 against +0.21, a slightly stronger version
+  of the "runs tall" signal noted above, still small.
+
+The player profile still draws cohort velocity. Switching it to XGBoost would need XGBoost in
+the API image and a band calibrated on XGBoost's own errors; that is a separate change.
+
+### Age misrepresentation: isolation forest ties, and the rule stays
+
+The forest is fitted on growth features of the same eligible players as the rule, with no
+labels and no prevalence given to it (`contamination="auto"`), and it flags only anomalies in
+the direction age fraud points: big for the stated age and no longer growing. An isolation
+forest also isolates small, fast-growing children, who are late bloomers, and calling them
+frauds is the worst mistake this platform could make; `test_challengers.py` guards it.
+
+Counts pooled over 20 seeds, same 180 planted cases for both:
+
+| | caught | false accusations | precision | recall | F1 |
+| --- | --- | --- | --- | --- | --- |
+| rule (v1) | 92 | **57** | **0.617** | 0.511 | 0.559 |
+| isolation forest | **112** | 102 | 0.523 | **0.622** | 0.569 |
+
+The F1 scores are a tie. The forest catches 20 more cases at the cost of 45 more false
+accusations. For a flag that accuses a child of lying about their age, a false accusation costs
+more than a miss, so **the rule stays**. The forest shows no relative age bias either (false
+positive rate 2.0% to 2.9% across quarters, p = 0.61).
+
+### What this says
+
+Neither method was a wasted experiment, and neither is a free win. The more complex forecaster
+earns its place where the simple one is known to struggle (few children to learn from, late
+spurts), and the unsupervised detector does not beat a well-reasoned rule on the metric that
+matters for an accusation. That matches the literature review's conclusion that evaluation
+design, not model complexity, is the constraint.
 
 ## Relative age audit
 
@@ -422,6 +502,7 @@ requires anyway.
 ```
 detectors/     late-bloomer, fraud, duplicate + the features they share   done
 evaluation/    metrics, the scoring harness, the relative age audit       done
+challengers/   XGBoost forecaster and isolation forest, scored against v1  done
 run_eval.py    CLI entry point                                            done
 write_flags.py detector run that writes flags to the database             done
 forecasting/   height forecasters + walk-forward harness                 done
