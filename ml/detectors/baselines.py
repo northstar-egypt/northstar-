@@ -15,6 +15,7 @@ that cheats outright.
 from __future__ import annotations
 
 import random
+import statistics
 
 from .features import FeatureSet
 
@@ -61,6 +62,47 @@ def shortest_for_age(features: FeatureSet, support: int) -> set[str]:
         key=lambda pf: pf.height_z_mean,
     )
     return {pf.player_id for pf in ranked[:support]}
+
+
+def shortest_for_birth_year(features: FeatureSet, support: int) -> set[str]:
+    """Biased on purpose. A control for the relative age audit, not a detector.
+
+    The same idea as `shortest_for_age`, but each height is compared against everyone born
+    in the same calendar year rather than everyone of the same exact age. That is how
+    academies group children, and it is the textbook source of the relative age effect: a
+    child born in December is compared with team-mates up to a year older, looks short, and
+    gets flagged. Only youth players (11 to 18.5, three or more readings) are ranked, the
+    same eligibility as the late bloomer detector.
+
+    It is in the audit so that every run shows what a biased detector looks like next to the
+    real one. Pooled over 20 seeds it is caught decisively (false positive rate 0.2% for Q1
+    against 3.1% for Q4, p < 0.001); if it ever stops being caught, the audit has lost its
+    power and its "no difference" verdicts mean nothing.
+    """
+    buckets: dict[tuple[str, int], list[float]] = {}
+    for pf in features.players.values():
+        if pf.date_of_birth is None:
+            continue
+        for when, height in pf.heights:
+            buckets.setdefault((pf.sex, when.year - pf.date_of_birth.year), []).append(height)
+    reference = {
+        key: (statistics.median(values), max(statistics.pstdev(values), 0.5))
+        for key, values in buckets.items()
+        if len(values) >= 5
+    }
+
+    scores: dict[str, float] = {}
+    for pf in features.players.values():
+        if pf.date_of_birth is None or len(pf.heights) < 3 or not 11 <= pf.stated_age <= 18.5:
+            continue
+        zs = []
+        for when, height in pf.heights:
+            entry = reference.get((pf.sex, when.year - pf.date_of_birth.year))
+            if entry is not None:
+                zs.append((height - entry[0]) / entry[1])
+        if zs:
+            scores[pf.player_id] = sum(zs) / len(zs)
+    return set(sorted(scores, key=lambda pid: (scores[pid], pid))[:support])
 
 
 # ---------------------------------------------------------------------------

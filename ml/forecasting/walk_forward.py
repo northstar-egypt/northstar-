@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 
+from ml.evaluation import fairness
 from ml.evaluation.metrics import ErrorScore, error_score
 from ml.forecasting.models import FORECASTERS, PlayerHistory, Snapshot, age_at
 
@@ -278,6 +279,12 @@ def evaluate(data_dir: str | Path) -> ForecastReport:
         )
     for sex in ("female", "male"):
         report.groups[f"  {sex}"] = _score_group([c for c in growing if c.sex == sex])
+    # The relative age audit (ml/evaluation/fairness.py): is a child born late in the
+    # selection year forecast worse than one born early? Stated date of birth, as everywhere.
+    for quarter in fairness.QUARTERS:
+        report.groups[f"  born {fairness.QUARTER_LABELS[quarter]}"] = _score_group(
+            [c for c in growing if fairness.birth_quarter(histories[c.player_id].dob) == quarter]
+        )
 
     cases_by_kind = truth.get("cases", {})
     late = {c["player_id"] for c in cases_by_kind.get("late_bloomers", [])}

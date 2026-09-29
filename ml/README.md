@@ -82,6 +82,13 @@ one of them.** Tuning a threshold on the set you then report is the easiest way 
 a number that does not survive contact with new data. The gap is visible: late-bloomer F1
 averaged 0.658 on the calibration seeds and 0.611 on the reported ones.
 
+**Over more seeds the late-bloomer figure is lower.** The relative age audit below needed 20
+datasets for its statistics, which also gave a wider look at F1. Over the five above plus
+seeds 1000 to 1014 (none used for tuning), mean F1 is 0.568 for late bloomers, 0.734 for
+fraud and 0.971 for duplicates. The five reported seeds happened to be slightly kind to the
+late-bloomer detector. Quote 0.568 over 20 seeds when a single number is needed; the 0.611
+table above stays because it is the one the forecasts and backtest were reported next to.
+
 **The spread is wide because the positive classes are small.** Fourteen late bloomers in
 212 players means one case moving shifts recall by 7 points, and the 0.476 to 0.741 range
 is mostly that. Every table the harness prints carries the raw TP/FP/FN counts and a Wilson
@@ -177,6 +184,68 @@ positive forecast residual is therefore a fraud signal the detector does not use
 **It is less accurate for girls**: 0.99 against 0.83 for boys. Girls are 34% of the
 population and their reference curve is built from fewer children. The gap is smaller than
 the gap to either baseline, but it is there and it is now measured.
+
+## Relative age audit
+
+Children born early in the selection year are older, bigger and more mature than team-mates
+born late in it, and youth selection follows that advantage (Cobley et al. 2009). The most
+recent review of machine learning for talent identification asks that every model be audited
+by birth quarter (Tang et al. 2026). Both evaluations now do it, with no extra command:
+
+```bash
+python -m ml.run_eval --seed-sweep 20260827 7 99 404 555 $(seq 1000 1014)
+python -m ml.run_forecast_eval --seed-sweep 20260827 7 99 404 555
+```
+
+Birth quarter is the calendar quarter of the **stated** date of birth, because age groups run
+on the calendar year (the cutoff FIFA youth competitions use) and the stated date is all a
+deployment has. The code is `evaluation/fairness.py`.
+
+**What is measured.** For each detector, per quarter: recall, and the false positive rate
+among players who are not positive, which is the fairness question that matters (is a child
+without the condition more likely to be flagged because of when they were born?). A
+chi-square test on the false positives says whether the rate differs by quarter. A sweep adds
+the confusion counts over all datasets before testing, rather than averaging rates.
+
+**It needs 20 datasets, not 5.** A dataset flags about 14 players, so one seed has only a
+handful of false positives per quarter and five seeds are not enough to see even a real bias.
+The harness carries a control that is biased on purpose, `baselines.shortest_for_birth_year`,
+which compares each child with everyone born in the same calendar year, the textbook source
+of the relative age effect. Over 5 seeds it flags three times as many Q4 children as Q1 and the
+test still says p = 0.098. Over 20 seeds it is caught decisively. That control is how the
+audit's "no difference" verdicts earn trust: they mean something only while the control is
+still caught.
+
+**Results, false positive rate by birth quarter, counts pooled over 20 datasets:**
+
+| detector | Q1 Jan-Mar (oldest) | Q2 | Q3 | Q4 Oct-Dec (youngest) | chi-square, p |
+| --- | --- | --- | --- | --- | --- |
+| late_bloomer v1 | 0.7% | 2.0% | 2.0% | 1.5% | 6.69, p = 0.082 |
+| baseline: shortest for age | 5.3% | 5.7% | 4.4% | 4.9% | 1.91, p = 0.59 |
+| fraud: age misrepresentation | 2.2% | 1.7% | 1.7% | 1.0% | 4.28, p = 0.23 |
+| duplicate v1 | 0.0% | 0.0% | 0.0% | 0.0% | 0.00, p = 1.0 |
+| **control: birth-year cohort** | **0.2%** | **0.9%** | **2.8%** | **3.1%** | **33.90, p < 0.001** |
+
+No detector shows a detectable difference by quarter, and the biased control does. The
+late-bloomer detector is the closest call (p = 0.082), but its pattern is not the relative age
+one: Q1 is flagged least, Q4 is not flagged most. The reason it stays clean is a design choice
+made for other reasons: its height reference is bucketed by exact age at each measurement
+(`features.height_z`), not by birth year, so a December child is compared with children of the
+same age rather than with older team-mates.
+
+**Forecasts by quarter.** Cohort velocity MAE, under 18 at origin, mean of five seeds: Q1
+0.85 cm, Q2 0.89, Q3 0.86, Q4 0.91, with a bias of +0.13 cm for Q4 against about zero for the
+others. The youngest quarter is forecast slightly worse and slightly tall, but the gap is
+smaller than the seed to seed spread within any quarter, so it is a tendency, not a finding.
+
+**What this cannot say.** The generator draws birth dates uniformly, so the synthetic
+population has no relative age effect of its own. That is what makes this a clean test of the
+models: any difference between quarters would come from them, not from the data. It does not
+show how they would behave on a real academy, where Q1 children are over-represented and a
+detector trained on past selection decisions could learn the bias. Recall by quarter is also
+too noisy to test (positives per quarter are small even pooled), so only the false positive
+rate is tested. Maturation, the other half of that review's recommendation, is audited only
+through the planted late bloomers until the maturity-offset spike lands.
 
 ## The late-bloomer backtest
 
@@ -321,7 +390,7 @@ requires anyway.
 
 ```
 detectors/     late-bloomer, fraud, duplicate + the features they share   done
-evaluation/    metrics and the scoring harness, shared with forecasting   done
+evaluation/    metrics, the scoring harness, the relative age audit       done
 run_eval.py    CLI entry point                                            done
 write_flags.py detector run that writes flags to the database             done
 forecasting/   height forecasters + walk-forward harness                 done
