@@ -48,6 +48,8 @@ class PopulationConfig:
     min_age: int = 9
     max_age: int = 34
 
+    # The chance a player is drawn as a girl, applied only in sports whose module registers
+    # girls (table tennis). Football is boys only, so its players are all boys.
     female_fraction: float = 0.34
 
     table_tennis_fraction: float = 0.18

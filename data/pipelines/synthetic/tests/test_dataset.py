@@ -490,3 +490,13 @@ def test_no_real_looking_credentials(ds):
         assert verify_password(user.password_hash, DEMO_PASSWORD)
         assert not verify_password(user.password_hash, "any-other-password")
         assert user.email.endswith("@northstar.test")
+
+
+def test_every_player_is_a_gender_their_sport_registers(ds):
+    """Football is boys only; girls appear only in sports open to them (table tennis)."""
+    from app import sports
+
+    registry = sports.registry()
+    for p in ds.players:
+        assert p.sex in registry[p.primary_sport].genders, (p.primary_sport, p.sex)
+    assert any(p.sex == "female" for p in ds.players), "table tennis should still have girls"

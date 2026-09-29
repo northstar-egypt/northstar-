@@ -64,13 +64,18 @@ on the error-analysis output. Set `PYTHONIOENCODING=utf-8` before the command.
 
 ## Results, v1
 
+**Every number in this file was re-measured on 2026-09-29**, when football became boys only
+(girls now appear only in table tennis, about 5% of players, set by the sport modules'
+`genders`). The generator changed, so every dataset changed, so every figure was re-run. Where
+a finding changed materially the text says so, including where it got worse.
+
 Five datasets, 212 players each. Headline F1 per detector:
 
 | detector | 20260827 | 7 | 99 | 404 | 555 | mean | range |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| late_bloomer | 0.560 | 0.476 | 0.741 | 0.720 | 0.560 | **0.611** | 0.476 to 0.741 |
-| fraud | 0.759 | 0.846 | 0.667 | 0.741 | 0.857 | **0.774** | 0.667 to 0.857 |
-| duplicate | 1.000 | 1.000 | 1.000 | 0.909 | 1.000 | **0.982** | 0.909 to 1.000 |
+| late_bloomer | 0.583 | 0.640 | 0.720 | 0.692 | 0.609 | **0.649** | 0.583 to 0.720 |
+| fraud | 0.690 | 0.720 | 0.741 | 0.741 | 0.846 | **0.747** | 0.690 to 0.846 |
+| duplicate | 1.000 | 0.957 | 1.000 | 0.909 | 1.000 | **0.973** | 0.909 to 1.000 |
 
 Against the trivial baselines on the committed default seed, where flagging every player
 scores F1 0.124 and random selection at the true prevalence scores 0.000 to 0.042.
@@ -79,18 +84,21 @@ Read those numbers with the following in mind.
 
 **Thresholds were tuned on seeds 101, 202 and 303, and none of the five reported seeds is
 one of them.** Tuning a threshold on the set you then report is the easiest way to publish
-a number that does not survive contact with new data. The gap is visible: late-bloomer F1
-averaged 0.658 on the calibration seeds and 0.611 on the reported ones.
+a number that does not survive contact with new data. Late-bloomer F1 averaged 0.639 on the
+calibration seeds and 0.649 on the reported ones. Before the boys-only change the reported
+seeds scored lower than the calibration ones (0.611 against 0.658); now they happen to score
+higher. That is a property of these few seeds, not evidence the thresholds transfer
+perfectly, and it is why the 20-seed figure below is the one to quote.
 
 **Over more seeds the late-bloomer figure is lower.** The relative age audit below needed 20
 datasets for its statistics, which also gave a wider look at F1. Over the five above plus
-seeds 1000 to 1014 (none used for tuning), mean F1 is 0.568 for late bloomers, 0.734 for
-fraud and 0.971 for duplicates. The five reported seeds happened to be slightly kind to the
-late-bloomer detector. Quote 0.568 over 20 seeds when a single number is needed; the 0.611
-table above stays because it is the one the forecasts and backtest were reported next to.
+seeds 1000 to 1014 (none used for tuning), mean F1 is **0.555** for late bloomers, **0.726**
+for fraud and **0.961** for duplicates. The five reported seeds are kind to the late-bloomer
+detector (0.649 against 0.555). Quote the 20-seed figures when a single number is needed; the
+five-seed table stays because the forecasts and backtest are reported on the same seeds.
 
 **The spread is wide because the positive classes are small.** Fourteen late bloomers in
-212 players means one case moving shifts recall by 7 points, and the 0.476 to 0.741 range
+212 players means one case moving shifts recall by 7 points, and the 0.583 to 0.720 range
 is mostly that. Every table the harness prints carries the raw TP/FP/FN counts and a Wilson
 95% interval on recall, so nobody has to take a three-decimal F1 at face value.
 
@@ -99,7 +107,7 @@ detector is clever. Clones always share sex and sport and sit within a few days 
 original's date of birth, so blocking plus normalised name matching finds nearly all of
 them. The honest comparison is against the two controls in the same table: byte-identical
 name matching gets recall 0.167, and reading the `merged_into` pointer, which is cheating
-because it is the record of a merge a human already did, gets 0.500. Real duplicate
+because it is the record of a merge a human already did, gets 0.417. Real duplicate
 detection at national scale will be harder than this.
 
 **The fraud headline mixes an easy problem with a hard one.** The harness splits them:
@@ -107,7 +115,7 @@ detection at national scale will be harder than this.
 | fraud subtype | cases | F1 (default seed) |
 | --- | --- | --- |
 | implausible self-reported performance | 5 | 1.000 |
-| age misrepresentation | 9 | 0.632 |
+| age misrepresentation | 9 | 0.526 |
 
 The perfect score on the first is arithmetic, not machine learning: those rows record more
 goals than shots, more passes completed than attempted, and distances no human has run, or
@@ -116,8 +124,10 @@ validation rather than in a model, and it now is: the rule is the sport modules'
 (`packages/shared/sports`), the same one ingest runs, so a new sport's rules reach the
 detector without a change to it. The fact that it scores perfectly is a statement about the
 generator. Age misrepresentation is the subtype that
-matters, it carries 9 of the 14 cases, and at 0.632 it is doing about half the work the
-headline 0.759 suggests. Anyone quoting the fraud number should quote this one alongside it.
+matters, it carries 9 of the 14 cases, and at 0.526 it is doing little more than half the work
+the headline 0.690 on this seed suggests (it was 0.632 before the boys-only change; see Known
+limits for why young cases got harder). Anyone quoting the fraud number should quote this one
+alongside it.
 
 ## Height forecasts, v1
 
@@ -138,14 +148,14 @@ checks that the forecasts made at it do not move, and it fails if the leak is pu
 
 | forecaster | 20260827 | 7 | 99 | 404 | 555 | mean |
 | --- | --- | --- | --- | --- | --- | --- |
-| baseline: last value | 3.07 | 3.21 | 3.03 | 3.24 | 3.12 | 3.13 |
-| baseline: population average | 5.39 | 5.57 | 5.36 | 5.74 | 5.02 | 5.42 |
-| **cohort velocity** | 0.88 | 0.93 | 0.91 | 0.81 | 0.89 | **0.89** |
-| centile tracking | 1.82 | 1.98 | 2.07 | 1.78 | 2.18 | 1.97 |
+| baseline: last value | 3.29 | 3.17 | 3.20 | 3.22 | 3.07 | 3.19 |
+| baseline: population average | 5.45 | 5.71 | 5.63 | 5.74 | 5.50 | 5.61 |
+| **cohort velocity** | 0.87 | 0.86 | 0.88 | 0.82 | 0.88 | **0.86** |
+| centile tracking | 1.60 | 1.86 | 1.61 | 1.84 | 2.17 | 1.82 |
 
 Cohort velocity is the last reading plus how much the median child of that sex grows between
 the two ages, with the growth curve learned from the training window. It beats last value by
-72% and population average by 84%, on every seed. RMSE and a player-resampled 95% interval on
+73% and population average by 85%, on every seed. RMSE and a player-resampled 95% interval on
 MAE are in the full output.
 
 **No constant was tuned against these numbers.** Every threshold in `forecasting/models.py`
@@ -155,44 +165,49 @@ below is reported and not fixed.
 **The uncertainty band** is the band the player profile needs. It is an 80% interval around
 cohort velocity built from the errors of earlier forecasts whose outcomes had already been
 measured by the origin, so it is walk-forward as well. Observed coverage on the five seeds:
-81.6%, 82.0%, 80.9%, 82.8%, 84.3%, at a mean width of about 3 cm. Slightly wide, never
-narrow.
+82.5%, 79.5%, 81.4%, 81.3%, 81.6%, at a mean width of about 2.7 cm. Close to the nominal 80% on
+every seed, one of them half a point narrow.
 
 Read the headline with these in mind.
 
 **The problem as generated is smooth, so the model is close to the floor.** Synthetic heights
 are a growth curve plus 0.55 cm of noise per reading. With that noise on both the last reading
 and the target, a perfect forecaster still scores an MAE of about 0.62 cm. Cohort velocity
-averages 0.70 up to three months ahead and 1.07 at six to twelve months. Real children are measured on
+averages 0.69 up to three months ahead and 1.02 at six to twelve months. Real children are measured on
 different stadiometers by different people and grow less tidily, so real error will be higher.
 
 **It gets adults wrong, and last value should be used for them.** Over 18 at the origin, last
-value scores 0.64 and cohort velocity 1.04, with a bias of +0.56 cm. The learned velocity
+value scores 0.64 and cohort velocity 0.91, with a bias of +0.40 cm. The learned velocity
 curve is still slightly positive past 18, where there are few players to learn from, so the
-model has adults growing about half a centimetre a year. Any forecast shown for an adult
+model has adults still growing a little. Any forecast shown for an adult
 should be a flat line.
 
-**Late bloomers are harder, as they should be.** MAE 1.12 on the 14 planted late bloomers
-against 0.89 overall, still a third of the best baseline's 3.32. Their spurt comes later than
+**Late bloomers are harder, as they should be.** MAE 1.20 on the planted late bloomers
+against 0.86 overall, still about a third of the 3.39 that last value scores on them. Their spurt comes later than
 the cohort's, which is the same fact the late-bloomer detector is built on.
 
-**Age fraud shows up as a forecast that runs tall.** On the planted age-misrepresentation
-cases cohort velocity has a bias of +0.91 cm, against roughly zero for everyone else. The
-model expects growth for the stated age that the older body has already done. A persistent
-positive forecast residual is therefore a fraud signal the detector does not use yet.
+**Age fraud makes the forecast run slightly tall, but only slightly.** On the planted
+age-misrepresentation cases cohort velocity has a bias of +0.21 cm, against -0.04 for everyone.
+The model expects growth for the stated age that the older body has already done. When football
+included girls this bias was +0.91 cm and looked like a usable fraud signal; with boys-only
+football it is too small to use on its own.
 
-**It is less accurate for girls**: 0.99 against 0.83 for boys. Girls are 34% of the
-population and their reference curve is built from fewer children. The gap is smaller than
-the gap to either baseline, but it is there and it is now measured.
+**It is much less accurate for girls**: MAE 2.26 cm with a bias of -1.34 (it runs short),
+against 0.80 for boys. Girls now play table tennis only, about a dozen per dataset, so their
+growth curve is learned from very few children. It still beats last value for girls (2.74),
+but not by much. This is the price of a small population, and it is why the profile learns
+the uncertainty band separately for each gender (below).
 
 **On the player profile.** The API runs this same code, not a copy
 (`apps/api/app/services/forecast.py`), on the rows in its own database. Under 18 it draws
 cohort velocity 3, 6 and 12 months ahead; from 18 it draws a flat line at the last reading,
 because of the adult defect above. The 80% band is learned walk-forward from that database's
-own past forecasts, per horizon, and the profile states how many past readings actually fell
-inside it (82% on the synthetic dataset). It draws nothing, and says why, when a player has
-fewer than two readings, no date of birth or sex, a last reading more than a year old, or when
-there are fewer than 30 past forecasts in a horizon to learn a band from.
+own past forecasts, per horizon and **per gender**, and the profile states how many past
+readings for that gender fell inside it (on the synthetic dataset: 82% for boys, 77% for girls,
+the latter from only 48 checks). A band pooled across genders would be far too narrow for girls.
+It draws nothing, and says why, when a player has fewer than two readings, no date of birth or
+gender, a last reading more than a year old, or when there are fewer than 30 past forecasts for
+their age group and gender in a horizon (adult girls, on the synthetic data).
 `apps/api/tests/test_forecast.py` checks that the profile's number equals this module's.
 
 ## Relative age audit
@@ -221,8 +236,8 @@ the confusion counts over all datasets before testing, rather than averaging rat
 handful of false positives per quarter and five seeds are not enough to see even a real bias.
 The harness carries a control that is biased on purpose, `baselines.shortest_for_birth_year`,
 which compares each child with everyone born in the same calendar year, the textbook source
-of the relative age effect. Over 5 seeds it flags three times as many Q4 children as Q1 and the
-test still says p = 0.098. Over 20 seeds it is caught decisively. That control is how the
+of the relative age effect. Over 5 seeds it flags nearly three times as many Q4 children as Q1
+(19 against 7) and the test still says p = 0.41. Over 20 seeds it is caught decisively. That control is how the
 audit's "no difference" verdicts earn trust: they mean something only while the control is
 still caught.
 
@@ -230,23 +245,23 @@ still caught.
 
 | detector | Q1 Jan-Mar (oldest) | Q2 | Q3 | Q4 Oct-Dec (youngest) | chi-square, p |
 | --- | --- | --- | --- | --- | --- |
-| late_bloomer v1 | 0.7% | 2.0% | 2.0% | 1.5% | 6.69, p = 0.082 |
-| baseline: shortest for age | 5.3% | 5.7% | 4.4% | 4.9% | 1.91, p = 0.59 |
-| fraud: age misrepresentation | 2.2% | 1.7% | 1.7% | 1.0% | 4.28, p = 0.23 |
+| late_bloomer v1 | 0.9% | 2.3% | 2.0% | 1.6% | 5.94, p = 0.12 |
+| baseline: shortest for age | 4.9% | 6.4% | 4.4% | 5.4% | 4.28, p = 0.23 |
+| fraud: age misrepresentation | 1.8% | 1.5% | 1.7% | 0.8% | 3.99, p = 0.26 |
 | duplicate v1 | 0.0% | 0.0% | 0.0% | 0.0% | 0.00, p = 1.0 |
-| **control: birth-year cohort** | **0.2%** | **0.9%** | **2.8%** | **3.1%** | **33.90, p < 0.001** |
+| **control: birth-year cohort** | **0.5%** | **1.3%** | **2.4%** | **3.1%** | **21.20, p < 0.001** |
 
 No detector shows a detectable difference by quarter, and the biased control does. The
-late-bloomer detector is the closest call (p = 0.082), but its pattern is not the relative age
-one: Q1 is flagged least, Q4 is not flagged most. The reason it stays clean is a design choice
+late-bloomer detector is the closest call (p = 0.12), but its pattern is not the relative age
+one: Q1 is flagged least, and Q2, not Q4, most. The reason it stays clean is a design choice
 made for other reasons: its height reference is bucketed by exact age at each measurement
 (`features.height_z`), not by birth year, so a December child is compared with children of the
 same age rather than with older team-mates.
 
 **Forecasts by quarter.** Cohort velocity MAE, under 18 at origin, mean of five seeds: Q1
-0.85 cm, Q2 0.89, Q3 0.86, Q4 0.91, with a bias of +0.13 cm for Q4 against about zero for the
-others. The youngest quarter is forecast slightly worse and slightly tall, but the gap is
-smaller than the seed to seed spread within any quarter, so it is a tendency, not a finding.
+0.80 cm, Q2 0.88, Q3 0.90, Q4 0.86, with a bias within 0.1 cm of zero in every quarter. The
+oldest quarter is forecast slightly best, but the youngest is not the worst, and the gaps are
+smaller than the seed to seed spread, so there is no relative age pattern to report.
 
 **What this cannot say.** The generator draws birth dates uniformly, so the synthetic
 population has no relative age effect of its own. That is what makes this a clean test of the
@@ -278,23 +293,26 @@ gives tighter intervals; the default 212 is in brackets):
 
 | at the moment of the size cut | flagged |
 | --- | --- |
-| late bloomers the system had measured 3+ times | **46%**, 37 of 81, CI 35 to 56% (65%, 13 of 20) |
-| other small players measured 3+ times | **10%**, 14 of 147, CI 6 to 15% (22%, 7 of 32) |
-| late bloomers measured fewer than 3 times | **0%**, 0 of 110 (0 of 22) |
+| late bloomers the system had measured 3+ times | **47%**, 40 of 86, CI 36 to 57% (65%, 13 of 20) |
+| other small players measured 3+ times | **16%**, 23 of 142, CI 11 to 23% (14%, 5 of 36) |
+| late bloomers measured fewer than 3 times | **0%**, 0 of 117 (0 of 24) |
 
 So the sentence the project can defend is:
 
 > Of the late bloomers a size-based cut would have released, the system flagged about half of
-> those it had measured at least three times, against one in ten of the other small players.
-> It could not flag any it had measured fewer than three times, and that was more than half
-> of them.
+> those it had measured at least three times, against about one in six of the other small
+> players. It could not flag any it had measured fewer than three times, and that was more
+> than half of them.
+
+Before the boys-only change the other small players were flagged at 10% ("one in ten"); on
+boys-only football it is 16%. The detection rate for late bloomers held (46% then, 47% now).
 
 The last clause is the main practical finding. The detector needs a growth rate, and a growth
 rate needs history, so **a player who is measured once on arrival and cut a few months later
 cannot be helped by any model**. The fix is operational rather than statistical: measure every
 player at intake and every few months after. The coach logging screen exists for that.
 
-The two sizes disagree more than their intervals suggest they should (46% against 65%). The
+The two sizes disagree more than their intervals suggest they should (47% against 65%). The
 detector's thresholds were tuned on 212-player datasets, where the cohort reference is built
 from fewer children, and they transfer imperfectly to a larger population. Reported rather than
 retuned; the larger figure is the one to quote.
@@ -309,8 +327,8 @@ against the planted truth, and it fails:
 | 'caught up' vs the planted truth, 1000 players x 5 | |
 | --- | --- |
 | median follow-up from the cut | 1.8 years |
-| late bloomers the label finds | 22%, 37 of 171 |
-| players the label finds who are late bloomers | 67%, 37 of 55 |
+| late bloomers the label finds | 9%, 15 of 176 |
+| players the label finds who are late bloomers | 33%, 15 of 46 |
 
 After under two years most late bloomers have not caught up yet, so the label misses most of
 them, and every rate built on it describes the label rather than the system. The report prints
@@ -327,15 +345,15 @@ later rows are removed. At 1000 players x 5:
 
 | | as generated | with release at 14 |
 | --- | --- | --- |
-| small players with an outcome | 87% | 74% |
-| late bloomer recall, scored on everyone | 19% | 19% |
+| small players with an outcome | 88% | 74% |
+| late bloomer recall, scored on everyone | 20% | 20% |
 | late bloomer recall, scored on stayers only | 20% | 20% |
-| players observed to catch up | 55 | 35 |
+| players observed to catch up | 46 | 38 |
 
 The effect we expected, a backtest on the stayers overstating recall, **did not appear**:
 released late bloomers were flagged at about the same rate as the ones who stayed, so dropping
-them left the rate where it was. What release did do is cost about one in seven of the evaluable
-players (416 down to 353) and more than a third of the observed success stories (55 down to 35). On real data, that is the
+them left the rate where it was. What release did do is cost about one in eight of the evaluable
+players (427 down to 372) and about a sixth of the observed success stories (46 down to 38). On real data, that is the
 risk to plan for: fewer cases than the cohort size suggests, and the catch-ups that would make
 the strongest case are disproportionately the ones missing. The report always prints how many
 players have no outcome and how they compare with the rest.
@@ -374,27 +392,30 @@ requires anyway.
 
 ## Known limits
 
-- **Age fraud only works in mid-adolescence.** Recall by stated age, over the 45 planted
+- **Age fraud is missed below a stated age of 13.** Recall by stated age, over the 45 planted
   age-fraud cases in the five reported seeds:
 
   | stated age | 11 to 13 | 13 to 15 | 15 to 17 | 17+ |
   | --- | --- | --- | --- | --- |
-  | recall | 0.50 (7/14) | **0.76 (16/21)** | 0.50 (2/4) | 0.50 (3/6) |
+  | recall | **0.07 (1/14)** | **0.76 (16/21)** | 1.00 (4/4) | 0.67 (4/6) |
 
-  The signal is a body further through maturity than the record allows, and it is only
-  legible while the cohort is diverging. Before about 13 there is not enough spread between
-  age groups for a two-year lie to stand out, and after about 16 everyone has stopped
-  growing, so the velocity half of the signal goes flat. Worth knowing before anyone claims
-  this covers the youth tier: it covers the middle of it.
+  The signal is a body further through maturity than the record allows. A boy claiming 11 to
+  13 who is really two years older is only just starting his growth spurt, so his body does
+  not yet contradict the record. When football included girls, who spurt about two years
+  earlier, this band scored 0.50; with boys-only football it catches almost nothing. The older
+  bands have too few cases (10 in all) to say much. Worth knowing before anyone claims this
+  covers the youth tier: it starts at about 13.
 - **The cohort reference is built from the dataset itself**, planted cases included. At
   roughly 7% prevalence and using medians the effect is small, and it is the same problem
   any real deployment has, but it is not nothing.
 - **Nothing here uses performance data for age fraud yet.** The generator plants
   `performance_outlier_for_stated_age` as a signal and the detector ignores it. That is the
   most obvious next improvement.
-- **`sex` is used for cohort bucketing** and the reference thins out for female players,
-  who are 34% of the population. Scores are not currently reported split by sex. They
-  should be before anyone claims this works for everyone.
+- **Girls are few, so everything learned about girls is thin.** Girls play table tennis only,
+  about 5% of players. Cohort references and growth curves are per gender, so the girls' ones
+  come from about a dozen children per dataset: forecast error is 2.26 cm for girls against
+  0.80 for boys. Detector scores are not reported split by gender, and with this few girls a
+  split would be mostly noise.
 
 ## Layout
 

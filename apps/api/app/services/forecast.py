@@ -7,15 +7,19 @@ is published in `ml/README.md`, not a look-alike.
 What is shown, and why
 ----------------------
 - **Under 18:** cohort velocity. The last reading plus the growth the median child of that sex
-  does between the two ages. It beat both graded baselines on every seed (0.89 cm against
-  3.13 cm for last value).
+  does between the two ages. It beat both graded baselines on every seed (0.86 cm against
+  3.19 cm for last value).
 - **18 and over:** a flat line at the last reading. Growth has finished, and the evaluation
-  showed cohort velocity wrongly keeps adults growing (1.04 cm against 0.64 cm for last value).
+  showed cohort velocity wrongly keeps adults growing (0.91 cm against 0.64 cm for last value).
 
 Every point carries an **80% band**, learned the walk-forward way: from the errors of earlier
 forecasts on this database whose outcome had already been measured, per horizon (0 to 3, 3 to
-6, 6 to 12 months) and per group (under 18 or adult). The band is the forecast's honest
-content; the centre line alone would claim a confidence the model does not have.
+6, 6 to 12 months), per group (under 18 or adult) and **per gender**. Girls are few (table
+tennis only) and their growth curve is learned from few children, so their forecasts are less
+accurate; a band pooled with the boys' would be far too narrow for them. The note on the
+profile states how often past readings fell inside the band for that player's own gender. The
+band is the forecast's honest content; the centre line alone would claim a confidence the
+model does not have.
 
 When there is no forecast
 -------------------------
@@ -75,6 +79,8 @@ from ml.forecasting.walk_forward import (  # noqa: E402
     quantile,
 )
 
+_TAIL = (1 - INTERVAL_COVERAGE) / 2
+
 YOUTH_MODEL = "cohort velocity"
 ADULT_MODEL = "baseline: last value"
 ADULT_AGE = 18
@@ -92,11 +98,10 @@ class _Model:
     built_at: float = 0.0
     snapshot: Snapshot | None = None
     histories: dict[str, PlayerHistory] = field(default_factory=dict)
-    # (group, horizon band) -> errors (actual minus predicted) of past forecasts, in cm.
-    errors: dict[tuple[str, str], list[float]] = field(default_factory=dict)
-    # Of past under-18 forecasts that had a band: how many readings landed inside it.
-    youth_hits: int = 0
-    youth_banded: int = 0
+    # (group, gender, horizon band) -> errors (actual minus predicted) of past forecasts, cm.
+    errors: dict[tuple[str, str, str], list[float]] = field(default_factory=dict)
+    # (group, gender) -> [readings inside the band, forecasts that had a band], walk-forward.
+    coverage: dict[tuple[str, str], list[int]] = field(default_factory=dict)
 
 
 _model = _Model()
@@ -136,17 +141,40 @@ def _build(db: Session, today: date) -> _Model:
     model.snapshot = Snapshot(today, histories)
 
     _, cases = build_cases(histories)
-    for case in cases:
-        group = _group(case.stated_age)
-        predicted = case.predictions.get(YOUTH_MODEL if group == "youth" else ADULT_MODEL)
-        if predicted is None:
-            continue
-        model.errors.setdefault((group, horizon_band(case.horizon_days)), []).append(
-            case.actual - predicted
+
+    def key(case) -> tuple[str, str, str]:
+        return (_group(case.stated_age), case.sex, horizon_band(case.horizon_days))
+
+    def predicted(case) -> float | None:
+        return case.predictions.get(
+            YOUTH_MODEL if _group(case.stated_age) == "youth" else ADULT_MODEL
         )
-        if group == "youth" and case.interval is not None:
-            model.youth_banded += 1
-            model.youth_hits += case.interval[0] <= case.actual <= case.interval[1]
+
+    # Coverage, checked the way the evaluation checks it: at each origin, the band comes only
+    # from forecasts whose outcome had already been measured by then, for the same group,
+    # gender and horizon. Calibrating on the future would make the check meaningless.
+    for origin in sorted({case.origin for case in cases}):
+        past: dict[tuple[str, str, str], list[float]] = {}
+        for case in cases:
+            value = predicted(case)
+            if case.target <= origin and value is not None:
+                past.setdefault(key(case), []).append(case.actual - value)
+        for case in cases:
+            value = predicted(case)
+            errors = past.get(key(case), [])
+            if case.origin != origin or value is None or len(errors) < MIN_INTERVAL_HISTORY:
+                continue
+            low = value + quantile(errors, _TAIL)
+            high = value + quantile(errors, 1 - _TAIL)
+            tally = model.coverage.setdefault(key(case)[:2], [0, 0])
+            tally[0] += low <= case.actual <= high
+            tally[1] += 1
+
+    # The band shown today learns from every past forecast whose outcome is known.
+    for case in cases:
+        value = predicted(case)
+        if value is not None:
+            model.errors.setdefault(key(case), []).append(case.actual - value)
     return model
 
 
@@ -200,11 +228,10 @@ def forecast_height(db: Session, player: Player, *, today: date | None = None) -
 
     group = _group(age_at(history.dob, today))
     forecaster = cohort_velocity if group == "youth" else last_value
-    tail = (1 - INTERVAL_COVERAGE) / 2
 
     points: list[dict] = []
     for days in HORIZONS_DAYS:
-        errors = model.errors.get((group, horizon_band(days)), [])
+        errors = model.errors.get((group, history.sex, horizon_band(days)), [])
         if len(errors) < MIN_INTERVAL_HISTORY:
             # A band from a handful of cases is not a band. Stop rather than draw one.
             break
@@ -216,8 +243,8 @@ def forecast_height(db: Session, player: Player, *, today: date | None = None) -
             {
                 "date": target,
                 "value": round(centre, 1),
-                "lower": round(centre + quantile(errors, tail), 1),
-                "upper": round(centre + quantile(errors, 1 - tail), 1),
+                "lower": round(centre + quantile(errors, _TAIL), 1),
+                "upper": round(centre + quantile(errors, 1 - _TAIL), 1),
             }
         )
 
@@ -225,16 +252,19 @@ def forecast_height(db: Session, player: Player, *, today: date | None = None) -
         return Forecast(
             [],
             None,
-            "No forecast: the database does not yet hold enough past forecasts to learn an "
-            "honest uncertainty band from.",
+            "No forecast: the database does not yet hold enough past forecasts for players "
+            "like this one (same age group and gender) to learn an honest uncertainty band "
+            "from.",
         )
 
     coverage = f"{INTERVAL_COVERAGE:.0%}"
+    who = {"male": "boys", "female": "girls"}.get(history.sex, "players")
+    hits, banded = model.coverage.get((group, history.sex), [0, 0])
     if group == "youth":
         checked = (
-            f" Checked against this database, {model.youth_hits / model.youth_banded:.0%} of "
-            f"past readings fell inside the band."
-            if model.youth_banded
+            f" Checked against this database, {hits / banded:.0%} of past readings for {who} "
+            f"fell inside the band."
+            if banded
             else ""
         )
         note = (

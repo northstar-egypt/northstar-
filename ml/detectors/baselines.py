@@ -75,7 +75,7 @@ def shortest_for_birth_year(features: FeatureSet, support: int) -> set[str]:
     same eligibility as the late bloomer detector.
 
     It is in the audit so that every run shows what a biased detector looks like next to the
-    real one. Pooled over 20 seeds it is caught decisively (false positive rate 0.2% for Q1
+    real one. Pooled over 20 seeds it is caught decisively (false positive rate 0.5% for Q1
     against 3.1% for Q4, p < 0.001); if it ever stops being caught, the audit has lost its
     power and its "no difference" verdicts mean nothing.
     """

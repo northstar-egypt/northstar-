@@ -200,3 +200,20 @@ def test_the_profile_endpoint_carries_the_forecast(client, auth, db, population)
     assert growth["forecastNote"].startswith("Cohort velocity")
     for point in growth["forecast"]:
         assert point["lower"] < point["value"] < point["upper"]
+
+
+def test_the_band_is_learned_from_the_players_own_gender(db, population):
+    """Girls' forecasts are less accurate (fewer of them to learn from), so a girl's band must
+    come from girls' past errors, not from a pool dominated by boys."""
+    from app.services import forecast
+    from ml.forecasting.walk_forward import horizon_band, quantile
+
+    child = population["kids"][0]
+    result = forecast.forecast_height(db, child, today=TODAY)
+    model = forecast._get_model(db, TODAY)
+    for days, point in zip(forecast.HORIZONS_DAYS, result.points):
+        errors = model.errors[("youth", "male", horizon_band(days))]
+        assert point["lower"] == pytest.approx(round(point["value"] + quantile(errors, 0.1), 1), abs=0.11)
+        assert point["upper"] == pytest.approx(round(point["value"] + quantile(errors, 0.9), 1), abs=0.11)
+    assert all(key[1] in ("male", "female") for key in model.errors)
+    assert "for boys" in result.note
