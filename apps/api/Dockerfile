@@ -15,6 +15,14 @@ WORKDIR /app
 COPY apps/api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# The search's embedding model (app/concepts.py), fetched once here so the running API never
+# downloads anything. About 240 MB; cached as its own layer.
+ENV NORTHSTAR_MODELS_DIR=/opt/models
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2', cache_dir='/opt/models')"
+# From here on, never ask Hugging Face for a newer copy: it cost five seconds per start, and
+# the API should run with no network.
+ENV HF_HUB_OFFLINE=1
+
 # The sport modules, the ML package (for the profile's height forecast, XGBoost; its
 # dependency is in requirements.txt above), then the application code.
 COPY packages/shared/sports /shared/sports

@@ -23,5 +23,12 @@ argon2-cffi==23.1.*           # password hashing (argon2id)
 xgboost-cpu==3.0.*; sys_platform != "darwin"
 xgboost==3.0.*; sys_platform == "darwin"
 numpy==2.*                    # xgboost's input format; also installed by xgboost itself
+
+# The search box reads a scout's phrase with a local multilingual embedding model
+# (app/concepts.py): paraphrase-multilingual-MiniLM-L12-v2 on ONNX Runtime, no PyTorch. The
+# API image downloads the model at build time (Dockerfile); elsewhere fastembed fetches it on
+# first use, about 240 MB, into NORTHSTAR_MODELS_DIR if set. Without it the search falls back
+# to keywords.
+fastembed==0.7.*
 # TODO (data/ml workstreams): pandas, numpy, scikit-learn, etc. may live in their own
 #   requirements files under data/ and ml/ to keep the API image lean.

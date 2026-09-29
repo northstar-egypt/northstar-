@@ -49,7 +49,8 @@ table, stop. It almost certainly belongs in the JSON metrics field with a schema
 ## Tech stack
 
 - **Backend / data**: Python 3.11+, FastAPI, PostgreSQL, SQLAlchemy 2.0 + Alembic (migrations),
-  pandas, NumPy, scikit-learn, statsmodels, sentence-transformers, Playwright (scraping),
+  pandas, NumPy, scikit-learn, statsmodels, XGBoost, a sentence-transformers model run with
+  fastembed on ONNX Runtime (no PyTorch; see apps/api/app/concepts.py), Playwright (scraping),
   Faker (synthetic data), Ollama (local LLM).
 - **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind. UI primitives are our own
   (`apps/web/components/ui.tsx`) and charts are hand-written SVG (`components/charts.tsx`);

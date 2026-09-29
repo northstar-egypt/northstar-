@@ -208,7 +208,15 @@ def test_every_typed_term_is_accounted_for_in_a_chip(client, auth, world):
     assert "age: under 17" in labels
     assert "position: ST" in labels
     assert "expected goals: no data" in labels
-    assert "name: zzzz" in labels
+    # In the same phrase as "xg", so it is part of a concept phrase, not a name.
+    assert "zzzz: not used" in labels
+
+
+def test_a_word_in_its_own_phrase_is_a_name(client, auth, world):
+    body = client.post(
+        "/search", json={"query": "under 17 striker, zzzz"}, headers=auth("scout")
+    ).json()
+    assert "name: zzzz" in [chip["label"] for chip in body["parsed"]["chips"]]
 
 
 @pytest.mark.parametrize(
