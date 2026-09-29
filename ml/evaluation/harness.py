@@ -30,6 +30,7 @@ from pathlib import Path
 
 from ml.detectors import baselines, duplicate, fraud, late_bloomer
 from ml.detectors.features import FeatureSet
+from ml.evaluation import fairness
 from ml.evaluation.metrics import Score, ScoreSet, score_ids
 
 
@@ -51,6 +52,8 @@ class Report:
     sections: list[ScoreSet] = field(default_factory=list)
     # Headline score per detector, pulled out so a sweep can aggregate them.
     headline: dict[str, Score] = field(default_factory=dict)
+    # The same detectors split by birth quarter. See ml/evaluation/fairness.py.
+    relative_age: list[fairness.QuarterAudit] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
@@ -60,6 +63,7 @@ class Report:
             "population": self.population,
             "headline": {k: v.as_dict() for k, v in self.headline.items()},
             "sections": [s.as_dict() for s in self.sections],
+            "relative_age": [a.as_dict() for a in self.relative_age],
             "notes": self.notes,
         }
 
@@ -71,6 +75,7 @@ def evaluate(data_dir: str | Path) -> Report:
     population = set(gt["population"]["player_ids"])
     labels = gt["labels"]
     cases = gt["cases"]
+    quarters = fairness.quarters_of(features.raw["players"])
 
     report = Report(
         data_dir=str(data_dir), seed=gt.get("seed", -1), population=len(population)
@@ -91,13 +96,37 @@ def evaluate(data_dir: str | Path) -> Report:
     report.headline["late_bloomer"] = section.add(
         score_ids("late_bloomer v1", predicted, truth, population)
     )
+    shortest = baselines.shortest_for_age(features, len(truth))
     section.add(
         score_ids(
             "baseline: shortest for age",
-            baselines.shortest_for_age(features, len(truth)),
+            shortest,
             truth,
             population,
             note="the same number of players, picked by height alone",
+        )
+    )
+    report.relative_age.append(
+        fairness.audit("late_bloomer v1", predicted, truth, population, quarters)
+    )
+    report.relative_age.append(
+        fairness.audit(
+            "baseline: shortest for age",
+            shortest,
+            truth,
+            population,
+            quarters,
+            note="height alone, for contrast",
+        )
+    )
+    report.relative_age.append(
+        fairness.audit(
+            "control: birth-year cohort",
+            baselines.shortest_for_birth_year(features, len(predicted)),
+            truth,
+            population,
+            quarters,
+            note="biased on purpose, see baselines.shortest_for_birth_year",
         )
     )
     section.add(
@@ -139,13 +168,23 @@ def evaluate(data_dir: str | Path) -> Report:
     # Each subtype is scored on a population with the *other* subtype's cases
     # removed. Leaving them in would count a metric-fraud player that the age rule
     # correctly ignored as a false negative for age fraud, which it is not.
+    age_predicted = fraud.detect_age_misrepresentation(features)
     section.add(
         score_ids(
             "  rule: age misrepresentation",
-            fraud.detect_age_misrepresentation(features),
+            age_predicted,
             age_truth,
             population - metric_truth,
             note=f"the hard subtype, {len(age_truth)} cases",
+        )
+    )
+    report.relative_age.append(
+        fairness.audit(
+            "fraud: age misrepresentation",
+            age_predicted,
+            age_truth,
+            population - metric_truth,
+            quarters,
         )
     )
     section.add(
@@ -201,6 +240,9 @@ def evaluate(data_dir: str | Path) -> Report:
     predicted = duplicate.detect(features)
     report.headline["duplicate"] = section.add(
         score_ids("duplicate v1", predicted, truth, population)
+    )
+    report.relative_age.append(
+        fairness.audit("duplicate v1", predicted, truth, population, quarters)
     )
 
     unresolved = {
@@ -347,6 +389,14 @@ def render(report: Report, *, misses: list[str] | None = None) -> str:
             if s.note:
                 out.append(f"{'':44} {s.note}")
 
+    if report.relative_age:
+        out.append(
+            fairness.render(
+                report.relative_age,
+                "Relative age audit: the same detectors by birth quarter of the stated date of birth",
+            )
+        )
+
     if report.notes:
         out.append("")
         for note in report.notes:
@@ -382,5 +432,12 @@ def render_sweep(reports: list[Report]) -> str:
             f"{name:24} {'F1':>8}  "
             + "  ".join(f"{v:>8.3f}" for v in f1s)
             + f"  {sum(f1s) / len(f1s):>8.3f} {min(f1s):>8.3f} {max(f1s):>8.3f}"
+        )
+
+    audits = [r.relative_age for r in reports if r.relative_age]
+    if audits:
+        pooled = [fairness.pool([a[i] for a in audits]) for i in range(len(audits[0]))]
+        out.append(
+            fairness.render(pooled, f"Relative age audit, counts pooled over {len(audits)} datasets")
         )
     return "\n".join(out)
