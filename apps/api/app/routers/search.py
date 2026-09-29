@@ -41,7 +41,7 @@ def search(
     parsed_filters, chips, name_terms = search_service.parse_query(request.query)
 
     stmt = search_service.apply_filters(
-        _base_query(caller), request, parsed_filters, today, name_terms
+        _base_query(caller), request, parsed_filters, today, name_terms, db
     )
 
     total = db.execute(
