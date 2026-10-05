@@ -1,0 +1,128 @@
+# Runs the project's test suites on every pull request and on every push to main.
+#
+# Four jobs, so a red check says which part broke: api, generator, ml, web.
+# What this does not check (the Firefox end-to-end tests, lint) is listed in README.md under
+# "Continuous integration".
+#
+# No secrets. Nothing here needs the FootyStats key, and it must never be added to CI.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to a pull request cancels the run still going for the previous one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Player names are Arabic and some test output prints them.
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: northstar
+          POSTGRES_PASSWORD: northstar
+          POSTGRES_DB: northstar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U northstar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Read by both app/config.py and tests/conftest.py.
+      DATABASE_URL: postgresql+psycopg://northstar:northstar@localhost:5432/northstar
+      # Where fastembed keeps the search model (about 240 MB), so it is cached between runs.
+      NORTHSTAR_MODELS_DIR: ${{ github.workspace }}/../fastembed-models
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            apps/api/requirements.txt
+            apps/api/requirements-dev.txt
+            data/pipelines/requirements.txt
+      # The generator's requirements as well as the API's: some API tests check the API
+      # against the generator (tests/test_sports.py, tests/test_names.py) and need faker.
+      # data/pipelines/requirements.txt pulls in requirements.txt itself.
+      - run: pip install -r ../../data/pipelines/requirements.txt -r requirements-dev.txt
+      - uses: actions/cache@v5
+        with:
+          path: ${{ env.NORTHSTAR_MODELS_DIR }}
+          key: fastembed-${{ hashFiles('apps/api/app/concepts.py', 'apps/api/requirements.txt') }}
+      - name: Migrate the schema
+        run: alembic upgrade head
+      - name: Run the API tests
+        # With no database the suite skips instead of failing (tests/conftest.py). A green
+        # check that ran zero tests is worse than no check, so a database skip fails the job.
+        run: |
+          set -o pipefail
+          pytest -q -rs | tee "$RUNNER_TEMP/pytest.log"
+          if grep -q "No database at" "$RUNNER_TEMP/pytest.log"; then
+            echo "::error::The API tests were skipped because no database was reachable."
+            exit 1
+          fi
+
+  generator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            apps/api/requirements.txt
+            data/pipelines/requirements.txt
+      - run: pip install -r data/pipelines/requirements.txt
+      - run: pytest -q -rs data/pipelines/synthetic/tests
+
+  ml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            apps/api/requirements.txt
+            data/pipelines/requirements.txt
+            ml/requirements.txt
+      - run: pip install -r data/pipelines/requirements.txt -r ml/requirements.txt
+      - run: pytest -q -rs ml/tests
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+      # npm workspaces: install once at the root.
+      - run: npm ci
+      - name: Type-check
+        run: npx tsc --noEmit
+        working-directory: apps/web
+      - name: Build
+        run: npm run build
+        working-directory: apps/web

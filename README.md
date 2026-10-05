@@ -158,6 +158,31 @@ pytest tests/e2e
 
 On Windows, set `PYTHONIOENCODING=utf-8` first: the generated player names are Arabic.
 
+### Continuous integration
+
+Every pull request, and every push to `main`, runs `.github/workflows/ci.yml`. It has four
+checks, so a red one tells you which part broke:
+
+| Check | What it runs |
+|---|---|
+| `api` | `alembic upgrade head`, then the API test suite (access control included) against a real Postgres 16. The job fails if the suite skipped for lack of a database, because a green check that ran nothing is worse than no check. |
+| `generator` | `pytest data/pipelines/synthetic/tests` |
+| `ml` | `pytest ml/tests`: detectors, forecasts, metrics and the fairness audit |
+| `web` | `npx tsc --noEmit` and `npm run build` in `apps/web` |
+
+What CI does **not** check yet:
+
+- **The Firefox end-to-end tests** (`tests/e2e`). They need the whole stack running; that is a
+  separate task. Run them locally before a change to a screen.
+- **Lint.** `npm run lint` has never worked (see "Known traps" in `CLAUDE.md`), and there is no
+  Python linter configured.
+- **The published ML numbers.** CI runs the tests in `ml/tests`, not `python -m ml.run_eval`
+  or `python -m ml.run_forecast_eval`, so it would not notice a change that moves a number in
+  `ml/README.md` while the tests still pass. If you touch the generator, `ml/detectors` or
+  `ml/evaluation`, re-run both and put the before and after in your PR.
+
+CI uses no secrets. The FootyStats key must never be added to it.
+
 ## The four workstreams
 
 NorthStar is built across four tracks. Pick the one that matches your role.
