@@ -12,7 +12,9 @@ pydantic-settings==2.6.*      # env-driven config
 python-dotenv==1.0.*
 
 # Authentication. See app/security.py and docs/threat-model.md.
-PyJWT==2.10.*                 # signs and checks the session token
+# PyJWT signs and checks the session token. At least 2.15: earlier versions carry seven
+# advisories (GHSA-ffc3-869f-jxw9 and others, fixed in 2.14; GHSA-42vr-xj54-vc7v in 2.15).
+PyJWT==2.15.*
 argon2-cffi==23.1.*           # password hashing (argon2id)
 
 # The profile's height forecast for under-18s is XGBoost (app/services/forecast.py runs
