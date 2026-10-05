@@ -42,6 +42,9 @@ services:
       DATABASE_URL: postgresql+psycopg://northstar:northstar@db:5432/northstar
       CORS_ORIGINS: '["http://localhost:3000"]'
       ENVIRONMENT: development
+      # The profile summary's model (app/services/summary.py). Only answers when the stack is
+      # started with --profile llm; otherwise the profile says the model is not running.
+      OLLAMA_URL: http://ollama:11434
     ports:
       - "8000:8000"
     volumes:
@@ -89,8 +92,10 @@ services:
     depends_on:
       - api
 
-  # Local LLM for the grounded natural-language assistant. Heavy, so it is behind a profile
-  # and off by default. Start it with:  docker compose ... --profile llm up
+  # Local LLM behind the written summary on the player profile. Heavy, so it is behind a
+  # profile and off by default. Start it, then pull the model once (about 1.9 GB):
+  #   docker compose -f docker/docker-compose.yml --profile llm up -d ollama
+  #   docker exec northstar-ollama ollama pull qwen2.5:3b
   ollama:
     image: ollama/ollama:latest
     container_name: northstar-ollama

@@ -208,6 +208,16 @@ export interface SportModule {
   genders: ("male" | "female")[];
 }
 
+/**
+ * The written summary, from GET /players/{id}/summary. `summary` is null when there is none,
+ * and `note` always says why, or which model wrote it and that its numbers were checked.
+ */
+export interface ProfileSummary {
+  summary: string | null;
+  note: string;
+  model: string | null;
+}
+
 export interface PlayerProfile {
   player: Player;
   organizationName: string | null;
@@ -219,7 +229,6 @@ export interface PlayerProfile {
   performance: PerformanceSection[];
   flags: FlagSummary[];
   flagReason: string | null;
-  summary: string | null;
   provenance: {
     measurementCount: number;
     performanceCount: number;

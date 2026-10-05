@@ -30,10 +30,15 @@ import {
   Td,
   Th,
 } from "@/components/ui";
-import { getProfile } from "@/lib/api";
+import { getProfile, getSummary } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { num, ordinal, shortDate } from "@/lib/format";
-import type { PerformanceSection, PlayerProfile, SummaryStat } from "@/lib/types";
+import type {
+  PerformanceSection,
+  PlayerProfile,
+  ProfileSummary,
+  SummaryStat,
+} from "@/lib/types";
 
 /** "8 readings over 2.4 years", from the player's own measurements. */
 function measuredSpan(measured: { date: string }[]): string {
@@ -154,6 +159,9 @@ export default function PlayerProfilePage() {
         </Banner>
       ) : null}
 
+      {/* written summary, loaded after the profile because a local model takes seconds */}
+      <SummaryCard playerId={playerId} />
+
       {/* growth and maturity */}
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         <Card>
@@ -240,18 +248,6 @@ export default function PlayerProfilePage() {
         ))
       )}
 
-      {/* assistant summary */}
-      {data.summary ? (
-        <Card className="bg-slate-900/70">
-          <SectionTitle>Summary</SectionTitle>
-          <p className="text-sm leading-relaxed text-slate-300">{data.summary}</p>
-          <p className="mt-2 text-xs text-slate-500">
-            Generated from this player&apos;s record. It rephrases numbers already on this page
-            and introduces none of its own. Not a scouting opinion.
-          </p>
-        </Card>
-      ) : null}
-
       {/* provenance */}
       <Card className="bg-slate-900/40">
         <SectionTitle>Where this data came from</SectionTitle>
@@ -270,6 +266,51 @@ export default function PlayerProfilePage() {
         </p>
       </Card>
     </div>
+  );
+}
+
+/**
+ * The written summary. The API builds it from this same page's numbers, has a local model
+ * phrase it, and withholds it if the reply holds any number or flag the page does not show.
+ * When there is no summary the note says why (the model is off, or the reply was withheld),
+ * in small print, because the rest of the page is complete without it.
+ */
+function SummaryCard({ playerId }: { playerId: string }) {
+  const [summary, setSummary] = useState<ProfileSummary | "loading" | "failed">("loading");
+
+  useEffect(() => {
+    let alive = true;
+    setSummary("loading");
+    getSummary(playerId)
+      .then((s) => alive && setSummary(s ?? "failed"))
+      .catch(() => alive && setSummary("failed"));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (summary === "failed") return null;
+
+  if (summary === "loading") {
+    return (
+      <Card className="bg-slate-900/70">
+        <SectionTitle>Summary</SectionTitle>
+        <Skeleton className="h-12" />
+        <p className="mt-2 text-xs text-slate-500">A local model is writing this. It takes a few seconds.</p>
+      </Card>
+    );
+  }
+
+  if (!summary.summary) {
+    return <p className="text-xs text-slate-500">No written summary. {summary.note}</p>;
+  }
+
+  return (
+    <Card className="bg-slate-900/70">
+      <SectionTitle>Summary</SectionTitle>
+      <p className="text-sm leading-relaxed text-slate-300">{summary.summary}</p>
+      <p className="mt-2 text-xs text-slate-500">{summary.note}</p>
+    </Card>
   );
 }
 

@@ -98,9 +98,13 @@ embeddings, and anomaly detection that crosses over with the security workstream
 model ships with an evaluation harness measuring against the targets in the README.
 
 ### LLM assistant (Ollama)
-A locally hosted model answers natural-language questions, grounded in data the API
-retrieves rather than free-form generation. It never invents player data; it phrases what
-the database and ML layer already know. Heavy to run, so it is optional in local dev.
+A locally hosted model (`qwen2.5:3b` by default) phrases what the database and ML layer
+already know. It never decides what is true. Its first use is the summary on the player
+profile: the API builds a fact sheet from the profile the caller may already see, the model
+writes two to four sentences from it, and the API withholds the reply if it contains any
+number, or names any flag, that the fact sheet does not. Heavy to run, so it is optional in
+local dev; without it the profile shows no summary and says why. Answering free questions
+across the database is a later step (Backlog).
 
 ### API (`apps/api`, FastAPI)
 The one gateway to the data. Serves the frontend, receives coach logging and self-submission,

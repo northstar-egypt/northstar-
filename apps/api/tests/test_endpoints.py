@@ -77,17 +77,16 @@ def test_profile_never_forecasts_without_a_band_or_a_reason(client, auth, world)
         assert growth["forecastNote"].startswith("No forecast")
 
 
-def test_profile_reports_no_maturity_estimate_and_no_summary(client, auth, world):
-    """Both are null until the work behind them lands.
+def test_profile_reports_no_maturity_estimate(client, auth, world):
+    """Null until the maturity-offset method lands (an open ML board item).
 
-    The maturity-offset method is an open ML board item, and the assistant is not wired up. A
-    placeholder number on a child's profile reads as a finding, and a fabricated summary is
-    exactly the failure this project should not ship.
+    A placeholder number on a child's profile reads as a finding. The written summary is not
+    on the profile at all: it has its own endpoint (tests/test_summary.py).
     """
     player_id = world["players"]["adult_a"].id
     body = client.get(f"/players/{player_id}/profile", headers=auth("coach_a")).json()
     assert body["maturity"] is None
-    assert body["summary"] is None
+    assert "summary" not in body
 
 
 def test_profile_flags_are_empty_until_the_flag_table_exists(client, auth, world):

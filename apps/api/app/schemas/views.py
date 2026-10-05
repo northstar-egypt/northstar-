@@ -160,9 +160,19 @@ class PlayerProfileOut(CamelModel):
     performance: list[PerformanceSectionOut] = []
     flags: list[FlagSummaryOut] = []
     flag_reason: str | None = None
-    summary: str | None = None
     provenance: ProvenanceOut
     permissions: PermissionsOut
+
+
+class ProfileSummaryOut(CamelModel):
+    """The written summary for the profile, from GET /players/{id}/summary.
+
+    `summary` is null when there is none, and `note` always says why or where it came from.
+    """
+
+    summary: str | None = None
+    note: str
+    model: str | None = None
 
 
 class SearchResultOut(CamelModel):

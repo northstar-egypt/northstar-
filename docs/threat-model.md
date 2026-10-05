@@ -86,6 +86,22 @@ Built 2026-09-29. Code: `apps/api/app/security.py` (passwords, tokens), `apps/ap
   That is safe only because the data is synthetic and local. Never seed these accounts
   anywhere real.
 
+## The profile summary (local language model)
+
+The player profile carries a few sentences written by a local model (Ollama,
+`apps/api/app/services/summary.py`). What could go wrong, and what stops it:
+
+| Threat | What stops it | Tested by |
+| --- | --- | --- |
+| The summary tells a caller something the page hides from them, such as a flag | The model is given a fact sheet built from the profile after the role and consent filters, so it never sees what the caller may not; a reply that names any kind of flag the sheet does not hold is withheld | `test_a_player_reading_their_own_summary_gets_no_flags` |
+| The model invents a number about a child | Every number in the reply, digits or words, must be on the fact sheet or a rounding of one; otherwise the whole summary is withheld and the page says so | `test_a_summary_with_an_invented_number_is_withheld`, `test_any_number_that_gets_through_is_on_the_sheet` |
+| Finding out a hidden player exists through the summary endpoint | The same 404 as the profile, before the model is asked anything | `test_a_player_the_caller_may_not_see_is_404` |
+| Player data leaving the machine | The model runs locally in docker-compose; no hosted LLM is called | (configuration: `OLLAMA_URL`) |
+
+Known gap: a wrong sentence with no number in it ("a quick player") passes the check. The
+prompt forbids opinions and the screen labels the text as generated, but that rests on the
+model and the label, not on code. The reply is shown as plain text, never as HTML.
+
 ## To be written
 
 - Full data-flow diagram with trust boundaries.

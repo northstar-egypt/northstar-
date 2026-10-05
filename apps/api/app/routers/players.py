@@ -17,14 +17,14 @@ from app.db import get_db
 from app.deps import current_user
 from app.models.player import Player
 from app.schemas.core import MeasurementOut, PlayerOut
-from app.schemas.views import PlayerProfileOut, SquadRowOut
+from app.schemas.views import PlayerProfileOut, ProfileSummaryOut, SquadRowOut
 from app.schemas.writes import (
     MeasurementBatchIn,
     MeasurementsSavedOut,
     PlayerCreatedOut,
     PlayerCreateIn,
 )
-from app.services import views, writes
+from app.services import summary, views, writes
 from app.services.access import (
     Caller,
     may_create_player,
@@ -71,17 +71,8 @@ def list_players(
     return [SquadRowOut.model_validate(row) for row in rows]
 
 
-@router.get("/players/{player_id}/profile", response_model=PlayerProfileOut)
-def player_profile(
-    player_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    caller: Caller = Depends(current_user),
-) -> PlayerProfileOut:
-    """The player profile, already filtered for the caller's role and consent.
-
-    The response carries a `permissions` object so the frontend never has to infer what to
-    render from the role. Anything the caller may not see is absent rather than hidden.
-    """
+def _viewable_player(db: Session, caller: Caller, player_id: uuid.UUID) -> Player:
+    """The player, or 404 if they do not exist or the caller may not see them."""
     player = db.execute(
         visible_players(caller).where(Player.id == player_id).limit(1)
     ).scalar_one_or_none()
@@ -94,8 +85,39 @@ def player_profile(
         # 404 and not 403. A scout who may not see a minor should not learn that the minor
         # exists, and a distinguishable status code is exactly how they would.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such player.")
+    return player
 
+
+@router.get("/players/{player_id}/profile", response_model=PlayerProfileOut)
+def player_profile(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> PlayerProfileOut:
+    """The player profile, already filtered for the caller's role and consent.
+
+    The response carries a `permissions` object so the frontend never has to infer what to
+    render from the role. Anything the caller may not see is absent rather than hidden.
+    """
+    player = _viewable_player(db, caller, player_id)
     return PlayerProfileOut.model_validate(views.build_profile(db, caller, player))
+
+
+@router.get("/players/{player_id}/summary", response_model=ProfileSummaryOut)
+def player_summary(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> ProfileSummaryOut:
+    """A few sentences about the profile, written by the local model and checked.
+
+    Separate from the profile because writing it takes seconds on a laptop, and the profile
+    should not wait for it. Built from the same filtered profile the caller sees, so it can
+    only repeat what the page already shows. See app/services/summary.py.
+    """
+    player = _viewable_player(db, caller, player_id)
+    result = summary.summarise(views.build_profile(db, caller, player))
+    return ProfileSummaryOut(summary=result.text, note=result.note, model=result.model)
 
 
 # ---------------------------------------------------------------------------
