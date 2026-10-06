@@ -95,12 +95,18 @@ The player profile carries a few sentences written by a local model (Ollama,
 | --- | --- | --- |
 | The summary tells a caller something the page hides from them, such as a flag | The model is given a fact sheet built from the profile after the role and consent filters, so it never sees what the caller may not; a reply that names any kind of flag the sheet does not hold is withheld | `test_a_player_reading_their_own_summary_gets_no_flags` |
 | The model invents a number about a child | Every number in the reply, digits or words, must be on the fact sheet or a rounding of one; otherwise the whole summary is withheld and the page says so | `test_a_summary_with_an_invented_number_is_withheld`, `test_any_number_that_gets_through_is_on_the_sheet` |
+| The model compares a child with others in words the check cannot test ("faster than most") | The sheet gives every comparison as a percentage; a reply that compares in words instead ("most", "above average", "out of", "top N%") is withheld | `test_a_comparison_in_words_is_caught`, `test_the_other_mistakes_the_model_made_are_caught` |
+| The model says a flag is absent when it is open, or judges a child ("not impressive"), or forecasts something other than height | Each is withheld: the sheet never says a flag is absent, never judges, and forecasts only height | `test_the_other_mistakes_the_model_made_are_caught` |
 | Finding out a hidden player exists through the summary endpoint | The same 404 as the profile, before the model is asked anything | `test_a_player_the_caller_may_not_see_is_404` |
 | Player data leaving the machine | The model runs locally in docker-compose; no hosted LLM is called | (configuration: `OLLAMA_URL`) |
 
-Known gap: a wrong sentence with no number in it ("a quick player") passes the check. The
-prompt forbids opinions and the screen labels the text as generated, but that rests on the
-model and the label, not on code. The reply is shown as plain text, never as HTML.
+Known gaps. The checks prove that every number is on the sheet and that a set of known
+mistakes is absent. They do not prove each sentence is true: a real number attached to the
+wrong fact (the season rate given as the match rate) passes, and so does a wrong sentence that
+trips no pattern. Every pattern above comes from a mistake the model made in an evaluation
+where each reply was read against its sheet by hand; the PR that added this reports how many
+shown summaries were still wrong on a sample the checks were not built from. The screen
+labels the text as generated, and the reply is shown as plain text, never as HTML.
 
 ## To be written
 

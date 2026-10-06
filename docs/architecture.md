@@ -98,7 +98,7 @@ embeddings, and anomaly detection that crosses over with the security workstream
 model ships with an evaluation harness measuring against the targets in the README.
 
 ### LLM assistant (Ollama)
-A locally hosted model (`qwen2.5:3b` by default) phrases what the database and ML layer
+A locally hosted model (`qwen2.5:7b` by default) phrases what the database and ML layer
 already know. It never decides what is true. Its first use is the summary on the player
 profile: the API builds a fact sheet from the profile the caller may already see, the model
 writes two to four sentences from it, and the API withholds the reply if it contains any

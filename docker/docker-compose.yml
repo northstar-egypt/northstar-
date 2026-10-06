@@ -93,9 +93,9 @@ services:
       - api
 
   # Local LLM behind the written summary on the player profile. Heavy, so it is behind a
-  # profile and off by default. Start it, then pull the model once (about 1.9 GB):
+  # profile and off by default. Start it, then pull the model once (about 4.7 GB):
   #   docker compose -f docker/docker-compose.yml --profile llm up -d ollama
-  #   docker exec northstar-ollama ollama pull qwen2.5:3b
+  #   docker exec northstar-ollama ollama pull qwen2.5:7b
   ollama:
     image: ollama/ollama:latest
     container_name: northstar-ollama

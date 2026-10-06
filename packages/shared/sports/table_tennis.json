@@ -3,7 +3,13 @@
   "label": "Table tennis",
   "roles": {
     "label": "Playing style",
-    "values": ["attacker", "all_round", "defender", "chopper"]
+    "values": ["attacker", "all_round", "defender", "chopper"],
+    "names": {
+      "attacker": "attacking player",
+      "all_round": "all-round player",
+      "defender": "defensive player",
+      "chopper": "chopper (a defensive player who returns with heavy backspin)"
+    }
   },
   "usesTier": false,
   "genders": ["male", "female"],

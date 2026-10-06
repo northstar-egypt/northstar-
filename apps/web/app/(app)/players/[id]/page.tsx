@@ -296,7 +296,7 @@ function SummaryCard({ playerId }: { playerId: string }) {
       <Card className="bg-slate-900/70">
         <SectionTitle>Summary</SectionTitle>
         <Skeleton className="h-12" />
-        <p className="mt-2 text-xs text-slate-500">A local model is writing this. It takes a few seconds.</p>
+        <p className="mt-2 text-xs text-slate-500">A local model is writing this. The first time, it can take a minute or two.</p>
       </Card>
     );
   }

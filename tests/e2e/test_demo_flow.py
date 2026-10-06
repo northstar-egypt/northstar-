@@ -185,7 +185,10 @@ def test_the_profile_states_what_is_not_known_yet(sign_in, page, identities):
         assert point["lower"] < point["value"] < point["upper"]
     assert profile["growth"]["forecastNote"]
     assert profile["maturity"] is None
-    assert profile["summary"] is None
+    # The written summary is its own request (GET /players/{id}/summary), checked number by
+    # number before it is shown, so the profile carries no summary slot to fill. What that
+    # endpoint returns without a model is covered in apps/api/tests/test_summary.py.
+    assert "summary" not in profile
 
 
 def test_the_profile_draws_the_forecast_band(sign_in, page, identities):
