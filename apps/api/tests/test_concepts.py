@@ -34,7 +34,7 @@ from datetime import timedelta
 import pytest
 
 from app import concepts
-from tests.search_phrases import PHRASES, half
+from tests.search_phrases import CROSS_SPORT, PHRASES, half
 
 
 def _expected_kind(label: str) -> str:
@@ -96,6 +96,17 @@ def test_evaluation_with_the_model(reader, which):
     # Held, so a change that makes the model worse than keywords cannot pass quietly.
     assert right >= baseline
     assert wrong <= 3
+
+
+@pytest.mark.parametrize("use_model", [False, True])
+def test_a_football_phrase_is_never_read_as_a_table_tennis_statistic(request, use_model):
+    """Read as anything else, or as a name, is a miss; read as a table tennis statistic, it
+    would filter a football search down to table tennis players and say it had helped."""
+    reader = request.getfixturevalue("reader") if use_model else None
+    table_tennis = {c.id for c in concepts.stat_concepts() if c.sports == ("table_tennis",)}
+    for phrase in CROSS_SPORT:
+        reading = concepts.read(concepts.WORD.findall(phrase), reader)
+        assert not {c.id for c, _, _ in reading.concepts} & table_tennis, phrase
 
 
 def test_names_never_reach_the_model_alone(reader):

@@ -14,8 +14,9 @@ The fixed list
   each against players of the same age and gender.
 - Late bloomer: an open late-bloomer flag.
 - Every derived statistic a sport module marks searchable (packages/shared/sports, the
-  `search` block): goals per 90, shot conversion and pass completion for football, matches
-  won for table tennis. A new sport brings its own by config, not code.
+  `search` block): goals per 90, shot conversion and pass completion for football; matches
+  won, service winners per set and unforced errors per set for table tennis. A new sport
+  brings its own by config, not code.
 - Asks the platform has no data for (preferred foot, strength, character...). Recognising
   these matters as much as the rest: read as a name, "left footed" would return nobody; read
   as "no data", it changes nothing and says so.

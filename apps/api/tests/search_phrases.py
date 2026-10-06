@@ -105,6 +105,20 @@ PHRASES: dict[str, str] = {
     "strong results": "match_win_rate",
     "beats most opponents": "match_win_rate",
     "بيكسب معظم ماتشاته": "match_win_rate",
+    # serve and unforced errors (table tennis). Added with those statistics, after a first
+    # draft of their descriptions read two football phrases above as unforced errors, and
+    # before the model had read these.
+    "good serve": "service_winners_per_set",
+    "wins points on his serve": "service_winners_per_set",
+    "his serve is a weapon": "service_winners_per_set",
+    "lots of service aces": "service_winners_per_set",
+    "dangerous server": "service_winners_per_set",
+    "إرساله حلو": "service_winners_per_set",
+    "few unforced errors": "unforced_errors_per_set",
+    "doesn't make many errors": "unforced_errors_per_set",
+    "rarely makes errors": "unforced_errors_per_set",
+    "low error rate": "unforced_errors_per_set",
+    "أخطاؤه قليلة": "unforced_errors_per_set",
     # late bloomer
     "late bloomer": "late_bloomer",
     "late developer": "late_bloomer",
@@ -172,6 +186,22 @@ PHRASES: dict[str, str] = {
 }
 
 
+# Football phrases that sit next to the table tennis statistics: keeping the ball, not wasting
+# chances. Not scored above, because they test something else: whatever they are read as, it
+# must never be a table tennis statistic, which would silently turn a football search into a
+# table tennis one. A first draft of the unforced-errors description did exactly that to "tidy
+# on the ball" and "does not waste chances".
+CROSS_SPORT: list[str] = [
+    "doesn't lose the ball",
+    "never wastes a chance",
+    "keeps possession well",
+    "tidy on the ball",
+    "does not waste chances",
+    "rarely gives the ball away",
+    "a consistent passer",
+]
+
+
 def half(phrase: str) -> str:
     digest = hashlib.sha256(phrase.encode("utf-8")).digest()
     return "tune" if digest[0] % 2 == 0 else "held out"
@@ -189,7 +219,9 @@ BASELINE_KEYWORDS: dict[str, list[str]] = {
     "shot_conversion": ["clinical", "finisher", "finishing", "conversion"],
     "pass_completion": ["passer", "passing", "passes", "possession", "تمريراته"],
     "match_win_rate": ["wins", "winning", "winner", "win"],
-    "late_bloomer": ["late", "bloomer", "متأخر"],
+    "service_winners_per_set": ["serve", "server", "service", "إرساله"],
+    "unforced_errors_per_set": ["unforced", "errors", "أخطاؤه"],
+    "late_bloomer":["late", "bloomer", "متأخر"],
     "no_data": [
         "footed", "foot", "strong", "strength", "header", "air", "attitude", "working",
         "leader", "character", "potential", "star", "dribbler", "vision", "pressure",

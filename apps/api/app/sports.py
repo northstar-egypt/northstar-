@@ -401,12 +401,17 @@ def summarise(period: Period, rows: list[dict]) -> list[dict]:
             value = sum(1 for r in usable if r[a] > r[b]) / len(usable)
             basis = len(usable)
         else:
-            numerator = sum(r.get(k, 0) for r in rows for k in stat["numerator"])
-            denominator = sum(r.get(k, 0) for r in rows for k in stat["denominator"])
+            # Only records that hold every field the ratio needs. Counting a missing optional
+            # field as zero would pool "no errors recorded" with "no errors made", and make a
+            # player who logs errors on half their matches look twice as consistent.
+            keys = [*stat["numerator"], *stat["denominator"]]
+            usable = [r for r in rows if all(k in r for k in keys)]
+            numerator = sum(r[k] for r in usable for k in stat["numerator"])
+            denominator = sum(r[k] for r in usable for k in stat["denominator"])
             if not denominator:
                 continue
             value = numerator / denominator * stat.get("scale", 1)
-            basis = len(rows)
+            basis = len(usable)
         out.append(
             {
                 "key": stat["key"],
