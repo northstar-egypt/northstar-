@@ -158,7 +158,14 @@ def table_tennis_squad(db):
         "erratic": player("Erratic Attacker", "male", "attacker", 60, 0),
         "girl": player("Middle Defender", "female", "defender", 10, 4),
     }
+    # A percentile needs at least cohort.MIN_COHORT players, and the test database may hold no
+    # other table tennis players, so the group is filled out with middling ones.
+    for i in range(8):
+        player(f"Middling Player {i}", "male", "all_round", 10 + i, 3 + i)
     db.flush()
+    from app.services import concept_filter
+
+    concept_filter.reset_cache()
     return squad
 
 
