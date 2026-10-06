@@ -3,7 +3,19 @@
   "label": "Football",
   "roles": {
     "label": "Position",
-    "values": ["GK", "CB", "RB", "LB", "CDM", "CM", "CAM", "LW", "RW", "ST"]
+    "values": ["GK", "CB", "RB", "LB", "CDM", "CM", "CAM", "LW", "RW", "ST"],
+    "names": {
+      "GK": "goalkeeper",
+      "CB": "centre back",
+      "RB": "right back",
+      "LB": "left back",
+      "CDM": "defensive midfielder",
+      "CM": "central midfielder",
+      "CAM": "attacking midfielder",
+      "LW": "left winger",
+      "RW": "right winger",
+      "ST": "striker"
+    }
   },
   "usesTier": true,
   "genders": ["male"],

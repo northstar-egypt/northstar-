@@ -44,6 +44,18 @@ def _session(email: str) -> urllib.request.OpenerDirector:
     return _sessions[email]
 
 
+def open_profile(page, player_id: str) -> None:
+    """Open a profile and wait for it to render, but not for the written summary.
+
+    The summary is a separate request that can take a minute or two while a local model
+    writes it, so waiting for the network to go quiet would time out whenever Ollama runs.
+    The last card on the profile appears only once the profile's own data has loaded.
+    """
+    page.goto(f"{WEB_URL}/players/{player_id}", wait_until="load")
+    page.get_by_text("Where this data came from").wait_for(timeout=30000)
+    page.wait_for_timeout(SETTLE_MS)
+
+
 def api(path: str, identity: str | None = None, *, body: dict | None = None):
     """Call the API, signed in as `identity` (an email) when one is given."""
     request = urllib.request.Request(
@@ -160,8 +172,7 @@ def test_a_player_profile_renders_real_measurements(sign_in, page, identities):
     squad = api("/players", identities["coach"]["email"])
     player = squad[0]["player"]
 
-    page.goto(f"{WEB_URL}/players/{player['id']}", wait_until="networkidle")
-    page.wait_for_timeout(SETTLE_MS)
+    open_profile(page, player["id"])
     body = text_of(page)
 
     assert player["fullName"].lower() in body
@@ -185,7 +196,10 @@ def test_the_profile_states_what_is_not_known_yet(sign_in, page, identities):
         assert point["lower"] < point["value"] < point["upper"]
     assert profile["growth"]["forecastNote"]
     assert profile["maturity"] is None
-    assert profile["summary"] is None
+    # The written summary is its own request (GET /players/{id}/summary), checked number by
+    # number before it is shown, so the profile carries no summary slot to fill. What that
+    # endpoint returns without a model is covered in apps/api/tests/test_summary.py.
+    assert "summary" not in profile
 
 
 def test_the_profile_draws_the_forecast_band(sign_in, page, identities):
@@ -208,8 +222,7 @@ def test_the_profile_draws_the_forecast_band(sign_in, page, identities):
     )
     assert player, "no player in this squad has a forecast, so there is nothing to check"
 
-    page.goto(f"{WEB_URL}/players/{player['id']}", wait_until="networkidle")
-    page.wait_for_timeout(SETTLE_MS)
+    open_profile(page, player["id"])
     body = text_of(page)
     assert "forecast, 80% range" in body
     assert "xgboost" in body or "growth has finished" in body
@@ -450,8 +463,7 @@ def test_a_table_tennis_profile_is_laid_out_by_its_sport_module(sign_in, page, i
     assert player, "no table tennis player with matches, so the test proves nothing"
 
     sign_in("Federation", "/oversight")
-    page.goto(f"{WEB_URL}/players/{player['id']}", wait_until="networkidle")
-    page.wait_for_timeout(SETTLE_MS)
+    open_profile(page, player["id"])
     body = text_of(page)
 
     assert "performance: matches" in body

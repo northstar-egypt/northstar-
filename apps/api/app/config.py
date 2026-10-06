@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     # repository checkout", which is right for local runs; the API image sets it explicitly.
     sport_modules_dir: str | None = None
 
+    # The local language model behind the profile summary (app/services/summary.py). Ollama
+    # runs in docker-compose behind the `llm` profile. With it off, the profile says so and
+    # shows no summary. An empty OLLAMA_URL turns the summary off entirely.
+    ollama_url: str | None = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:7b"
+
     # Sessions: a signed token in an HttpOnly cookie. See app/security.py.
     jwt_secret: str = DEVELOPMENT_JWT_SECRET
     session_hours: int = 8

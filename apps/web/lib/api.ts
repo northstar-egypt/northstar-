@@ -27,6 +27,7 @@ import type {
   OversightSummary,
   ParsedQuery,
   PlayerProfile,
+  ProfileSummary,
   SearchResult,
   SessionUser,
   SportModule,
@@ -181,6 +182,16 @@ export async function getSquad(organizationId?: string): Promise<SquadRow[]> {
 export async function getProfile(playerId: string): Promise<PlayerProfile | null> {
   try {
     return await request<PlayerProfile>(`/players/${encodeURIComponent(playerId)}/profile`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+/** The profile's written summary. Null on 404, for the same reason as `getProfile`. */
+export async function getSummary(playerId: string): Promise<ProfileSummary | null> {
+  try {
+    return await request<ProfileSummary>(`/players/${encodeURIComponent(playerId)}/summary`);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;

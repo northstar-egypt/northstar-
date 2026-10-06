@@ -100,6 +100,9 @@ class SportModule:
     role_label: str
     roles: list[str]
     uses_tier: bool
+    # Each role in plain words ("CAM" -> "attacking midfielder"), for text written for people.
+    # Optional; a role without one is shown as it is stored.
+    role_names: dict[str, str] = field(default_factory=dict)
     # Which genders this sport registers. Players are only ever compared within one gender
     # (percentiles, growth curves, forecasts), so a sport open to both keeps them apart.
     genders: list[str] = field(default_factory=lambda: ["male", "female"])
@@ -220,11 +223,20 @@ def load_module(path: Path) -> SportModule:
             role_label=raw["roles"]["label"],
             roles=list(raw["roles"]["values"]),
             uses_tier=bool(raw["usesTier"]),
+            role_names=_role_names(path.name, raw["roles"]),
             genders=_genders(path.name, raw.get("genders", ["male", "female"])),
             periods=periods,
         )
     except KeyError as exc:
         raise ModuleError(f"{path.name}: missing {exc}") from exc
+
+
+def _role_names(name: str, roles: dict) -> dict[str, str]:
+    names = roles.get("names", {})
+    unknown = set(names) - set(roles["values"])
+    if unknown:
+        raise ModuleError(f"{name}: roles.names has roles not in roles.values: {sorted(unknown)}")
+    return dict(names)
 
 
 _KNOWN_GENDERS = ("male", "female")

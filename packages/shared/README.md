@@ -33,7 +33,11 @@ records matches and reads the profile, with no code change.
 {
   "sport": "table_tennis",               // the value stored in Player.primary_sport
   "label": "Table tennis",
-  "roles": { "label": "Playing style", "values": ["attacker", "all_round", "defender", "chopper"] },
+  "roles": {
+    "label": "Playing style",
+    "values": ["attacker", "all_round", "defender", "chopper"],
+    "names": { "all_round": "all-round player", ... }  // optional: each role in plain words
+  },
   "usesTier": false,                     // whether the football tier model (pro/youth/diaspora) applies
   "periods": {
     "table_tennis.match.v1": {           // the PerformanceEntry.schema_ref this validates

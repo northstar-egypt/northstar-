@@ -112,11 +112,20 @@ which account the API answers as, so the data changes with it.
 | Postgres  | localhost:5432                   | user/pass/db from `.env`                |
 | Ollama    | http://localhost:11434           | optional, enable with the `llm` profile |
 
-Ollama is heavy, so it is behind a compose profile and off by default:
+Ollama writes the short summary at the top of the player profile. It is heavy, so it is
+behind a compose profile and off by default. Start it and pull the model once (about 4.7 GB):
 
 ```bash
-docker compose -f docker/docker-compose.yml --profile llm up
+docker compose -f docker/docker-compose.yml --profile llm up -d
+docker exec northstar-ollama ollama pull qwen2.5:7b
 ```
+
+Without it the profile works as before and says, in small print, that the model is not
+running. On a laptop CPU a summary takes about a minute the first time a profile is opened,
+then it is cached. The summary is checked before it is shown: every number in it must come
+from a fact sheet built from what the page already displays, and a set of mistakes the model
+was caught making is refused, or the summary is withheld. See
+`apps/api/app/services/summary.py`.
 
 ### About the data
 
