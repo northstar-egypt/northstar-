@@ -2,8 +2,10 @@
 
 The query box reads a scout's sentence in three layers:
 
-1. Patterns that map cleanly onto columns: an age or an age range, a height, a position, a
-   tier, a sport, "egypt eligible". Those become filters.
+1. Patterns that map cleanly onto columns: an age or an age range, a height, a position or a
+   playing style, a tier, a sport, a gender, "egypt eligible". Those become filters. The
+   sport and gender are read in English and Arabic ("table tennis", "ping pong", "تنس طاولة",
+   "girls", "بنات"), and playing styles come from the sport modules.
 2. The rest is split into phrases (at commas, "and", "but", "with"...), and each phrase is
    read by app/concepts.py as one of a fixed list of things the platform computes ("small
    for his age" is the bottom quarter of height for age), or as an ask it has no data for
@@ -27,10 +29,10 @@ from __future__ import annotations
 import re
 from datetime import date, timedelta
 
-from sqlalchemy import Select, and_, func, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app import concepts, names
+from app import concepts, names, sports
 from app.models.enums import FootballTier, Sport
 from app.models.measurement import Measurement
 from app.models.player import Player
@@ -48,6 +50,33 @@ _POSITIONS = {
     "st": "ST", "striker": "ST", "forward": "ST",
 }
 
+# The sport and the gender, as a scout would type them. Matched on the whole text before it
+# is split into words, because "table tennis" read word by word is two name terms, and so is
+# "تنس طاولة". Arabic has no \b, so its words are bounded by whitespace.
+_SPORT_WORDS = (
+    (
+        Sport.TABLE_TENNIS.value,
+        "table tennis",
+        re.compile(
+            r"\btable[- ]?tennis\b|\bping[- ]?pong\b"
+            r"|(?<!\S)تنس\s+(?:ال)?طاولة(?!\S)|(?<!\S)بينج\s*بونج(?!\S)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        Sport.FOOTBALL.value,
+        "football",
+        re.compile(
+            r"\bfootball(?:ers?)?\b|\bsoccer\b|(?<!\S)كر[ةه]\s+(?:ال)?قدم(?!\S)|(?<!\S)كور[ةه](?!\S)",
+            re.IGNORECASE,
+        ),
+    ),
+)
+_GENDER_WORDS = (
+    ("female", "girls", re.compile(r"\b(?:girls?|women|female)\b|(?<!\S)بنات(?!\S)", re.I)),
+    ("male", "boys", re.compile(r"\b(?:boys?|men|male)\b|(?<!\S)[اأ]?ولاد(?!\S)", re.I)),
+)
+
 _STOPWORDS = {
     "a", "an", "and", "the", "with", "who", "that", "for", "of", "in", "at",
     "players", "player", "show", "me", "find", "years", "year", "old", "yo",
@@ -58,6 +87,28 @@ _PHRASE_BREAK = re.compile(
     r"[,;.!?،]|\b(?:and|but|with|who|also|plus)\b|(?<!\S)(?:و|لكن|بس|وكمان)(?!\S)",
     re.IGNORECASE,
 )
+
+
+def _role_words() -> list[tuple[str, str, re.Pattern]]:
+    """(sport, role, pattern) for every role in the sport modules other than football's.
+
+    Football positions are codes ("CAM") with synonyms scouts use ("winger"), in
+    `_POSITIONS`. Other sports' roles are words already ("chopper", "all_round"), so they are
+    read from the module: a new sport's playing styles become searchable with no change here.
+    "all_round" matches "all round", "all-round" and "allround", and a plural "s".
+    """
+    out = []
+    for module in sports.registry().values():
+        if module.sport == Sport.FOOTBALL.value:
+            continue
+        for role in module.roles:
+            body = r"[- _]?".join(re.escape(part) for part in role.split("_"))
+            out.append((module.sport, role, re.compile(rf"\b{body}s?\b", re.IGNORECASE)))
+    return out
+
+
+def _sport_label(sport: str) -> str:
+    return sport.replace("_", " ")
 
 
 def parse_query(
@@ -114,6 +165,41 @@ def parse_query(
         chips.append({"label": "eligibility: Egypt", "understood": True})
         remaining = re.sub(r"\begypt[- ]?eligible\b", " ", remaining, flags=re.IGNORECASE)
 
+    for sport, label, pattern in _SPORT_WORDS:
+        if pattern.search(remaining):
+            filters["sport"] = sport
+            chips.append({"label": f"sport: {label}", "understood": True})
+            remaining = pattern.sub(" ", remaining)
+
+    genders = [(value, label) for value, label, pattern in _GENDER_WORDS if pattern.search(remaining)]
+    for _, _, pattern in _GENDER_WORDS:
+        remaining = pattern.sub(" ", remaining)
+    if len(genders) == 1:
+        filters["sex"] = genders[0][0]
+        chips.append({"label": f"gender: {genders[0][1]}", "understood": True})
+    elif genders:
+        # "boys and girls" asks for both, which is no filter at all.
+        chips.append({"label": "gender: boys and girls, both kept", "understood": False})
+
+    # A playing style. One that only one sport has ("chopper") also says which sport. One that
+    # is also a football word ("defender") means the football position unless the scout named
+    # the other sport, which keeps every football search reading as it did before.
+    for sport, role, pattern in _role_words():
+        if not pattern.search(remaining):
+            continue
+        if filters.get("sport", sport) != sport:
+            continue
+        if role in _POSITIONS and "sport" not in filters:
+            continue
+        filters["position"] = role
+        chips.append({"label": f"playing style: {role.replace('_', ' ')}", "understood": True})
+        if "sport" not in filters:
+            filters["sport"] = sport
+            chips.append(
+                {"label": f"sport: {_sport_label(sport)} (from the playing style)", "understood": True}
+            )
+        remaining = pattern.sub(" ", remaining)
+
     wanted: list[str] = []
     for phrase in _PHRASE_BREAK.split(remaining):
         words: list[str] = []
@@ -127,12 +213,6 @@ def parse_query(
             elif lowered in {tier.value for tier in FootballTier}:
                 filters["tier"] = lowered
                 chips.append({"label": f"tier: {lowered}", "understood": True})
-            elif lowered in {"football", "footballer"}:
-                filters["sport"] = Sport.FOOTBALL.value
-                chips.append({"label": "sport: football", "understood": True})
-            elif lowered in {"tabletennis", "pingpong"}:
-                filters["sport"] = Sport.TABLE_TENNIS.value
-                chips.append({"label": "sport: table tennis", "understood": True})
             else:
                 words.append(token)
         if not words:
@@ -178,7 +258,7 @@ def apply_filters(
         "sport": request.sport or extra.get("sport"),
         "tier": request.tier or extra.get("tier"),
         "position": request.position or extra.get("position"),
-        "sex": request.sex,
+        "sex": request.sex or extra.get("sex"),
         "min_age": request.min_age if request.min_age is not None else extra.get("min_age"),
         "max_age": request.max_age if request.max_age is not None else extra.get("max_age"),
         "min_height_cm": (
@@ -194,7 +274,11 @@ def apply_filters(
     if merged["sport"]:
         stmt = stmt.where(Player.primary_sport == merged["sport"])
     if merged["tier"]:
-        stmt = stmt.where(Player.tier == merged["tier"])
+        # Pro, youth and diaspora are football tiers. A sport whose module has no tiers is not
+        # filtered by one: the search screen starts on "youth", and applying it to table tennis
+        # hid every table tennis player, even from a scout who typed "table tennis".
+        tierless = [m.sport for m in sports.registry().values() if not m.uses_tier]
+        stmt = stmt.where(or_(Player.tier == merged["tier"], Player.primary_sport.in_(tierless)))
     if merged["position"]:
         stmt = stmt.where(Player.position == merged["position"])
     if merged["sex"]:
