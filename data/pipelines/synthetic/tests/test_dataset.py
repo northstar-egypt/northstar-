@@ -24,7 +24,7 @@ from data.pipelines.synthetic.affiliations import find_overlaps
 from data.pipelines.synthetic.config import GeneratorConfig
 from data.pipelines.synthetic.dataset import build_dataset
 from data.pipelines.synthetic.ground_truth import duplicate_pairs, label_vectors
-from data.pipelines.synthetic.orm import enums
+from data.pipelines.synthetic.orm import enums, sports
 from data.pipelines.synthetic.performance import assert_consistent
 from data.pipelines.synthetic.players import MINOR_AGE
 from data.pipelines.synthetic.writer import row_to_dict, verify_round_trip
@@ -80,6 +80,25 @@ def test_tier_is_consistent_with_age(ds):
             assert age < MINOR_AGE, f"{player.full_name} is {age:.1f} and youth tier"
         if player.tier == "pro":
             assert age >= MINOR_AGE, f"{player.full_name} is {age:.1f} and pro tier"
+
+
+def test_age_fraud_does_not_give_a_tierless_sport_a_tier(ds, players_by_id):
+    """Planting age fraud re-derives the tier from the recorded age.
+
+    It once did so for every sport, so a table tennis fraud case carried a
+    football "youth" tier. The default seed plants a table tennis case, which
+    is why this runs on the full dataset rather than a scaled-down one.
+    """
+    tierless = {s for s, m in sports.registry().items() if not m.uses_tier}
+    cases = [
+        players_by_id[uuid.UUID(c["player_id"])]
+        for c in ds.ground_truth["cases"]["fraud"]
+        if c["fraud_type"] == "age_misrepresentation"
+    ]
+    in_tierless = [p for p in cases if p.primary_sport in tierless]
+    assert in_tierless, "no age fraud in a tierless sport, so the test proves nothing"
+    for player in in_tierless:
+        assert player.tier is None, f"{player.primary_sport} fraud case has tier {player.tier}"
 
 
 def test_is_minor_matches_date_of_birth(ds):
