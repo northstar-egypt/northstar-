@@ -47,6 +47,10 @@ from ml.rating.matches import Match, _as_date
 # The prior's spread on theta. 0.15 means a typical player wins between about 46% and 54% of
 # points against an average one. Chosen on the tuning seeds; see ml/README.md.
 PRIOR_SD = 0.15
+# A rating is shown only when the range of point share against an average player (two
+# standard errors either side) is at most this wide: 7 points in 100. Chosen on the tuning
+# seeds; it shows about nine players in ten and holds the truth for 98% of them.
+SHOW_MAX_POINT_RANGE = 0.07
 _ITERATIONS = 50
 _TOLERANCE = 1e-9
 
@@ -74,6 +78,11 @@ class Strength:
     @property
     def point_range(self) -> tuple[float, float]:
         return self.point_share(-2.0), self.point_share(2.0)
+
+    @property
+    def shown(self) -> bool:
+        low, high = self.point_range
+        return high - low <= SHOW_MAX_POINT_RANGE
 
     def match_win(self, z: float = 0.0, best_of: int = 5) -> float:
         return match_probability(self.point_share(z), best_of)

@@ -15,7 +15,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { GrowthChart, PercentileBar } from "@/components/charts";
+import { GrowthChart, PercentileBar, ShareRange } from "@/components/charts";
 import {
   Avatar,
   Banner,
@@ -34,9 +34,11 @@ import { getProfile, getSummary } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { num, ordinal, shortDate } from "@/lib/format";
 import type {
+  Opponent,
   PerformanceSection,
   PlayerProfile,
   ProfileSummary,
+  Rating,
   SummaryStat,
 } from "@/lib/types";
 
@@ -236,6 +238,9 @@ export default function PlayerProfilePage() {
         </div>
       </Card>
 
+      {/* strength against other players, for sports that have a rating */}
+      {data.rating ? <RatingCard rating={data.rating} /> : null}
+
       {/* performance, laid out by the sport module */}
       {data.performance.length === 0 ? (
         <Card>
@@ -314,6 +319,90 @@ function SummaryCard({ playerId }: { playerId: string }) {
   );
 }
 
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+
+/**
+ * Strength against other players, from who they played and how many points they won. Always
+ * drawn with its range; when the range is too wide the API sends no number and the card says
+ * why instead. The model and how it was checked are in ml/README.md, "Table tennis rating".
+ */
+function RatingCard({ rating }: { rating: Rating }) {
+  return (
+    <Card>
+      <SectionTitle
+        action={
+          <span className="text-xs text-slate-500">
+            {rating.ratedMatches} rated match{rating.ratedMatches === 1 ? "" : "es"}
+          </span>
+        }
+      >
+        Strength against other players
+      </SectionTitle>
+      {rating.shown && rating.pointShare != null && rating.low != null && rating.high != null ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="text-2xl font-bold tabular-nums">{pct(rating.pointShare)}</span>
+            <span className="text-sm text-slate-400">
+              of points won against an average opponent, likely between {pct(rating.low)} and{" "}
+              {pct(rating.high)}
+            </span>
+          </div>
+          <ShareRange value={rating.pointShare} low={rating.low} high={rating.high} />
+          {rating.matchWin != null ? (
+            <p className="text-sm text-slate-300">
+              Against that opponent they would win about {pct(rating.matchWin)} of best-of-five
+              matches. A few points in a hundred either way make a large difference over a match.
+            </p>
+          ) : null}
+          <p className="text-xs text-slate-500">
+            An average opponent means an average among {rating.population}. Every point counts,
+            adjusted for who it was against. Only confirmed matches count: a self-submitted
+            result counts once the opponent logs it too or it comes from a results feed or a
+            coach.
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500">{rating.note}</p>
+      )}
+    </Card>
+  );
+}
+
+/** Who a match was against, as far as this viewer may know, and how strong they were then. */
+function OpponentCell({ opponent }: { opponent: Opponent | null | undefined }) {
+  if (!opponent) return <span className="text-slate-600">-</span>;
+  const who = !opponent.registered ? (
+    <span className="text-slate-500">not on the platform</span>
+  ) : opponent.id && opponent.name ? (
+    <Link href={`/players/${opponent.id}`} className="text-sky-300 hover:underline">
+      {opponent.name}
+    </Link>
+  ) : (
+    <span className="text-slate-400">a registered player</span>
+  );
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {who}
+      {opponent.strength ? (
+        <span
+          className="tabular-nums text-xs text-slate-500"
+          title={`Going into that month: ${pct(opponent.strength.low)} to ${pct(opponent.strength.high)} of points against an average opponent`}
+        >
+          rated {pct(opponent.strength.pointShare)}
+        </span>
+      ) : null}
+      {!opponent.counted ? (
+        <span
+          className="text-[0.7rem] text-amber-400"
+          title="Does not count toward ratings: either nobody but the player has confirmed it, or it cannot be used for analytics"
+        >
+          not counted
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 /**
  * One kind of performance record. Every label, unit and statistic here comes from the sport
  * module (packages/shared/sports/<sport>.json) by way of the API. Nothing in this component
@@ -321,6 +410,7 @@ function SummaryCard({ playerId }: { playerId: string }) {
  * the same code, and a new sport's module renders here without a change to this file.
  */
 function PerformanceCard({ section }: { section: PerformanceSection }) {
+  const hasOpponents = section.entries.some((e) => e.opponent);
   return (
     <Card>
       <SectionTitle action={<Chip tone="brand">{section.schemaRef}</Chip>}>
@@ -353,6 +443,7 @@ function PerformanceCard({ section }: { section: PerformanceSection }) {
         <thead>
           <tr>
             <Th>Period</Th>
+            {hasOpponents ? <Th>Opponent</Th> : null}
             {section.columns.map((c) => (
               <Th key={c.key}>
                 {c.label}
@@ -374,6 +465,11 @@ function PerformanceCard({ section }: { section: PerformanceSection }) {
                   </span>
                 ) : null}
               </Td>
+              {hasOpponents ? (
+                <Td>
+                  <OpponentCell opponent={e.opponent} />
+                </Td>
+              ) : null}
               {section.columns.map((c) => (
                 <Td key={c.key} className="tabular-nums">
                   {String(e.metrics[c.key] ?? "-")}

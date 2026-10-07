@@ -50,9 +50,8 @@ COIN = "baseline: coin flip"
 # Display rules, chosen on the tuning seeds (see ml/README.md, "Table tennis rating").
 # Glicko-2: shown when the rating deviation is at or below this.
 SHOW_MAX_RD = 130.0
-# Point rating: shown when the range of point share against an average player (two standard
-# errors either side) is at most this wide.
-SHOW_MAX_POINT_RANGE = 0.07
+# Point rating: the profile's own rule, points.SHOW_MAX_POINT_RANGE.
+SHOW_MAX_POINT_RANGE = points.SHOW_MAX_POINT_RANGE
 # Logistic slopes that turn a difference in win rate or point rate into a win probability.
 WIN_RATE_SLOPE = 3.0
 POINT_RATE_SLOPE = 20.0

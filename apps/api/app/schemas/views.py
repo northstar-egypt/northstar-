@@ -121,10 +121,35 @@ class SummaryStatOut(CamelModel):
     basis: int
 
 
+class PointShareOut(CamelModel):
+    """A share of points against an average registered opponent, with its range (0 to 1)."""
+
+    point_share: float
+    low: float
+    high: float
+
+
+class OpponentOut(CamelModel):
+    """Who a one-on-one match was against, as far as the caller may know."""
+
+    # False for an opponent who is not on the platform; nothing else about them is stored.
+    registered: bool
+    # Only when the caller could open the opponent's own profile. Otherwise both are null and
+    # the screen says "a registered player".
+    id: uuid.UUID | None = None
+    name: str | None = None
+    # How strong they were going into that month. Null when not yet reliably known.
+    strength: PointShareOut | None = None
+    # Whether this match counted toward ratings (confirmed, see services/rating.py).
+    counted: bool = False
+
+
 class PerformanceRecordOut(PerformanceEntryOut):
     # Why the record fails its sport module. Null when it passes, and also null when the
     # caller may not see integrity findings, because "this record is impossible" is one.
     problems: list[str] | None = None
+    # One-on-one sports only.
+    opponent: OpponentOut | None = None
 
 
 class PerformanceSectionOut(CamelModel):
@@ -149,6 +174,21 @@ class PerformanceSectionOut(CamelModel):
     entries: list[PerformanceRecordOut] = []
 
 
+class RatingOut(CamelModel):
+    """The table tennis rating (services/rating.py). `shown` false means no number: `note` says why."""
+
+    shown: bool
+    point_share: float | None = None
+    low: float | None = None
+    high: float | None = None
+    # Chance of winning a best-of-five match against an average registered opponent.
+    match_win: float | None = None
+    rated_matches: int = 0
+    # Who "an average registered opponent" is drawn from.
+    population: str
+    note: str | None = None
+
+
 class PlayerProfileOut(CamelModel):
     player: PlayerOut
     organization_name: str | None = None
@@ -157,6 +197,7 @@ class PlayerProfileOut(CamelModel):
     growth: GrowthSeriesOut
     maturity: MaturityEstimateOut | None = None
     percentiles: list[PercentileOut] = []
+    rating: RatingOut | None = None
     performance: list[PerformanceSectionOut] = []
     flags: list[FlagSummaryOut] = []
     flag_reason: str | None = None

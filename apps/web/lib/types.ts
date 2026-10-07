@@ -173,10 +173,50 @@ export interface SummaryStat {
   basis: number;
 }
 
+/** A share of points against an average registered opponent, with its range (0 to 1). */
+export interface PointShare {
+  pointShare: number;
+  low: number;
+  high: number;
+}
+
+/**
+ * Who a one-on-one match was against, as far as the viewer may know. The API sends a name and
+ * id only when the viewer could open that player's own profile.
+ */
+export interface Opponent {
+  /** False for an opponent who is not on the platform; nothing else about them is stored. */
+  registered: boolean;
+  id: string | null;
+  name: string | null;
+  /** How strong they were going into that month. Null when not yet reliably known. */
+  strength: PointShare | null;
+  /** Whether the match counted toward ratings (confirmed by a trusted source or both players). */
+  counted: boolean;
+}
+
 export interface PerformanceRecord extends Omit<PerformanceEntry, "metrics"> {
   metrics: Record<string, number | string | boolean>;
   /** Why the record fails its sport module. Null when valid, or when the viewer may not see it. */
   problems: string[] | null;
+  /** One-on-one sports only. */
+  opponent?: Opponent | null;
+}
+
+/**
+ * The table tennis rating (apps/api/app/services/rating.py, graded in ml/README.md). When
+ * `shown` is false there is no number, and `note` says why.
+ */
+export interface Rating {
+  shown: boolean;
+  pointShare: number | null;
+  low: number | null;
+  high: number | null;
+  /** Chance of winning a best-of-five match against an average registered opponent. */
+  matchWin: number | null;
+  ratedMatches: number;
+  population: string;
+  note: string | null;
 }
 
 /**
@@ -226,6 +266,8 @@ export interface PlayerProfile {
   growth: GrowthSeries;
   maturity: MaturityEstimate | null;
   percentiles: Percentile[];
+  /** Null for sports without a rating. */
+  rating?: Rating | null;
   performance: PerformanceSection[];
   flags: FlagSummary[];
   flagReason: string | null;
