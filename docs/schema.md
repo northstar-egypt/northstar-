@@ -153,6 +153,7 @@ window). This is where the JSON sport module lives.
 | period_end       | date, null    | Null for a point-in-time event.                                |
 | organization_id  | UUID FK, null | The club/academy context, if any.                              |
 | opponent_org_id  | UUID FK, null | For match-type entries.                                        |
+| opponent_player_id | UUID FK, null | The opponent in a one-on-one sport (table tennis), when registered on the platform. Null otherwise, and nothing about an unregistered opponent is stored. See decision 0004. |
 | metrics          | JSONB         | Sport-specific payload. Validated against schema_ref.          |
 | schema_ref       | text          | Which kind of record, e.g. `football.match.v1`. A sport module defines it. |
 | source           | enum          | `api` / `scrape` / `coach_logged` / `self_submitted` / `import`. |
@@ -333,6 +334,7 @@ Organization --< Organization        (parent hierarchy)
 Player --< PlayerOrganization >-- Organization
 Player --< Measurement
 Player --< PerformanceEntry >-- Organization   (context and opponent)
+PerformanceEntry >-- Player                     (opponent, one-on-one sports)
 Player --< Consent
 Player --< Flag --< FlagEvent
 Flag ----- Player            (related_player_id, the other half of a duplicate pair)
@@ -348,7 +350,9 @@ Player --- Player            (merged_into self-reference for dedup)
 - Password hashing and auth library (security workstream owns this; not decided tonight).
 - Exact enum value sets, and enum type vs lookup table for each.
 - Do we need a separate `Match` / `Fixture` entity, or is `PerformanceEntry` with
-  `opponent_org_id` enough for now?
+  `opponent_org_id` enough for now? Answered for one-on-one sports by decision 0004: a match
+  is two mirrored `PerformanceEntry` rows that name each other in `opponent_player_id`. Still
+  open for team sports.
 - **Flags, three questions the table does not answer.** Does the flagged player or their
   coach get told? Being flagged for fraud without ever knowing is hard to defend, and telling
   people immediately makes the flag easier to game; this needs a policy, not a default. Who

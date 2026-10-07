@@ -27,6 +27,7 @@ from .affiliations import generate_affiliations
 from .config import GeneratorConfig
 from .ground_truth import build as build_ground_truth
 from .measurements import generate_measurements
+from .orm import enums
 from .organizations import generate_organizations
 from .performance import generate_performance_entries
 from .planted import (
@@ -137,6 +138,11 @@ def build_dataset(config: GeneratorConfig) -> Dataset:
         seed=config.seed,
         counts=ds.counts(),
         all_player_ids=[str(p.id) for p in ds.players],
+        table_tennis_ability={
+            str(p.id): round(p.effective_ability(config.population.reference_date), 4)
+            for p in ds.profiles
+            if p.player.primary_sport == enums.Sport.TABLE_TENNIS.value
+        },
     )
     if config.attrition:
         ds.ground_truth["attrition"] = {
