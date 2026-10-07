@@ -37,8 +37,8 @@ from datetime import timedelta
 
 from . import growth
 from .config import GeneratorConfig
-from .orm import Player, enums
-from .players import MINOR_AGE, PlayerProfile
+from .orm import Player, enums, sports
+from .players import MINOR_AGE, PlayerProfile, derive_tier
 from .reference import drop_middle_name, orthographic_variant
 from .rng import Rng
 
@@ -182,15 +182,11 @@ def plant_age_fraud(
 
         recorded_age = profile.recorded_age(reference)
         player.is_minor = recorded_age < MINOR_AGE
-        player.tier = (
-            enums.FootballTier.DIASPORA.value
-            if profile.notes.get("based_abroad")
-            else (
-                enums.FootballTier.YOUTH.value
-                if recorded_age < MINOR_AGE
-                else enums.FootballTier.PRO.value
-            )
-        )
+        # The tier follows the recorded age, as a clerk would file it. A sport
+        # without tiers (table tennis) keeps none, or the fraud would show up
+        # on screen as a "youth tier" table tennis player.
+        if sports.registry()[player.primary_sport].uses_tier:
+            player.tier = derive_tier(recorded_age, bool(profile.notes.get("based_abroad")))
 
         signals = ["biometric_outlier_for_stated_age", "performance_outlier_for_stated_age"]
         # Real age-fraud cases usually come with paperwork problems too. Roughly
