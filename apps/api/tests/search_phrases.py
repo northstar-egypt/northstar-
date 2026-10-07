@@ -119,6 +119,21 @@ PHRASES: dict[str, str] = {
     "rarely makes errors": "unforced_errors_per_set",
     "low error rate": "unforced_errors_per_set",
     "أخطاؤه قليلة": "unforced_errors_per_set",
+    # strong against other players (the table tennis rating). Written with the concept, before
+    # its descriptions and before the model had read any of them. Two of these contain a word
+    # that is already a keyword for something else ("wins", "strong"), on purpose: that is how
+    # scouts will say it, and a miss there should show.
+    "beats strong opponents": "rating_high",
+    "highly rated": "rating_high",
+    "high rating": "rating_high",
+    "top rated": "rating_high",
+    "one of the strongest players": "rating_high",
+    "plays well against good opponents": "rating_high",
+    "wins against stronger players": "rating_high",
+    "handles tough opposition": "rating_high",
+    "best ranked": "rating_high",
+    "تصنيفه عالي": "rating_high",
+    "بيغلب اللاعبين الأقوياء": "rating_high",
     # late bloomer
     "late bloomer": "late_bloomer",
     "late developer": "late_bloomer",
@@ -222,6 +237,7 @@ BASELINE_KEYWORDS: dict[str, list[str]] = {
     "service_winners_per_set": ["serve", "server", "service", "إرساله"],
     "unforced_errors_per_set": ["unforced", "errors", "أخطاؤه"],
     "late_bloomer":["late", "bloomer", "متأخر"],
+    "rating_high": ["rated", "rating", "ranked", "strongest", "تصنيفه"],
     "no_data": [
         "footed", "foot", "strong", "strength", "header", "air", "attitude", "working",
         "leader", "character", "potential", "star", "dribbler", "vision", "pressure",

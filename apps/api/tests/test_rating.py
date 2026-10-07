@@ -286,3 +286,38 @@ def test_a_match_against_a_merged_duplicate_belongs_to_the_surviving_record(db, 
     assert opponent["counted"] is True
     assert opponent["name"] == "TT Steady"
     assert opponent["id"] == str(steady.id)
+
+
+# ---------------------------------------------------------------------------
+# Search: "highly rated", "beats strong opponents"
+# ---------------------------------------------------------------------------
+
+
+def _search_ids(client, auth, query: str) -> tuple[set[str], list[dict]]:
+    body = client.post(
+        "/search",
+        json={"query": query, "limit": 200, "includeMinors": True},
+        headers=auth("admin"),
+    ).json()
+    return {r["player"]["id"] for r in body["results"]}, body["parsed"]["chips"]
+
+
+@pytest.mark.parametrize("query", ["highly rated", "beats strong opponents"])
+def test_search_for_strong_players_uses_the_profile_rating(db, client, auth, tt, query):
+    from app.services import rating
+
+    found, chips = _search_ids(client, auth, query)
+    assert any(c["understood"] and "strength against other players" in c["label"] for c in chips)
+    assert str(tt["people"]["strong"].id) in found
+    # No rating on the profile, so never a match: too few matches, or consent withdrawn.
+    assert str(tt["people"]["newcomer"].id) not in found
+    assert str(tt["people"]["no_analytics"].id) not in found
+    # Only players whose rating is shown, in their gender's top quarter.
+    shown = rating.shown_strengths(db)
+    for pid in found:
+        assert pid in shown
+
+
+def test_strong_opponents_is_not_read_as_physical_strength(client, auth, tt):
+    _, chips = _search_ids(client, auth, "beats strong opponents")
+    assert not any("strength: no data" in c["label"] for c in chips)

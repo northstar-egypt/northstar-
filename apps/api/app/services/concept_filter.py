@@ -10,6 +10,10 @@ never claims something the profile would not show:
   matched: the search does not know, so it does not say.
 - Late bloomer: a live late-bloomer flag (open or awaiting information), the same ones the
   profile lists.
+- Strong against other players: a table tennis rating the profile would show (its range
+  narrow enough), in the top quarter of shown ratings of the same gender. Boys and girls never
+  meet, so their ratings are separate scales and are never ranked together. Fewer shown
+  ratings in a gender than the profile's minimum cohort means nobody is matched.
 - A searchable sport statistic: the player's value from their own records, pooled as the
   profile pools it (sports.summarise), against everyone in the same kind of record and the
   same tier. Better quarter wins. Players with fewer records than the module's `minBasis`,
@@ -33,7 +37,7 @@ from app.concepts import Concept
 from app.models.flag import Flag
 from app.models.performance_entry import PerformanceEntry
 from app.models.player import Player
-from app.services import cohort, flags, views
+from app.services import cohort, flags, rating, views
 
 QUARTER = 25
 
@@ -64,6 +68,8 @@ def matching_ids(
             keep = _flagged(db, set(remaining), concept.key)
         elif concept.kind == "stat":
             keep = _stat(db, remaining, concept)
+        elif concept.kind == "rating":
+            keep = _rating(db, remaining)
         else:
             keep = set(remaining)  # a no-data concept never filters
         remaining = {pid: row for pid, row in remaining.items() if pid in keep}
@@ -172,4 +178,23 @@ def _stat(db: Session, rows: dict, concept: Concept) -> set[uuid.UUID]:
                 better = pct >= 100 - QUARTER if concept.better == "higher" else pct <= QUARTER
                 if better:
                     keep.add(pid)
+    return keep
+
+
+def _rating(db: Session, rows: dict) -> set[uuid.UUID]:
+    shown = rating.shown_strengths(db)
+    by_gender: dict[str, list[float]] = {}
+    for gender, theta in shown.values():
+        by_gender.setdefault(gender, []).append(theta)
+    keep = set()
+    for pid in rows:
+        entry = shown.get(rating.surviving_id(db, pid))
+        if entry is None:
+            continue
+        gender, theta = entry
+        group = sorted(by_gender[gender])
+        if len(group) < cohort.MIN_COHORT:
+            continue
+        if cohort.percentile_of(group, theta) >= 100 - QUARTER:
+            keep.add(pid)
     return keep

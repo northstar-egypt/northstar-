@@ -84,6 +84,8 @@ class _Table:
     # performance entry id -> whether its match counted toward ratings
     counted: dict[str, bool] = field(default_factory=dict)
     consented: set[str] = field(default_factory=set)
+    # player id -> gender, for players who are not merged
+    gender: dict[str, str] = field(default_factory=dict)
     # merged duplicate id -> the record it was merged into (followed to the end of the chain)
     survivor: dict[str, str] = field(default_factory=dict)
 
@@ -172,7 +174,9 @@ def _build(db: Session) -> _Table:
         return points.fit(evidence)
 
     table = _Table(
-        consented=consented, survivor={pid: survivor(pid) for pid in merged_into}
+        consented=consented,
+        survivor={pid: survivor(pid) for pid in merged_into},
+        gender=gender_of,
     )
     table.now = fit(None)
     for month in sorted({_month(r["period_start"]) for r in rows}):
@@ -210,6 +214,16 @@ def reset_cache() -> None:
 def surviving_id(db: Session, player_id) -> str:
     """The record a (possibly merged) player's matches are attributed to."""
     return _current(db).resolve(player_id)
+
+
+def shown_strengths(db: Session) -> dict[str, tuple[str, float]]:
+    """Every player whose rating the profile would show: id -> (gender, strength). For search."""
+    table = _current(db)
+    return {
+        pid: (table.gender[pid], s.theta)
+        for pid, s in table.now.items()
+        if s.shown and pid in table.gender and pid in table.consented
+    }
 
 
 def _share(strength: points.Strength) -> dict:

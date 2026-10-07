@@ -20,6 +20,15 @@ History, so the numbers are read correctly
   the model 54/61. It also showed that "height" was a keyword for tall, so "below average
   height" read as tall; it was removed. The numbers printed now are the production reader,
   after that fix and after merging in the search's earlier "no data" word list.
+- The table tennis rating ("highly rated", "beats strong opponents") was added on 2026-10-08,
+  with 13 labelled phrases written before its descriptions. Before it: tune 73/83 with the
+  model (3 wrong concepts), held out 58/65 (1). After: tune 80/90 (3), held out 62/69 (1);
+  no earlier phrase changed reading, and the model read all four held-out rating phrases right
+  (keywords alone missed the Arabic one). Two-word keywords came with it, because "strong"
+  alone already meant physical strength (no data). A first version also kept one-word
+  keywords next to a two-word one, which read "wins against stronger players" as both the
+  rating and "wins most matches" and pushed the tune half to 4 wrong; a two-word keyword is now
+  the whole reading of its phrase.
 - One caveat these numbers cannot remove: the phrases, the keywords, the descriptions and
   the filler words were all written by the same person, so the evaluation is kinder than real
   scouts would be.
