@@ -108,6 +108,27 @@ where each reply was read against its sheet by hand; the PR that added this repo
 shown summaries were still wrong on a sample the checks were not built from. The screen
 labels the text as generated, and the reply is shown as plain text, never as HTML.
 
+## Opponents and the table tennis rating
+
+A table tennis match row names the other player (`performance_entry.opponent_player_id`), and
+the profile rates each player from who they played (`apps/api/app/services/rating.py`, decision
+0004). Opponents are often children. What could go wrong, and what stops it:
+
+| Threat | What stops it | Tested by |
+| --- | --- | --- |
+| A profile reveals a child to someone who may not see that child | The opponent's name and profile link are sent only when the caller could open that opponent's own profile (`may_view`); otherwise the row says "a registered player". A player looking at their own record sees no opponent's name at all | `test_an_opponent_is_named_only_to_someone_who_may_open_their_profile` |
+| Storing data about a child who never joined | An opponent who is not on the platform leaves nothing in the row: no name, no id, only the result | generator tests: `test_about_a_third_of_matches_are_against_outsiders` |
+| Rating a child whose guardian withdrew analytics consent, or using their points to rate others | They get no rating, and every match involving them is left out of everyone's rating | `test_withdrawn_analytics_consent_takes_a_player_out_of_every_rating` |
+| Faking strength by claiming wins over strong players | A self-submitted result counts only once the opponent logs the same match or it comes from a trusted source; until then it shows on the record, marked "not counted" | `test_an_unconfirmed_self_submitted_win_does_not_count` |
+| A merged duplicate splits a person's record, or keeps an old spelling on screen | Matches against a merged record are attributed to the record it was merged into, under the current name | `test_a_match_against_a_merged_duplicate_belongs_to_the_surviving_record` |
+
+Known gaps. An opponent's strength going into a month is sent even when their name is not,
+because it is what makes a result readable and it does not say who they were. With very few
+players in a gender and age band, a strength next to a date could narrow down who it was; at
+national scale that is unlikely, but it has not been measured. Two players who both
+self-submit the same invented match confirm each other; the planned mirrored-row fraud check
+(decision 0004, open decision 3) is what would catch that.
+
 ## To be written
 
 - Full data-flow diagram with trust boundaries.

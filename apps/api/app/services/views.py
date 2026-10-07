@@ -29,7 +29,7 @@ from app.models.organization import Organization
 from app.models.performance_entry import PerformanceEntry
 from app.models.player import Player
 from app.models.player_organization import PlayerOrganization
-from app.services import cohort, flags, forecast
+from app.services import cohort, flags, forecast, rating
 from app.services.access import Caller, consent_complete, consent_state, may_view, permissions
 
 # How many recent height readings the squad sparkline shows.
@@ -225,6 +225,8 @@ def build_profile(db: Session, caller: Caller, player: Player) -> dict:
     visible_flags = flags.flags_for_player(db, player.id) if granted["can_see_flags"] else []
     visible_reason = flags.flag_reason(db, player.id) if granted["can_see_flags"] else None
 
+    opponents = opponent_details(db, caller, performance)
+
     measurement_count = db.execute(
         select(func.count())
         .select_from(Measurement)
@@ -259,7 +261,12 @@ def build_profile(db: Session, caller: Caller, player: Player) -> dict:
         # placeholder number that looks like a result.
         "maturity": None,
         "percentiles": percentiles,
-        "performance": performance_sections(performance, show_problems=granted["can_see_flags"]),
+        # Table tennis only: share of points against an average opponent, with its range, or
+        # null plus the reason when there is not enough to rate from. See services/rating.py.
+        "rating": rating.player_rating(db, player),
+        "performance": performance_sections(
+            performance, show_problems=granted["can_see_flags"], opponents=opponents
+        ),
         "flags": visible_flags,
         "flag_reason": visible_reason,
         "provenance": {
@@ -273,8 +280,51 @@ def build_profile(db: Session, caller: Caller, player: Player) -> dict:
     }
 
 
+def opponent_details(
+    db: Session, caller: Caller, entries: list[PerformanceEntry]
+) -> dict[uuid.UUID, dict]:
+    """Who each match was against, as much as this caller may know, and how strong they were.
+
+    The opponent is often a child. Their name, and the id that links to their profile, are
+    sent only when the caller could open that profile anyway (`may_view`); otherwise the row
+    says it was a registered player and nothing more. How strong they were going into that
+    month is not identifying and is sent either way, when it was known.
+    """
+    strengths = rating.opponent_strengths(db, entries)
+    # A match against a duplicate record that was later merged is shown as against the record
+    # it was merged into: the same person, under the name and link that are still current.
+    current = {
+        e.opponent_player_id: uuid.UUID(rating.surviving_id(db, e.opponent_player_id))
+        for e in entries
+        if e.opponent_player_id is not None and e.id in strengths
+    }
+    ids = set(current.values())
+    people = (
+        {p.id: p for p in db.execute(select(Player).where(Player.id.in_(ids))).scalars()}
+        if ids
+        else {}
+    )
+    visible_ids = {pid for pid, p in people.items() if may_view(db, caller, p)[0]}
+    out: dict[uuid.UUID, dict] = {}
+    for e in entries:
+        if e.id not in strengths:
+            continue
+        who = people.get(current[e.opponent_player_id]) if e.opponent_player_id else None
+        visible = who is not None and who.id in visible_ids
+        out[e.id] = {
+            "registered": e.opponent_player_id is not None,
+            "id": who.id if visible else None,
+            "name": who.full_name if visible else None,
+            **strengths[e.id],
+        }
+    return out
+
+
 def performance_sections(
-    entries: list[PerformanceEntry], *, show_problems: bool
+    entries: list[PerformanceEntry],
+    *,
+    show_problems: bool,
+    opponents: dict[uuid.UUID, dict] | None = None,
 ) -> list[dict]:
     """Group a player's records by kind and lay each group out from its sport module.
 
@@ -324,6 +374,7 @@ def performance_sections(
                             if hasattr(row, c.key)
                         },
                         "problems": (problems[row.id] or None) if show_problems else None,
+                        "opponent": (opponents or {}).get(row.id),
                     }
                     for row in rows
                 ],

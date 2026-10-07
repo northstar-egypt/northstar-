@@ -232,6 +232,53 @@ export function PercentileBar({
   );
 }
 
+/**
+ * A share with its range, on a fixed scale centred on 50%, so a rating is never drawn without
+ * the uncertainty that comes with it. The centre line is an average opponent.
+ */
+export function ShareRange({
+  value,
+  low,
+  high,
+  min = 0.4,
+  max = 0.6,
+}: {
+  value: number;
+  low: number;
+  high: number;
+  min?: number;
+  max?: number;
+}) {
+  const at = (x: number) => `${((Math.min(max, Math.max(min, x)) - min) / (max - min)) * 100}%`;
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        className="relative h-3 w-full rounded-full bg-slate-800"
+        role="img"
+        aria-label={`${pct(value)}, range ${pct(low)} to ${pct(high)}`}
+      >
+        <div className="absolute inset-y-0 left-1/2 w-px bg-slate-600" aria-hidden />
+        <div
+          className="absolute inset-y-0 rounded-full bg-sky-500/35"
+          style={{ left: at(low), width: `calc(${at(high)} - ${at(low)})` }}
+          aria-hidden
+        />
+        <div
+          className="absolute -inset-y-0.5 w-1 -translate-x-1/2 rounded-full bg-sky-300"
+          style={{ left: at(value) }}
+          aria-hidden
+        />
+      </div>
+      <div className="flex justify-between text-[0.65rem] tabular-nums text-slate-600" aria-hidden>
+        <span>{pct(min)}</span>
+        <span>50%, an average opponent</span>
+        <span>{pct(max)}</span>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ horizontal bars */
 
 /**
