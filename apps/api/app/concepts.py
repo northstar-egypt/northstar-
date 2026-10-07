@@ -60,10 +60,12 @@ class Concept:
     id: str
     # What the chip says the phrase was read as.
     label: str
-    # height_low | height_high | sprint_fast | flag | stat | no_data
+    # height_low | height_high | sprint_fast | flag | stat | rating | no_data
     kind: str
     describe: tuple[str, ...]
-    # Single words that mean this on their own, checked before the model.
+    # Words that mean this on their own, checked before the model. A keyword of two words
+    # ("strong opponents") is matched first, on consecutive words, so it wins over a one-word
+    # keyword inside it ("strong", which on its own means physical strength: no data).
     keywords: tuple[str, ...] = ()
     # For kind "stat": the derived statistic, the sports that define it, and which way is
     # better. For kind "flag": the flag type.
@@ -127,6 +129,29 @@ CORE: tuple[Concept, ...] = (
         ),
         ("late", "bloomer", "متأخر"),
         key="late_bloomer",
+    ),
+)
+
+# The table tennis rating (services/rating.py, graded in ml/README.md). Added after the
+# phrases labelled "rating_high" in tests/search_phrases.py were written.
+RATING: tuple[Concept, ...] = (
+    Concept(
+        "rating_high",
+        "strength against other players: top quarter of rated table tennis players, same gender",
+        "rating",
+        (
+            "performs well against strong opposition",
+            "a high rating from results against other players",
+            "one of the top table tennis players by strength",
+            "تصنيف عالي في تنس الطاولة",
+        ),
+        (
+            "rated", "rating", "ranked", "strongest", "تصنيفه",
+            "strong opponents", "stronger opponents", "strong opposition", "good opponents",
+            "stronger players",
+        ),
+        sports=("table_tennis",),
+        better="higher",
     ),
 )
 
@@ -218,7 +243,7 @@ def stat_concepts(modules: dict | None = None) -> tuple[Concept, ...]:
 
 
 def all_concepts() -> tuple[Concept, ...]:
-    return CORE + stat_concepts() + NO_DATA
+    return CORE + RATING + stat_concepts() + NO_DATA
 
 
 @dataclass
@@ -247,7 +272,9 @@ class Reading:
 def read(words: list[str], reader: Reader | None = None) -> Reading:
     """Read one phrase, already split into words, the way the search box does.
 
-    1. A word that is a keyword is that concept, on its own.
+    1. A word that is a keyword is that concept, on its own. Two-word keywords are tried
+       first, so "strong opponents" is the rating and not "strong" (no data), and a phrase
+       with a two-word keyword is read as that alone; its other keywords are reported unused.
     2. Filler words ("for his age") are dropped.
     3. No keyword, and two or more words left: the model reads them together; at or above
        `THRESHOLD` they are that concept. One word is never given to the model: on a single
@@ -257,19 +284,36 @@ def read(words: list[str], reader: Reader | None = None) -> Reading:
        returns them as `leftover`, for name search.
     """
     concepts = all_concepts()
-    by_keyword = {}
+    by_keyword: dict[tuple[str, ...], Concept] = {}
     for concept in concepts:
         for keyword in concept.keywords:
-            by_keyword.setdefault(keyword, concept)
+            by_keyword.setdefault(tuple(keyword.split()), concept)
+    longest = max(len(k) for k in by_keyword)
     found: list[tuple[Concept, str, str]] = []
     rest: list[str] = []
-    for word in words:
-        concept = by_keyword.get(word.lower())
-        if concept is not None:
-            if all(c.id != concept.id for c, _, _ in found):
-                found.append((concept, "keyword", word))
-        elif word.lower() not in FILLER:
-            rest.append(word)
+    lowered = [w.lower() for w in words]
+    multi_word = False
+    i = 0
+    while i < len(words):
+        for size in range(min(longest, len(words) - i), 0, -1):
+            concept = by_keyword.get(tuple(lowered[i : i + size]))
+            if concept is not None:
+                if all(c.id != concept.id for c, _, _ in found):
+                    found.append((concept, "keyword", " ".join(words[i : i + size])))
+                multi_word = multi_word or size > 1
+                i += size
+                break
+        else:
+            if lowered[i] not in FILLER:
+                rest.append(words[i])
+            i += 1
+    if multi_word:
+        # A two-word keyword is the most specific reading a phrase can have, so it is the
+        # phrase's reading: in "wins against stronger players" the ask is the rating, and
+        # "wins" on its own would add a filter (wins most matches) nobody asked for.
+        specific = [f for f in found if " " in f[2]]
+        rest += [f[2] for f in found if " " not in f[2]]
+        found = specific
     if found:
         return Reading(found, [], rest)
     if len(rest) >= 2 and reader is not None:
