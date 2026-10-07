@@ -1,6 +1,8 @@
 # 0004. Table tennis opponent strength: who a match was against, and a rating built from it
 
-Status: accepted 2026-10-08, with the recommended answer to every open decision.
+Status: accepted 2026-10-08, with the recommended answer to every open decision. Amended the
+same day after step 2: the rating on the profile is the point rating, not Glicko-2, because
+Glicko-2 lost to a plain baseline. See "Outcome of step 2".
 Date: 2026-10-08
 
 ## Context
@@ -45,6 +47,8 @@ without consent. The match still counts toward the player's results; it just can
 toward a rating.
 
 ### 2. Compute a rating from the matches, with its uncertainty
+
+(Superseded in part by "Outcome of step 2" below: Glicko-2 was built and graded, and lost.)
 
 From the registered-against-registered matches, the platform computes a rating per player,
 using **Glicko-2** (open question 2). Glicko-2 is a well-known rating system (online chess
@@ -111,6 +115,27 @@ The generator knows every player's hidden ability, so the rating can be graded:
 - **Calibration of the range:** how often hidden ability sits inside the shown range.
 - Tuned on seeds 101, 202 and 303, reported on others, as the project rule requires. A new
   `python -m ml.run_rating_eval` prints all of it, and the numbers go in `ml/README.md`.
+
+## Outcome of step 2 (2026-10-08)
+
+Glicko-2 was built as planned and checked against Glickman's worked example. Graded on the
+reporting seeds, it ranks players **worse than plain point win rate** (Spearman 0.82 and 0.80
+for girls and boys, against 0.83 and 0.86) and predicts results worse (log loss 0.608 against
+0.578). It sees each match as one bit, and a match is about ninety points.
+
+A challenger was added, as the project did for forecasting: a **point rating**, a
+Bradley-Terry model on every point, adjusted for the opponent, with a prior that pulls thin
+evidence toward average and a standard error from the fit. It wins both questions (Spearman
+0.91 and 0.89; log loss 0.564), and its shown range holds the true value for 98% of shown
+players. It is what the profile shows. It also reads more plainly than a 1500-style number:
+"wins 54% of points against an average opponent, 51% to 57%".
+
+Two other changes from the plan above. The point rating learns from matches against outsiders
+through one stand-in opponent per gender, whose strength it estimates. The evaluation checks
+the shown range against the generator's true point chance, which became possible once the
+rating was expressed as a point share.
+
+Full numbers, the unflattering ones included, are in `ml/README.md`, "Table tennis rating".
 
 ## Consequences
 
