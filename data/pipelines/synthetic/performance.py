@@ -336,6 +336,12 @@ TT_MISSING_MIRROR = 0.12
 # and leagues go by age group, so juniors mostly meet juniors. Age and gender decide who meets
 # whom, not ability, so a raw win rate is not handicapped by design.
 TT_AGE_SCALE_YEARS = 3.0
+# Off (None) in every dataset the project reports. The rating evaluation turns it on to ask a
+# what-if: if strong players mostly met strong fields, as in tiered leagues and seeded events,
+# how much would plain win rates mislead? When set, the chance of meeting someone also falls
+# with the gap in ability (in units of ability), and outsiders are drawn near the player's own
+# level. See ml/rating/evaluate.py and `python -m ml.run_rating_eval --schedule by-level`.
+TT_LEVEL_SCALE: float | None = None
 
 
 def generate_table_tennis_matches(
@@ -391,6 +397,11 @@ def generate_table_tennis_matches(
         weights = [
             math.exp(-abs(age - r.recorded_age(reference)) / TT_AGE_SCALE_YEARS) for r in rivals
         ]
+        if TT_LEVEL_SCALE:
+            weights = [
+                w * math.exp(-abs(ability[profile.id] - ability[r.id]) / TT_LEVEL_SCALE)
+                for w, r in zip(weights, rivals)
+            ]
         own_org_id = affiliation_lookup.get(profile.id)
         clubs = [
             o
@@ -407,8 +418,10 @@ def generate_table_tennis_matches(
             best_of = 7 if rng.chance(0.3) else 5
             mine = ability[profile.id]
             if not rivals or rng.chance(TT_EXTERNAL_SHARE):
-                # An outsider, drawn from the whole population, not matched to this player.
-                theirs = max(0.25, rng.gauss(1.0, 0.28))
+                # An outsider, drawn from the whole population, not matched to this player
+                # (unless the what-if schedule above is on).
+                centre, spread = (mine, TT_LEVEL_SCALE) if TT_LEVEL_SCALE else (1.0, 0.28)
+                theirs = max(0.25, rng.gauss(centre, spread))
                 result = _play_table_tennis_match(rng, _point_chance(mine, theirs), best_of)
                 emit(
                     profile,
