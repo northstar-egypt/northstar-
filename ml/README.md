@@ -8,6 +8,8 @@ results (forecasts, flags, similarity, embeddings) back to it.
 
 - **Forecasting** of player trajectories with uncertainty bands. Per-position age curves.
   XGBoost as a challenger to the v1 model, see "Challenger models".
+- **Table tennis rating**: a strength for each player from who they played and how many
+  points they won, with a range. Graded against hidden ability, see "Table tennis rating".
 - **Detectors**: late-bloomer, fraud, duplicate. Measured with precision / recall / F1
   against the **planted ground truth** in the synthetic dataset. Built, see below.
 - **Sustainability flags**: xG vs actual for football.
@@ -314,6 +316,111 @@ spurts), and the unsupervised detector does not beat a well-reasoned rule on the
 matters for an accusation. That matches the literature review's conclusion that evaluation
 design, not model complexity, is the constraint.
 
+## Table tennis rating
+
+A table tennis win rate says nothing about who the wins were against. Decision 0004
+(`docs/decisions/0004-table-tennis-opponent-strength.md`) records the opponent of every match,
+and this section grades two ways of turning those matches into a rating. The generator hides
+each player's true ability (`table_tennis_ability` in `ground_truth.json`), so the ratings
+can be checked against it. That is not possible with real data.
+
+```bash
+python -m ml.run_rating_eval                       # the reporting seeds, numbers below
+python -m ml.run_rating_eval --tune                # the tuning run, seeds 101, 202, 303 only
+python -m ml.run_rating_eval --schedule by-level   # the what-if below
+```
+
+The two models, and what they are compared with:
+
+| | uses | code |
+| --- | --- | --- |
+| **Glicko-2** | who won each match | `rating/glicko2.py`, checked against Glickman's worked example |
+| **point rating** | every point, adjusted for the opponent (Bradley-Terry on points, with a prior and a standard error) | `rating/points.py` |
+| match win rate, point win rate | every row, any opponent | what the profile shows today |
+
+Every method sees the same matches. A match counts toward a rating only when something more
+than the player's own word stands behind it: a non-self-submitted row, or both players
+logging it. A claimed win over a strong player is worth faking, so an unconfirmed one does
+not move a rating.
+
+### Results, reporting seeds 20260827, 7, 99, 404 and 555 (mean over the five)
+
+Ranking, Spearman correlation with hidden ability, within gender (girls and boys never meet,
+so their ratings are separate scales; 54 girls and 121 boys over the five seeds):
+
+| | girls | boys |
+| --- | --- | --- |
+| **point rating** | **0.907** | **0.893** |
+| Glicko-2 | 0.817 | 0.800 |
+| point win rate | 0.833 | 0.856 |
+| match win rate | 0.762 | 0.803 |
+
+Predicting matches it has not seen (walk-forward, from the seventh month on; lower is better
+for Brier and log loss):
+
+| | Brier | log loss | favourite won |
+| --- | --- | --- | --- |
+| **point rating** | **0.1924** | **0.5643** | **0.701** |
+| point win rate | 0.1968 | 0.5776 | 0.686 |
+| match win rate | 0.2040 | 0.5941 | 0.690 |
+| Glicko-2 | 0.2079 | 0.6078 | 0.693 |
+| coin flip | 0.2500 | 0.6931 | |
+
+**The point rating wins, and it is what the profile shows.** It orders players better than
+anything else (Spearman 0.07 higher than point win rate for girls, 0.04 for boys) and predicts results
+better, though by a modest margin (log loss 0.564 against 0.578). Its range is honest: the
+profile shows it only when the range of point share is at most 7 points wide, which covers
+171 of 175 players, and for 168 of those 171 (98%) the player's true chance of winning a
+point against an average opponent lies inside it. Nominal is about 95%, so the range is
+slightly cautious, which is the safe side.
+
+**Glicko-2, the method the decision first chose, loses to the plain point win rate** on both
+questions. A match is one bit, won or lost; a match is also about ninety points, and the share
+of them won carries far more about a player than the result does. Glicko-2 is also badly
+overconfident here: on tuning seed 101, when it gave the favourite 80 to 90%, the favourite
+won 68% of the time. The implementation is right (it reproduces the paper's example to two
+decimals); the method throws away most of the evidence. It stays in `rating/` as the measured
+alternative.
+
+The point rating also learns from matches against opponents who are not on the platform. All
+of a gender's outsiders are treated as one stand-in opponent whose strength the fit learns,
+rather than assumed to be average. Without them it predicted worse than point win rate on the
+tuning seeds (log loss 0.549 against 0.535); with them, better (0.530).
+
+### What if strong players mostly met strong fields?
+
+The generator picks opponents by age and gender, not by level, so a raw rate is fooled only a
+little. Real competition is often tiered (divisions, seeded events). The what-if run makes
+opponents close in level, with nothing retuned:
+
+| Spearman, by-level schedule | girls | boys |
+| --- | --- | --- |
+| **point rating** | **0.785** | **0.683** |
+| Glicko-2 | 0.728 | 0.590 |
+| point win rate | 0.595 | 0.406 |
+| match win rate | 0.539 | 0.304 |
+
+When everyone plays their own level, everyone wins about half their matches, and a win rate
+says almost nothing (0.30 for boys). Opponent adjustment is what keeps the ranking. Two
+results here are unflattering and stay in. First, **no method predicts matches better than a
+coin flip** in this world (point rating log loss 0.715 against 0.693): the matches are close
+by construction and every method, tuned on the default schedule, is overconfident. Second,
+the point rating's range covers the truth for only 123 of 148 shown players (83%), short of
+its nominal 95%. Real data will sit somewhere between the two schedules, and which end it is
+nearer is unknown until the ITTF and WTT results are ingested.
+
+### Limits
+
+- **Hidden ability does not change over time** in the generator. A junior improves; a rating
+  built on two years of matches lags them. Real data will be harder.
+- **Girls are about eleven per dataset**, so the girls' column rests on few players.
+- **The point model has the generator's shape.** The generator draws points from the ability
+  gap and the point rating models points from a strength gap, so it is fitting a model of the
+  right family. Real points are not independent coin flips (serve rotation, momentum); the
+  model will fit real data less well than this.
+- **Settings were tuned on seeds 101, 202 and 303**: Glicko-2 tau 0.5 (no setting tried made
+  a difference), point rating prior 0.15, display range 0.07, baseline slopes 3 and 20.
+
 ## Relative age audit
 
 Children born early in the selection year are older, bigger and more mature than team-mates
@@ -532,6 +639,8 @@ write_flags.py detector run that writes flags to the database             done
 forecasting/   height forecasters + walk-forward harness                 done
 backtest.py    the late-bloomer backtest, run_backtest.py is its CLI      done
 export_db.py   database to JSON export, for running any harness on real data  done
+rating/        table tennis ratings: Glicko-2 and the point rating          done
+run_rating_eval.py  grades both against hidden ability                       done
 similarity/    embedding + nearest-neighbor search                        TODO
 assistant/     Ollama prompt + retrieval grounding                        TODO
 artifacts/     trained models (gitignored)
