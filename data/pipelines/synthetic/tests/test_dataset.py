@@ -282,6 +282,7 @@ def test_foreign_keys_resolve(ds):
         assert e.player_id in player_ids
         assert e.organization_id is None or e.organization_id in org_ids
         assert e.opponent_org_id is None or e.opponent_org_id in org_ids
+        assert e.opponent_player_id is None or e.opponent_player_id in player_ids
     for a in ds.affiliations:
         assert a.player_id in player_ids
         assert a.organization_id in org_ids

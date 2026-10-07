@@ -82,6 +82,10 @@ For a duplicate detector scored on pairs rather than players,
 detector that works row by row, `gt["flagged_performance_entry_ids"]` lists the
 performance entries that were planted as implausible.
 
+`gt["table_tennis_ability"]` maps each table tennis player to the hidden ability their
+match results are drawn from. It is what the rating in `ml/rating` is graded against, and no
+detector may read it.
+
 `gt["cases"]` carries the detail behind each label. It records how many years an
 age was understated, how large a late bloomer's height deficit was at 14, which
 variations a duplicate cluster differs by. That is what makes error analysis
@@ -129,7 +133,7 @@ Each planted player carries exactly one label, so the answer key is unambiguous.
 | `reference.py` | Organizations, positions, country codes, Arabic name variants. |
 | `players.py` | Identity and demographics. Tier, minor status and eligibility are derived here. |
 | `measurements.py` | The biometric time-series. |
-| `performance.py` | Match and season rows, with the consistency invariants. |
+| `performance.py` | Match and season rows, with the consistency invariants. Table tennis matches are played between two players, written as two mirrored rows that name each other, on their own random stream (decision 0004). |
 | `affiliations.py` | Affiliation history, built so overlaps cannot occur. |
 | `accounts.py` | Users, consent, audit log. |
 | `planted.py` | The three planted case types. |

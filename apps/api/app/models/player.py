@@ -74,7 +74,9 @@ class Player(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="player", cascade="all, delete-orphan"
     )
     performance_entries: Mapped[list[PerformanceEntry]] = relationship(
-        back_populates="player", cascade="all, delete-orphan"
+        back_populates="player",
+        cascade="all, delete-orphan",
+        foreign_keys="PerformanceEntry.player_id",
     )
     consents: Mapped[list[Consent]] = relationship(
         back_populates="player", cascade="all, delete-orphan"

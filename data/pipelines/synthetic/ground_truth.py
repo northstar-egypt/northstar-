@@ -40,6 +40,7 @@ def build(
     seed: int,
     counts: dict,
     all_player_ids: list[str],
+    table_tennis_ability: dict[str, float] | None = None,
 ) -> dict:
     late_bloomer_ids = sorted({c.player_id for c in cases.late_bloomers})
     fraud_ids = sorted({c.player_id for c in cases.fraud})
@@ -79,6 +80,10 @@ def build(
             "fraud": [c.to_dict() for c in cases.fraud],
             "duplicates": [c.to_dict() for c in cases.duplicates],
         },
+        # Each table tennis player's hidden ability, the quantity their match results are
+        # drawn from (performance.generate_table_tennis_matches). A rating is graded on how
+        # well it recovers this order. No detector may read it.
+        "table_tennis_ability": dict(sorted((table_tennis_ability or {}).items())),
     }
 
 

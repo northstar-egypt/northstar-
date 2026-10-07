@@ -46,6 +46,14 @@ class PerformanceEntry(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     opponent_org_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("organization.id", ondelete="SET NULL")
     )
+    # The opponent in a one-on-one sport (table tennis), when they are registered on the
+    # platform. Null in team sports, and null when the opponent is not on the platform: then
+    # nothing about them is stored, because they may be a child with no signed consent form.
+    # Core rather than JSON because every one-on-one sport has it and it must stay a real
+    # reference through deletes and merges. See docs/decisions/0004.
+    opponent_player_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("player.id", ondelete="SET NULL")
+    )
     # Sport-specific payload, validated against schema_ref on ingest.
     metrics: Mapped[dict] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
@@ -59,7 +67,9 @@ class PerformanceEntry(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Boolean, nullable=False, server_default=text("false")
     )
 
-    player: Mapped[Player] = relationship(back_populates="performance_entries")
+    player: Mapped[Player] = relationship(
+        back_populates="performance_entries", foreign_keys=[player_id]
+    )
     organization: Mapped[Organization | None] = relationship(
         foreign_keys=[organization_id]
     )
@@ -69,4 +79,5 @@ class PerformanceEntry(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __table_args__ = (
         Index("ix_performance_entry_player_period", "player_id", "period_start"),
+        Index("ix_performance_entry_opponent_player", "opponent_player_id"),
     )

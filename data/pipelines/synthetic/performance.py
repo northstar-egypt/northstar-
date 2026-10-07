@@ -17,6 +17,7 @@ future contributor, can check a row without re-deriving them.
 
 from __future__ import annotations
 
+import math
 from datetime import timedelta
 
 from .config import GeneratorConfig
@@ -149,22 +150,15 @@ def _football_match_metrics(
     return metrics
 
 
-def _table_tennis_metrics(rng: Rng, profile: PlayerProfile, ability: float) -> dict:
-    """One finished match, played point by point.
+def _play_table_tennis_match(rng: Rng, p_point: float, best_of: int) -> tuple[int, int, int, int]:
+    """One finished match, played point by point, from side A's point of view.
 
-    The previous version drew sets played and sets won independently, which produced
-    matches nobody could have played: 2 sets won out of 4, 3 out of 7. The table tennis
-    sport module rejected 681 of 681 rows the first time it ran. Playing the match instead
+    Returns sets won, sets lost, points won and points lost for side A. Playing the match
     makes every row a real result by construction: sets go to 11, win by 2, and the match
-    stops as soon as one player reaches the winning number of sets.
-
-    Ability moves the chance of winning a point, which is the quantity it actually changes,
-    and everything else (sets, match result, points) follows from that.
+    stops as soon as one player reaches the winning number of sets. An earlier version drew
+    the sets independently and the sport module rejected 681 of 681 rows.
     """
-    best_of = 7 if rng.chance(0.3) else 5
     target = best_of // 2 + 1
-    p_point = min(0.62, max(0.38, 0.40 + 0.12 * ability))
-
     sets_won = sets_lost = points_won = points_lost = 0
     while sets_won < target and sets_lost < target:
         mine = theirs = 0
@@ -179,7 +173,22 @@ def _table_tennis_metrics(rng: Rng, profile: PlayerProfile, ability: float) -> d
             sets_won += 1
         else:
             sets_lost += 1
+    return sets_won, sets_lost, points_won, points_lost
 
+
+def _point_chance(ability: float, opponent_ability: float) -> float:
+    """The chance that a player wins a point, from the gap in ability to the opponent.
+
+    The gap is what decides a table tennis point; one player's ability alone says nothing
+    about a result. One standard deviation of ability (0.28) is worth about 3 points in 100,
+    which over a best of five is the difference between an even match and winning about two
+    in three.
+    """
+    return min(0.70, max(0.30, 0.5 + 0.12 * (ability - opponent_ability)))
+
+
+def _table_tennis_side(rng: Rng, ability: float, best_of: int, result: tuple) -> dict:
+    sets_won, sets_lost, points_won, points_lost = result
     sets = sets_won + sets_lost
     return {
         "best_of": best_of,
@@ -215,6 +224,8 @@ def generate_performance_entries(
     by_id = {o.id: o for o in orgs}
 
     for profile in profiles:
+        if profile.player.primary_sport == enums.Sport.TABLE_TENNIS.value:
+            continue  # played in pairs, on their own stream: generate_table_tennis_matches
         own_org_id = affiliation_lookup.get(profile.id)
         own_org = by_id.get(own_org_id) if own_org_id else None
         # An opponent is any organization that is not the player's own. Never the
@@ -234,12 +245,7 @@ def generate_performance_entries(
             period_start = reference - timedelta(days=days_back)
 
             is_season = rng.chance(cfg.season_aggregate_fraction)
-            if profile.player.primary_sport == enums.Sport.TABLE_TENNIS.value:
-                metrics = _table_tennis_metrics(rng, profile, ability)
-                schema_ref = TABLE_TENNIS_SCHEMA_REF
-                period_type = enums.PeriodType.MATCH.value
-                period_end = None
-            elif is_season:
+            if is_season:
                 appearances = rng.randint(8, 34)
                 minutes_total = sum(_draw_minutes(rng, config) for _ in range(appearances))
                 per_match = [
@@ -265,16 +271,7 @@ def generate_performance_entries(
                 period_type = enums.PeriodType.MATCH.value
                 period_end = None
 
-            source = rng.choices(
-                [
-                    enums.PerformanceSource.API.value,
-                    enums.PerformanceSource.SCRAPE.value,
-                    enums.PerformanceSource.COACH_LOGGED.value,
-                    enums.PerformanceSource.SELF_SUBMITTED.value,
-                ],
-                weights=[0.34, 0.22, 0.36, 0.08],
-                k=1,
-            )[0]
+            source = _draw_source(rng)
 
             # Every generated row must pass its sport module. A failure here is a generator
             # bug, and it is raised now rather than left for the fraud detector to trip on as
@@ -296,9 +293,146 @@ def generate_performance_entries(
                     metrics=metrics,
                     schema_ref=schema_ref,
                     source=source,
-                    is_validated=source
-                    in (enums.PerformanceSource.API.value, enums.PerformanceSource.COACH_LOGGED.value),
+                    is_validated=_is_trusted(source),
                 )
             )
 
+    table_tennis = [
+        p for p in profiles if p.player.primary_sport == enums.Sport.TABLE_TENNIS.value
+    ]
+    rows += generate_table_tennis_matches(config, table_tennis, orgs, affiliation_lookup)
+    return rows
+
+
+def _draw_source(rng: Rng) -> str:
+    return rng.choices(
+        [
+            enums.PerformanceSource.API.value,
+            enums.PerformanceSource.SCRAPE.value,
+            enums.PerformanceSource.COACH_LOGGED.value,
+            enums.PerformanceSource.SELF_SUBMITTED.value,
+        ],
+        weights=[0.34, 0.22, 0.36, 0.08],
+        k=1,
+    )[0]
+
+
+def _is_trusted(source: str) -> bool:
+    return source in (enums.PerformanceSource.API.value, enums.PerformanceSource.COACH_LOGGED.value)
+
+
+# Table tennis matches draw from their own stream, so a change to how they are played never
+# shifts a football row, a height reading or a planted case again. Moving them here shifted
+# the main stream once; see docs/decisions/0004-table-tennis-opponent-strength.md.
+_TT_STREAM_OFFSET = 104729
+
+# Share of a player's matches against someone who is not on the platform: a club player from
+# abroad, or a child whose guardian never signed them up. Those matches count toward results
+# but not toward a rating, and the row stores nothing about who the opponent was.
+TT_EXTERNAL_SHARE = 1 / 3
+# Share of matches between two registered players that only one of them logged.
+TT_MISSING_MIRROR = 0.12
+# How fast the chance of meeting someone falls with the gap in recorded age, in years. Draws
+# and leagues go by age group, so juniors mostly meet juniors. Age and gender decide who meets
+# whom, not ability, so a raw win rate is not handicapped by design.
+TT_AGE_SCALE_YEARS = 3.0
+
+
+def generate_table_tennis_matches(
+    config: GeneratorConfig,
+    profiles: list[PlayerProfile],
+    orgs: list[Organization],
+    affiliation_lookup: dict,
+) -> list[PerformanceEntry]:
+    """Matches between two players, written once per side, plus matches against outsiders.
+
+    A match between two registered players is played once and written as two mirrored rows:
+    one player's sets won are the other's sets lost, and each row names the other player in
+    `opponent_player_id`. Service winners and unforced errors are each player's own.
+
+    Who wins a point depends on the gap in ability between the two (`_point_chance`), so a
+    result means something only next to who it was against. That is what the rating in
+    `ml/rating` is built to recover, and each player's hidden ability is in the ground truth
+    so the rating can be graded.
+    """
+    rng = Rng(config.seed + _TT_STREAM_OFFSET, config.name_locale)
+    cfg = config.performance
+    reference = config.population.reference_date
+    by_org = {o.id: o for o in orgs}
+    ability = {p.id: p.effective_ability(reference) for p in profiles}
+    rows: list[PerformanceEntry] = []
+
+    def emit(profile, metrics, played_on, opponent=None, opponent_org_id=None):
+        problems = sports.validate(metrics, TABLE_TENNIS_SCHEMA_REF)
+        assert not problems, f"{TABLE_TENNIS_SCHEMA_REF} row fails its sport module: {problems}"
+        own_org = by_org.get(affiliation_lookup.get(profile.id))
+        source = _draw_source(rng)
+        rows.append(
+            PerformanceEntry(
+                id=rng.uuid(),
+                player_id=profile.id,
+                sport=profile.player.primary_sport,
+                period_type=enums.PeriodType.MATCH.value,
+                period_start=played_on,
+                period_end=None,
+                organization_id=own_org.id if own_org else None,
+                opponent_org_id=opponent_org_id,
+                opponent_player_id=opponent.id if opponent else None,
+                metrics=metrics,
+                schema_ref=TABLE_TENNIS_SCHEMA_REF,
+                source=source,
+                is_validated=_is_trusted(source),
+            )
+        )
+
+    for profile in profiles:
+        rivals = [p for p in profiles if p.id != profile.id and p.player.sex == profile.player.sex]
+        age = profile.recorded_age(reference)
+        weights = [
+            math.exp(-abs(age - r.recorded_age(reference)) / TT_AGE_SCALE_YEARS) for r in rivals
+        ]
+        own_org_id = affiliation_lookup.get(profile.id)
+        clubs = [
+            o
+            for o in orgs
+            if o.id != own_org_id
+            and o.type in (enums.OrganizationType.CLUB.value, enums.OrganizationType.ACADEMY.value)
+            and o.sport in (enums.Sport.TABLE_TENNIS.value, None)
+        ]
+        # Each registered match gives both players a row, so a player starts about 60% of the
+        # matches the old one-sided generator gave them and ends with about as many rows.
+        n_matches = round(rng.randint(cfg.min_entries, cfg.max_entries) * 0.6)
+        for _ in range(n_matches):
+            played_on = reference - timedelta(days=rng.randint(0, 700))
+            best_of = 7 if rng.chance(0.3) else 5
+            mine = ability[profile.id]
+            if not rivals or rng.chance(TT_EXTERNAL_SHARE):
+                # An outsider, drawn from the whole population, not matched to this player.
+                theirs = max(0.25, rng.gauss(1.0, 0.28))
+                result = _play_table_tennis_match(rng, _point_chance(mine, theirs), best_of)
+                emit(
+                    profile,
+                    _table_tennis_side(rng, mine, best_of, result),
+                    played_on,
+                    opponent_org_id=rng.choice(clubs).id if clubs else None,
+                )
+                continue
+
+            rival = rng.choices(rivals, weights=weights, k=1)[0]
+            theirs = ability[rival.id]
+            won, lost, pts_won, pts_lost = _play_table_tennis_match(
+                rng, _point_chance(mine, theirs), best_of
+            )
+            rival_org_id = affiliation_lookup.get(rival.id)
+            clubmates = rival_org_id == own_org_id
+            sides = [
+                (profile, _table_tennis_side(rng, mine, best_of, (won, lost, pts_won, pts_lost)),
+                 rival, None if clubmates else rival_org_id),
+                (rival, _table_tennis_side(rng, theirs, best_of, (lost, won, pts_lost, pts_won)),
+                 profile, None if clubmates else own_org_id),
+            ]
+            if rng.chance(TT_MISSING_MIRROR):
+                sides.pop(rng.randint(0, 1))  # one of the two never logged it
+            for player, metrics, opponent, opponent_org_id in sides:
+                emit(player, metrics, played_on, opponent=opponent, opponent_org_id=opponent_org_id)
     return rows
