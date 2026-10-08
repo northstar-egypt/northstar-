@@ -22,12 +22,19 @@ the profile states how often past readings for that player's own gender fell ins
 The band is the forecast's honest content; the centre line alone would claim a confidence the
 model does not have.
 
+Analytics consent
+-----------------
+A player whose guardian has withdrawn analytics consent gets no forecast, and their readings
+are left out of the model everyone else's forecast learns from: training on their heights is
+still using their data for analytics. The same rule as the table tennis rating (rating.py).
+
 When there is no forecast
 -------------------------
-Nothing is drawn, and the profile says why, when the player has no date of birth or sex, fewer
-than two height readings (the evaluation's own rule), a last reading more than a year ago (the
-model was never checked that far out), when the database holds too few past forecasts to learn
-a band from (fewer than 30 in a horizon), or too few readings to train XGBoost at all.
+Nothing is drawn, and the profile says why, when analytics consent is not in effect, when the
+player has no date of birth or sex, fewer than two height readings (the evaluation's own rule),
+a last reading more than a year ago (the model was never checked that far out), when the
+database holds too few past forecasts to learn a band from (fewer than 30 in a horizon), or too
+few readings to train XGBoost at all.
 
 Caching
 -------
@@ -38,7 +45,12 @@ model is more than `_TTL_SECONDS` old, or was built on an earlier day, one backg
 rebuilds it while requests keep using the previous one. A request waits only when there is no
 model at all, for example one that arrives within seconds of the API starting.
 The player's own readings are always read fresh, so a height a coach has just logged moves
-that player's forecast at once; only the population the model learned from lags.
+that player's forecast at once; only the population the model learned from lags. A consent
+change does not wait for the TTL: each request compares a cheap signature of the consent table
+with the one the model was built on, and a difference starts the rebuild at once. The player
+whose consent was withdrawn loses their forecast on the next request, since their own consent
+is always checked fresh; the others' models stop using their readings once the rebuild lands,
+seconds later.
 """
 
 from __future__ import annotations
@@ -52,12 +64,14 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.enums import PlayerStatus
+from app.models.consent import Consent
+from app.models.enums import ConsentPurpose, PlayerStatus
 from app.models.measurement import Measurement
 from app.models.player import Player
+from app.services.access import consent_subquery
 
 
 def _make_ml_importable() -> None:
@@ -120,6 +134,8 @@ _TTL_SECONDS = 300
 @dataclass
 class _Model:
     built_at: float = 0.0
+    # The consent table as it was when this model was built (see _consent_signature).
+    consents: tuple = ()
     snapshot: Snapshot | None = None
     # XGBoost trained on `snapshot`, or None when the database is too small to train it.
     regressor: Any = None
@@ -143,11 +159,25 @@ _refreshing = False
 _generation = 0
 
 
-def _histories(db: Session) -> dict[str, PlayerHistory]:
+def _consent_signature(db: Session, today: date) -> tuple:
+    # The row count and latest edit catch most changes; the number of players with analytics
+    # consent in effect also catches a withdrawal written in the same transaction as the grant,
+    # where updated_at (the transaction's now()) does not move.
+    rows = tuple(db.execute(select(func.count(), func.max(Consent.updated_at))).one())
+    in_effect = db.execute(
+        select(func.count()).select_from(
+            consent_subquery(ConsentPurpose.ANALYTICS.value, today).subquery()
+        )
+    ).scalar_one()
+    return (*rows, in_effect)
+
+
+def _histories(db: Session, today: date) -> dict[str, PlayerHistory]:
     players = db.execute(
         select(Player.id, Player.sex, Player.date_of_birth)
         .where(Player.status != PlayerStatus.MERGED.value)
         .where(Player.date_of_birth.is_not(None))
+        .where(Player.id.in_(consent_subquery(ConsentPurpose.ANALYTICS.value, today)))
     ).all()
     histories = {
         str(pid): PlayerHistory(str(pid), sex or "unknown", dob, []) for pid, sex, dob in players
@@ -184,8 +214,9 @@ def _group(stated_age: float) -> str:
 
 
 def _build(db: Session, today: date) -> _Model:
-    histories = _histories(db)
-    model = _Model(built_at=time.time())
+    consents = _consent_signature(db, today)
+    histories = _histories(db, today)
+    model = _Model(built_at=time.time(), consents=consents)
     model.snapshot = Snapshot(today, histories)
 
     with _build_lock:
@@ -237,6 +268,7 @@ def _refresh_in_background(today: date, generation: int) -> None:
 
 def _get_model(db: Session, today: date) -> _Model:
     global _refreshing
+    consents = _consent_signature(db, today)
     with _lock:
         current, generation = _model, _generation
         if current.snapshot is not None:
@@ -246,6 +278,7 @@ def _get_model(db: Session, today: date) -> _Model:
             out_of_date = (
                 time.time() - current.built_at > _TTL_SECONDS
                 or current.snapshot.origin != today
+                or current.consents != consents
             )
             if out_of_date and not _refreshing:
                 _refreshing = True
@@ -301,6 +334,18 @@ class Forecast:
 
 def forecast_height(db: Session, player: Player, *, today: date | None = None) -> Forecast:
     today = today or date.today()
+    consented = db.execute(
+        consent_subquery(ConsentPurpose.ANALYTICS.value, today).where(
+            Consent.player_id == player.id
+        )
+    ).first()
+    if consented is None:
+        return Forecast(
+            [],
+            None,
+            "No forecast: analytics consent is not in effect for this player, so their "
+            "measurements are not used for forecasts.",
+        )
     if player.date_of_birth is None or player.sex is None:
         return Forecast([], None, "No forecast: the date of birth or sex is not recorded.")
 
