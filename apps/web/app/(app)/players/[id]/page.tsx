@@ -29,8 +29,9 @@ import {
   Table,
   Td,
   Th,
+  inputClass,
 } from "@/components/ui";
-import { getProfile, getSummary } from "@/lib/api";
+import { getProfile, getSummary, withdrawConsent, writeRefusal } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { num, ordinal, shortDate } from "@/lib/format";
 import type {
@@ -62,6 +63,9 @@ export default function PlayerProfilePage() {
   const playerId = String(useParams().id ?? "");
   const { user } = useAuth();
   const [data, setData] = useState<PlayerProfile | null | "missing">(null);
+  // Bumped after a write, so the whole profile is fetched again and every part of it that
+  // depends on consent (percentiles, forecast, flags) shows the new state.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -69,7 +73,7 @@ export default function PlayerProfilePage() {
     return () => {
       alive = false;
     };
-  }, [playerId]);
+  }, [playerId, version]);
 
   if (data === null) {
     return (
@@ -272,7 +276,144 @@ export default function PlayerProfilePage() {
           How much data there is, and what consent exists, decide how much anyone should trust
           the rest of this screen. That is why it is on the page rather than in an admin view.
         </p>
+        {data.permissions.canEdit ? (
+          <WithdrawConsent
+            playerId={p.id}
+            isMinor={p.isMinor}
+            consents={data.provenance.consents}
+            onDone={() => setVersion((v) => v + 1)}
+          />
+        ) : null}
       </Card>
+    </div>
+  );
+}
+
+const WITHDRAWABLE: { purpose: string; label: string; effect: string }[] = [
+  {
+    purpose: "analytics",
+    label: "Analytics",
+    effect: "no rating, forecast, percentiles, talent flags or search matches",
+  },
+  {
+    purpose: "scouting_visibility",
+    label: "Scouting visibility",
+    effect: "a minor is hidden from scouts again",
+  },
+];
+
+/**
+ * Recording a withdrawal of part of the sign-up consent. The guardian (or the adult player)
+ * withdraws; whoever holds the record writes it down here. Data storage is not offered:
+ * withdrawing it means deleting the record, which is a separate erasure request.
+ */
+function WithdrawConsent({
+  playerId,
+  isMinor,
+  consents,
+  onDone,
+}: {
+  playerId: string;
+  isMinor: boolean;
+  consents: { purpose: string; granted: boolean }[];
+  onDone: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [guardian, setGuardian] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [problems, setProblems] = useState<string[]>([]);
+
+  const granted = new Set(consents.filter((c) => c.granted).map((c) => c.purpose));
+  const offered = WITHDRAWABLE.filter((w) => granted.has(w.purpose));
+  if (offered.length === 0) return null;
+
+  if (!open) {
+    return (
+      <div className="mt-3">
+        <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
+          Record a consent withdrawal
+        </Button>
+      </div>
+    );
+  }
+
+  const ready = chosen.length > 0 && (!isMinor || guardian.trim().length > 0) && !saving;
+
+  async function save() {
+    setSaving(true);
+    setProblems([]);
+    try {
+      await withdrawConsent(playerId, {
+        purposes: chosen,
+        ...(isMinor ? { guardianName: guardian } : {}),
+      });
+      setOpen(false);
+      setChosen([]);
+      onDone();
+    } catch (error) {
+      const refusal = writeRefusal(error);
+      setProblems(
+        refusal?.kind === "fix" && refusal.problems.length
+          ? refusal.problems
+          : ["Nothing was saved. Try again."],
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 flex flex-col gap-2 rounded-md border border-slate-800 bg-slate-950/40 px-3 py-3">
+      <Label>Record a consent withdrawal</Label>
+      {offered.map((w) => (
+        <label key={w.purpose} className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={chosen.includes(w.purpose)}
+            onChange={(e) =>
+              setChosen((xs) =>
+                e.target.checked ? [...xs, w.purpose] : xs.filter((x) => x !== w.purpose),
+              )
+            }
+            className="mt-0.5 h-4 w-4 accent-sky-500"
+          />
+          <span>
+            {w.label}
+            <span className="ml-1 text-xs text-slate-500">({w.effect})</span>
+          </span>
+        </label>
+      ))}
+      {isMinor ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">Guardian withdrawing consent</span>
+          <input
+            aria-label="Guardian withdrawing consent"
+            value={guardian}
+            onChange={(e) => setGuardian(e.target.value)}
+            className={inputClass}
+            autoComplete="off"
+          />
+        </div>
+      ) : null}
+      {problems.length ? (
+        <ul className="text-xs text-rose-300">
+          {problems.map((problem) => (
+            <li key={problem}>{problem}</li>
+          ))}
+        </ul>
+      ) : null}
+      <span className="text-xs text-slate-500">
+        Takes effect at once. The earlier consent stays on record with the date it ended.
+      </span>
+      <div className="flex gap-2">
+        <Button size="sm" variant="danger" disabled={!ready} onClick={save}>
+          {saving ? "Saving" : "Withdraw"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
     </div>
   );
 }

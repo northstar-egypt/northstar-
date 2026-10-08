@@ -176,3 +176,33 @@ class PlayerCreatedOut(CamelModel):
     acknowledged_warnings: list[MeasurementWarningOut] = []
     # Who signed the sign-up consent: "player" or "guardian:<name>".
     consent_granted_by: str
+
+
+class ConsentWithdrawalIn(CamelModel):
+    """A withdrawal of part of the sign-up consent, recorded on the guardian's behalf.
+
+    `purposes` takes `analytics` and `scouting_visibility`. Withdrawing `data_storage` means
+    deleting the record, which is an erasure request with its own flow, so it is refused here.
+    For a minor the guardian making the withdrawal must be named, as at sign-up.
+    """
+
+    purposes: list[str] = Field(min_length=1, max_length=3)
+    guardian_name: str | None = Field(default=None, max_length=200)
+
+    @field_validator("guardian_name")
+    @classmethod
+    def _guardian(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        return value or None
+
+
+class ConsentWithdrawnOut(CamelModel):
+    # Purposes this request ended, and ones that were already not in effect.
+    withdrawn: list[str] = []
+    already_withdrawn: list[str] = []
+    # Who withdrew: "player" or "guardian:<name>".
+    withdrawn_by: str
+    # Current state per purpose after the withdrawal, as the profile shows it.
+    consents: dict[str, bool]

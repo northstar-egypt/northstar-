@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -447,3 +447,89 @@ def create_player(
     db.flush()
     return player, measurements, warnings
 
+
+# Purposes a withdrawal may end. Data storage is not one: withdrawing it means erasing the
+# record, which is a separate flow.
+# TODO(security): an erasure request for data_storage, and re-granting a withdrawn purpose.
+WITHDRAWABLE = (ConsentPurpose.ANALYTICS.value, ConsentPurpose.SCOUTING_VISIBILITY.value)
+
+
+def withdraw_consent(
+    db: Session,
+    *,
+    player: Player,
+    purposes: list[str],
+    guardian_name: str | None,
+    actor_user_id: uuid.UUID,
+    today: date | None = None,
+) -> tuple[list[str], list[str], str]:
+    """End one or more consents for a player, from today. Returns (withdrawn, already, by).
+
+    Nothing is deleted. Each granted row in effect is closed the day before, so it is no
+    longer in effect today, and a row saying "not granted" from today is added, so the record
+    shows when the consent ended and who ended it. An audit row records the request.
+    """
+    today = today or date.today()
+    problems = []
+    unknown = [p for p in purposes if p not in {c.value for c in ConsentPurpose}]
+    if unknown:
+        problems.append(f"Unknown consent purpose: {', '.join(unknown)}.")
+    if ConsentPurpose.DATA_STORAGE.value in purposes:
+        problems.append(
+            "Data storage cannot be withdrawn here: without it the record has to be deleted, "
+            "which is an erasure request, not a withdrawal."
+        )
+    minor = player.date_of_birth is not None and is_minor_on(player.date_of_birth, today)
+    if minor and not guardian_name:
+        problems.append("For a minor, name the guardian making the withdrawal.")
+    if problems:
+        raise WriteRejected(problems)
+
+    withdrawn_by = f"guardian:{guardian_name}" if minor else "player"
+    withdrawn: list[str] = []
+    already: list[str] = []
+    for purpose in dict.fromkeys(purposes):
+        in_effect = list(
+            db.execute(
+                select(Consent)
+                .where(Consent.player_id == player.id)
+                .where(Consent.purpose == purpose)
+                .where(Consent.granted.is_(True))
+                .where(Consent.valid_from <= today)
+                .where((Consent.valid_until.is_(None)) | (Consent.valid_until >= today))
+            ).scalars()
+        )
+        if not in_effect:
+            already.append(purpose)
+            continue
+        for row in in_effect:
+            row.valid_until = today - timedelta(days=1)
+        db.add(
+            Consent(
+                player_id=player.id,
+                purpose=purpose,
+                granted=False,
+                granted_by=withdrawn_by,
+                guardian_name=guardian_name if minor else None,
+                valid_from=today,
+                valid_until=None,
+                document_ref=None,
+            )
+        )
+        withdrawn.append(purpose)
+
+    db.add(
+        AuditLog(
+            actor_user_id=actor_user_id,
+            action="consent.withdraw",
+            entity_type="player",
+            entity_id=player.id,
+            event_metadata={
+                "withdrawn_by": withdrawn_by,
+                "purposes": withdrawn,
+                "already_withdrawn": already,
+            },
+        )
+    )
+    db.flush()
+    return withdrawn, already, withdrawn_by

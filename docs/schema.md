@@ -243,8 +243,12 @@ That enforcement is an access-control concern; this table is the record it reads
 Consent is collected at sign-up. Joining the platform means signing one form that covers
 `data_storage`, `analytics` and `scouting_visibility`, signed by a named guardian for a minor
 and by the player for an adult, so every player starts with three granted, open-ended rows.
-Withdrawal is recorded as `granted = false` for the purpose, and a minor without a granted
-`scouting_visibility` row is hidden from scouts again.
+A withdrawal (`POST /players/{id}/consent/withdraw`, recorded by the player's coach, an admin
+or the player) deletes nothing: each granted row in effect gets `valid_until` set to the day
+before, and a new `granted = false` row starts today, naming who withdrew. An `audit_log` row
+records the request. A minor without a granted `scouting_visibility` row is hidden from scouts
+again. `data_storage` cannot be withdrawn this way, since without it the record has to be
+erased, which is a separate flow not yet built.
 
 ## Flag
 
