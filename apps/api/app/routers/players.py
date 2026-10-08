@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import current_user
+from app.models.enums import ConsentPurpose
 from app.models.player import Player
 from app.schemas.core import MeasurementOut, PlayerOut
 from app.schemas.views import PlayerProfileOut, ProfileSummaryOut, SquadRowOut
@@ -30,6 +31,7 @@ from app.services import summary, views, writes
 from app.services.access import (
     Caller,
     consent_state,
+    has_consent,
     may_create_player,
     may_view,
     permissions,
@@ -119,6 +121,14 @@ def player_summary(
     only repeat what the page already shows. See app/services/summary.py.
     """
     player = _viewable_player(db, caller, player_id)
+    if not has_consent(db, player.id, ConsentPurpose.ANALYTICS.value):
+        # A model writing about the player is analytics on their data, however carefully its
+        # sentences are checked. The model is not asked at all.
+        return ProfileSummaryOut(
+            summary=None,
+            note="Analytics consent is not in effect for this player, so no summary is "
+            "written about them.",
+        )
     result = summary.summarise(views.build_profile(db, caller, player))
     return ProfileSummaryOut(summary=result.text, note=result.note, model=result.model)
 
