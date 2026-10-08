@@ -117,7 +117,7 @@ def table_tennis_squad(db):
     errs constantly and never wins a point on serve, and a girl in between."""
     from app.models.performance_entry import PerformanceEntry
     from app.models.player import Player
-    from tests.conftest import TODAY
+    from tests.conftest import TODAY, grant_analytics
 
     def player(name, sex, style, errors, service_winners):
         row = Player(
@@ -134,6 +134,7 @@ def table_tennis_squad(db):
         )
         db.add(row)
         db.flush()
+        grant_analytics(db, row)
         for week in range(6):
             db.add(
                 PerformanceEntry(

@@ -20,6 +20,11 @@ never claims something the profile would not show:
   or in a group smaller than the profile's minimum cohort, are never matched.
 
 Concepts combine with AND, like every other filter.
+
+Every concept above compares a player with everyone else, so each is analytics on the
+player's data. A player whose analytics consent is not in effect is never matched by any of
+them, and is left out of the populations the others are ranked against (the cohort reference,
+the statistics table, the ratings).
 """
 
 from __future__ import annotations
@@ -34,10 +39,12 @@ from sqlalchemy.orm import Session
 
 from app import sports
 from app.concepts import Concept
+from app.models.enums import ConsentPurpose
 from app.models.flag import Flag
 from app.models.performance_entry import PerformanceEntry
 from app.models.player import Player
 from app.services import cohort, flags, rating, views
+from app.services.access import consent_signature, consent_subquery
 
 QUARTER = 25
 
@@ -59,6 +66,11 @@ def matching_ids(
         ).order_by(None)
     ).all()
     remaining = {row.id: row for row in rows}
+    if wanted:
+        consented = set(
+            db.execute(consent_subquery(ConsentPurpose.ANALYTICS.value, today)).scalars()
+        )
+        remaining = {pid: row for pid, row in remaining.items() if pid in consented}
     for concept in wanted:
         if not remaining:
             break
@@ -113,6 +125,8 @@ _TTL_SECONDS = 300
 # (schema_ref, stat key) -> {player id: (value, basis)}
 _stats: dict[tuple[str, str], dict[uuid.UUID, tuple[float, int]]] = {}
 _stats_built = 0.0
+# The consent table as it was when `_stats` was built. A change rebuilds it at once.
+_stats_consents: tuple = ()
 _lock = threading.Lock()
 
 
@@ -120,7 +134,11 @@ def _build_stats(db: Session) -> dict:
     modules = sports.registry()
     by_player: dict[tuple[uuid.UUID, str], list[dict]] = {}
     for pid, ref, metrics in db.execute(
-        select(PerformanceEntry.player_id, PerformanceEntry.schema_ref, PerformanceEntry.metrics)
+        select(
+            PerformanceEntry.player_id, PerformanceEntry.schema_ref, PerformanceEntry.metrics
+        ).where(
+            PerformanceEntry.player_id.in_(consent_subquery(ConsentPurpose.ANALYTICS.value))
+        )
     ):
         period = sports.period_for(ref, modules)
         if period is None or sports.validate(metrics, ref, modules):
@@ -135,11 +153,13 @@ def _build_stats(db: Session) -> dict:
 
 
 def _stat_table(db: Session) -> dict:
-    global _stats, _stats_built
+    global _stats, _stats_built, _stats_consents
+    consents = consent_signature(db, ConsentPurpose.ANALYTICS.value)
     with _lock:
-        if time.time() - _stats_built > _TTL_SECONDS:
+        if time.time() - _stats_built > _TTL_SECONDS or _stats_consents != consents:
             _stats = _build_stats(db)
             _stats_built = time.time()
+            _stats_consents = consents
         return _stats
 
 

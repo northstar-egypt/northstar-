@@ -266,6 +266,8 @@ export interface PlayerProfile {
   growth: GrowthSeries;
   maturity: MaturityEstimate | null;
   percentiles: Percentile[];
+  /** Why there are no percentiles when they are withheld on purpose (analytics consent). */
+  percentilesNote?: string | null;
   /** Null for sports without a rating. */
   rating?: Rating | null;
   performance: PerformanceSection[];

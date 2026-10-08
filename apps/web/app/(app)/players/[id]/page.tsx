@@ -219,6 +219,9 @@ export default function PlayerProfilePage() {
       {/* percentiles */}
       <Card>
         <SectionTitle>Against their age group</SectionTitle>
+        {data.percentilesNote ? (
+          <p className="text-sm text-slate-500">{data.percentilesNote}</p>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           {data.percentiles.map((pc) => (
             <div key={pc.metric} className="flex flex-col gap-1.5">

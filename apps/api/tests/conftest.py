@@ -33,6 +33,41 @@ DATABASE_URL = os.environ.get("DATABASE_URL", DEFAULT_URL)
 TODAY = date.today()
 
 
+def grant_analytics(db, player) -> None:
+    """Analytics consent for a player a test builds by hand, as signing up gives everyone.
+
+    Percentiles, search concepts and talent flags only use players who hold it, so a test
+    population without it is, correctly, invisible to them.
+    """
+    from app.models.consent import Consent
+    from app.models.enums import ConsentPurpose
+
+    db.add(
+        Consent(
+            id=uuid.uuid4(),
+            player_id=player.id,
+            purpose=ConsentPurpose.ANALYTICS.value,
+            granted=True,
+            granted_by="guardian",
+            guardian_name="Test Guardian",
+            valid_from=TODAY - timedelta(days=365),
+            valid_until=None,
+        )
+    )
+
+
+def withdraw_analytics(db, player) -> None:
+    """A guardian withdraws analytics consent. There is no endpoint for it yet."""
+    from app.models.consent import Consent
+    from app.models.enums import ConsentPurpose
+
+    for row in db.query(Consent).filter_by(
+        player_id=player.id, purpose=ConsentPurpose.ANALYTICS.value
+    ):
+        row.granted = False
+    db.flush()
+
+
 def _engine():
     return create_engine(DATABASE_URL, pool_pre_ping=True, future=True)
 

@@ -197,6 +197,8 @@ class PlayerProfileOut(CamelModel):
     growth: GrowthSeriesOut
     maturity: MaturityEstimateOut | None = None
     percentiles: list[PercentileOut] = []
+    # Set when percentiles are withheld on purpose (analytics consent), so the screen says why.
+    percentiles_note: str | None = None
     rating: RatingOut | None = None
     performance: list[PerformanceSectionOut] = []
     flags: list[FlagSummaryOut] = []

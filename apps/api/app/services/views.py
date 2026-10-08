@@ -30,7 +30,14 @@ from app.models.performance_entry import PerformanceEntry
 from app.models.player import Player
 from app.models.player_organization import PlayerOrganization
 from app.services import cohort, flags, forecast, rating
-from app.services.access import Caller, consent_complete, consent_state, may_view, permissions
+from app.services.access import (
+    Caller,
+    consent_complete,
+    consent_state,
+    has_consent,
+    may_view,
+    permissions,
+)
 
 # How many recent height readings the squad sparkline shows.
 TREND_POINTS = 6
@@ -175,7 +182,14 @@ def build_profile(db: Session, caller: Caller, player: Player) -> dict:
                 )
 
     percentiles: list[dict] = []
-    if age is not None:
+    percentiles_note = None
+    if not has_consent(db, player.id, ConsentPurpose.ANALYTICS.value, today):
+        # Ranking a player against their age group is analytics on their data.
+        percentiles_note = (
+            "Not compared with their age group: analytics consent is not in effect for this "
+            "player."
+        )
+    elif age is not None:
         for metric, series in (
             ("height_cm", heights),
             ("weight_kg", weights),
@@ -261,6 +275,8 @@ def build_profile(db: Session, caller: Caller, player: Player) -> dict:
         # placeholder number that looks like a result.
         "maturity": None,
         "percentiles": percentiles,
+        # Why there are no percentiles, when the reason is not just a thin cohort.
+        "percentiles_note": percentiles_note,
         # Table tennis only: share of points against an average opponent, with its range, or
         # null plus the reason when there is not enough to rate from. See services/rating.py.
         "rating": rating.player_rating(db, player),

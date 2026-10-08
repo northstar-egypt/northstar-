@@ -40,7 +40,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.consent import Consent
@@ -98,6 +98,30 @@ def consent_subquery(purpose: str, on_date: date | None = None):
         .where(Consent.valid_from <= on_date)
         .where(or_(Consent.valid_until.is_(None), Consent.valid_until >= on_date))
     )
+
+
+def has_consent(
+    db: Session, player_id: uuid.UUID, purpose: str, on_date: date | None = None
+) -> bool:
+    """Whether one player holds a granted, in-date consent for one purpose."""
+    row = db.execute(
+        consent_subquery(purpose, on_date).where(Consent.player_id == player_id).limit(1)
+    ).first()
+    return row is not None
+
+
+def consent_signature(db: Session, purpose: str, on_date: date | None = None) -> tuple:
+    """A cheap fingerprint of the consent table, for caches built from consented players only.
+
+    The row count and the latest edit catch most changes. The number of players holding
+    `purpose` also catches a withdrawal written in the same transaction as the grant, where
+    updated_at (the transaction's now()) does not move.
+    """
+    rows = tuple(db.execute(select(func.count(), func.max(Consent.updated_at))).one())
+    holders = db.execute(
+        select(func.count()).select_from(consent_subquery(purpose, on_date).subquery())
+    ).scalar_one()
+    return (*rows, holders)
 
 
 def consent_state(db: Session, player_id: uuid.UUID) -> dict[str, bool]:

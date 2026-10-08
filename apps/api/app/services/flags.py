@@ -25,18 +25,35 @@ import hashlib
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.audit_log import AuditLog
-from app.models.enums import FlagAction, FlagStatus, FlagType, PlayerStatus
+from app.models.enums import ConsentPurpose, FlagAction, FlagStatus, FlagType, PlayerStatus
 from app.models.flag import Flag, FlagEvent
 from app.models.measurement import Measurement
 from app.models.player import Player
+from app.services.access import consent_subquery
 
 # Flag types the integrity board reviews. `late_bloomer` and `breakout` are not integrity
 # concerns; they surface on the player profile and would only add noise to a review queue.
 INTEGRITY_TYPES = (FlagType.FRAUD.value, FlagType.DUPLICATE.value, FlagType.ANOMALY.value)
+
+# Flag types that are talent analytics about the player rather than checks on the record. They
+# are shown only while the player's analytics consent is in effect. Integrity flags (fraud,
+# duplicate, anomaly) and consent flags stay visible after a withdrawal: they protect the
+# platform and other children, and withdrawing analytics consent must not hide a falsified
+# record from review.
+TALENT_TYPES = (FlagType.LATE_BLOOMER.value, FlagType.BREAKOUT.value)
+
+
+def shown_flags():
+    """The condition every read of a player's live flags applies (see TALENT_TYPES)."""
+    return or_(
+        Flag.type.not_in(TALENT_TYPES),
+        Flag.player_id.in_(consent_subquery(ConsentPurpose.ANALYTICS.value)),
+    )
+
 
 # Human-readable labels for the chips on the profile and squad screens.
 FLAG_LABELS = {
@@ -89,6 +106,7 @@ def flags_for_player(db: Session, player_id: uuid.UUID) -> list[dict]:
         select(Flag)
         .where(Flag.player_id == player_id)
         .where(Flag.status.in_(LIVE_STATUSES))
+        .where(shown_flags())
         .order_by(Flag.raised_at.desc())
     ).scalars()
     return [_summary(flag) for flag in rows]
@@ -109,6 +127,7 @@ def flags_for_players(
         select(Flag)
         .where(Flag.player_id.in_(player_ids))
         .where(Flag.status.in_(LIVE_STATUSES))
+        .where(shown_flags())
         .order_by(Flag.player_id, Flag.raised_at.desc())
     ).scalars()
     for flag in rows:
@@ -126,6 +145,7 @@ def flag_reason(db: Session, player_id: uuid.UUID) -> str | None:
         select(Flag)
         .where(Flag.player_id == player_id)
         .where(Flag.status.in_(LIVE_STATUSES))
+        .where(shown_flags())
         # Nulls last: a rule-based detector with no calibrated confidence should not outrank a
         # model that actually has one.
         .order_by(Flag.confidence.desc().nullslast(), Flag.raised_at.desc())
