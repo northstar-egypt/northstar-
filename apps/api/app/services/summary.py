@@ -27,7 +27,8 @@ the model, which is why the evaluation reads every reply against its sheet by ha
 PR reports how many were still wrong.
 
 When there is no summary the endpoint says why (Ollama not running, model not pulled,
-reply withheld), and the profile renders without it. Results are cached per fact sheet, so a
+reply withheld, or analytics consent not in effect, in which case the model is never asked:
+writing about a player is analytics on their data), and the profile renders without it. Results are cached per fact sheet, so a
 profile is written once until its numbers change.
 """
 

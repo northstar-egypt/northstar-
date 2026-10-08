@@ -241,6 +241,19 @@ def test_a_checked_summary_is_returned(client, auth, world, model):
     assert "checked" in body["note"]
 
 
+def test_no_summary_is_written_without_analytics_consent(client, auth, world, db, model):
+    """Writing about a child is analytics on their data. After a withdrawal the model is not
+    asked at all, and the profile says why there is no summary."""
+    from tests.conftest import withdraw_analytics
+
+    player = world["players"]["minor_ok_a"]
+    withdraw_analytics(db, player)
+    body = client.get(f"/players/{player.id}/summary", headers=auth("coach_a")).json()
+    assert body["summary"] is None
+    assert "analytics consent" in body["note"].lower()
+    assert model.seen == []
+
+
 def test_a_summary_with_an_invented_number_is_withheld(client, auth, world, model):
     model.reply = "The player scored 999 goals."
     body = client.get(

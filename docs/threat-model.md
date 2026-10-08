@@ -141,6 +141,7 @@ the coach.
 | Percentile bars for a child whose analytics consent was withdrawn, or their readings in everyone else's cohort | No percentiles, and the profile says why; their readings leave the cohort reference, which rebuilds on the next request after a consent change | `test_a_withdrawn_player_gets_no_percentiles_and_is_told_why`, `test_a_withdrawn_players_readings_leave_everyone_elses_cohort` |
 | A talent flag (late bloomer, breakout) still shown after a withdrawal | Hidden on the profile, the squad table and in search. The row is kept, since consent can be given again | `test_talent_flags_are_hidden_and_integrity_flags_stay`, `test_a_hidden_talent_flag_is_kept_not_deleted` |
 | A withdrawal used to hide a falsified record from review | Fraud, duplicate and anomaly flags stay visible. They protect the platform and other children, and are not talent analytics | `test_talent_flags_are_hidden_and_integrity_flags_stay` |
+| The local language model writing a summary about the child | No summary is written and the model is not asked; the profile says why. A model writing about a child is analytics on their data, however carefully its sentences are checked | `test_no_summary_is_written_without_analytics_consent` |
 | A scout search ranking the child, or ranking others against them | No search concept matches them, and their records leave the statistics table the stat concepts rank against | `test_a_body_concept_stops_matching_a_withdrawn_player`, `test_a_late_bloomer_search_stops_matching_a_withdrawn_player`, `test_a_withdrawn_players_matches_leave_the_statistics_table` |
 
 A withdrawal is recorded with `POST /players/{id}/consent/withdraw` (the profile's "Record a
@@ -151,10 +152,7 @@ guardian (`test_consent_withdrawal.py`).
 
 Known gaps. Withdrawing `data_storage` is refused, because it means erasing the record, and
 erasure is not built. A withdrawn purpose cannot be granted again yet. The flags themselves are still computed by the offline job (`ml/write_flags.py`), which reads
-the generator's export and does not know about consent; hiding is a read rule in the API. The
-written AI summary is built from the already-filtered profile, so it never sees a hidden flag
-or a withheld percentile, but whether a summary should be written at all after a withdrawal
-is an open question.
+the generator's export and does not know about consent; hiding is a read rule in the API.
 
 ## To be written
 
