@@ -143,8 +143,14 @@ the coach.
 | A withdrawal used to hide a falsified record from review | Fraud, duplicate and anomaly flags stay visible. They protect the platform and other children, and are not talent analytics | `test_talent_flags_are_hidden_and_integrity_flags_stay` |
 | A scout search ranking the child, or ranking others against them | No search concept matches them, and their records leave the statistics table the stat concepts rank against | `test_a_body_concept_stops_matching_a_withdrawn_player`, `test_a_late_bloomer_search_stops_matching_a_withdrawn_player`, `test_a_withdrawn_players_matches_leave_the_statistics_table` |
 
-Known gaps. There is no endpoint to withdraw consent yet; the tests flip the row directly.
-The flags themselves are still computed by the offline job (`ml/write_flags.py`), which reads
+A withdrawal is recorded with `POST /players/{id}/consent/withdraw` (the profile's "Record a
+consent withdrawal"). Anyone who may edit the record may record it: the player's coach, an
+admin, or the player. Scouts and federation staff may not, since they do not hold the form.
+It is audited, keeps the earlier grant on record with its end date, and for a minor names the
+guardian (`test_consent_withdrawal.py`).
+
+Known gaps. Withdrawing `data_storage` is refused, because it means erasing the record, and
+erasure is not built. A withdrawn purpose cannot be granted again yet. The flags themselves are still computed by the offline job (`ml/write_flags.py`), which reads
 the generator's export and does not know about consent; hiding is a read rule in the API. The
 written AI summary is built from the already-filtered profile, so it never sees a hidden flag
 or a withheld percentile, but whether a summary should be written at all after a withdrawal

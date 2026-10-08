@@ -19,6 +19,8 @@ from app.models.player import Player
 from app.schemas.core import MeasurementOut, PlayerOut
 from app.schemas.views import PlayerProfileOut, ProfileSummaryOut, SquadRowOut
 from app.schemas.writes import (
+    ConsentWithdrawalIn,
+    ConsentWithdrawnOut,
     MeasurementBatchIn,
     MeasurementsSavedOut,
     PlayerCreatedOut,
@@ -27,6 +29,7 @@ from app.schemas.writes import (
 from app.services import summary, views, writes
 from app.services.access import (
     Caller,
+    consent_state,
     may_create_player,
     may_view,
     permissions,
@@ -236,4 +239,55 @@ def log_measurements(
     return MeasurementsSavedOut(
         measurements=[MeasurementOut.model_validate(row) for row in rows],
         acknowledged_warnings=warnings,
+    )
+
+
+@router.post("/players/{player_id}/consent/withdraw", response_model=ConsentWithdrawnOut)
+def withdraw_consent(
+    player_id: uuid.UUID,
+    payload: ConsentWithdrawalIn,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> ConsentWithdrawnOut:
+    """Record a guardian's (or an adult player's) withdrawal of part of the sign-up consent.
+
+    Anyone who may edit the record may record it: an admin, the player's coach, or the
+    player. Withdrawing only ever takes access away, so there is nothing to protect by making
+    it harder. Scouts and federation staff may not, since they do not hold the form. It takes
+    effect at once everywhere consent is checked: a withdrawn scouting consent hides a minor
+    from scouts, and a withdrawn analytics consent ends their rating, forecast, percentiles,
+    talent flags and search matches.
+
+    Same 404/403 split as logging measurements. Repeating a withdrawal is harmless: purposes
+    already not in effect come back under `alreadyWithdrawn`.
+    """
+    player = db.execute(
+        visible_players(caller).where(Player.id == player_id).limit(1)
+    ).scalar_one_or_none()
+    if player is None or not may_view(db, caller, player)[0]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such player.")
+
+    if not permissions(db, caller, player)["can_edit"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your role does not permit recording a consent withdrawal.",
+        )
+
+    try:
+        withdrawn, already, withdrawn_by = writes.withdraw_consent(
+            db,
+            player=player,
+            purposes=payload.purposes,
+            guardian_name=payload.guardian_name,
+            actor_user_id=caller.user_id,
+        )
+    except writes.WriteRejected as exc:
+        raise _refusal(exc) from exc
+    db.commit()
+
+    return ConsentWithdrawnOut(
+        withdrawn=withdrawn,
+        already_withdrawn=already,
+        withdrawn_by=withdrawn_by,
+        consents=consent_state(db, player.id),
     )

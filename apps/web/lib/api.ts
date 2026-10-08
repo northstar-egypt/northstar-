@@ -303,6 +303,25 @@ export async function logMeasurement(
   });
 }
 
+/**
+ * POST /players/{id}/consent/withdraw. Records a guardian's (or an adult player's) withdrawal
+ * of analytics or scouting visibility. It takes effect at once everywhere consent is checked.
+ */
+export async function withdrawConsent(
+  playerId: string,
+  input: { purposes: string[]; guardianName?: string },
+): Promise<{
+  withdrawn: string[];
+  alreadyWithdrawn: string[];
+  withdrawnBy: string;
+  consents: Record<string, boolean>;
+}> {
+  return request(`/players/${encodeURIComponent(playerId)}/consent/withdraw`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 /* ------------------------------------------------------------------ search */
 
 export interface SearchFilters {
