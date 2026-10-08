@@ -64,14 +64,13 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.consent import Consent
 from app.models.enums import ConsentPurpose, PlayerStatus
 from app.models.measurement import Measurement
 from app.models.player import Player
-from app.services.access import consent_subquery
+from app.services.access import consent_signature, consent_subquery, has_consent
 
 
 def _make_ml_importable() -> None:
@@ -134,7 +133,7 @@ _TTL_SECONDS = 300
 @dataclass
 class _Model:
     built_at: float = 0.0
-    # The consent table as it was when this model was built (see _consent_signature).
+    # The consent table as it was when this model was built (see access.consent_signature).
     consents: tuple = ()
     snapshot: Snapshot | None = None
     # XGBoost trained on `snapshot`, or None when the database is too small to train it.
@@ -157,19 +156,6 @@ _first_build_lock = threading.Lock()
 _refreshing = False
 # Bumped by reset_cache, so a build that started before a reset never installs its result.
 _generation = 0
-
-
-def _consent_signature(db: Session, today: date) -> tuple:
-    # The row count and latest edit catch most changes; the number of players with analytics
-    # consent in effect also catches a withdrawal written in the same transaction as the grant,
-    # where updated_at (the transaction's now()) does not move.
-    rows = tuple(db.execute(select(func.count(), func.max(Consent.updated_at))).one())
-    in_effect = db.execute(
-        select(func.count()).select_from(
-            consent_subquery(ConsentPurpose.ANALYTICS.value, today).subquery()
-        )
-    ).scalar_one()
-    return (*rows, in_effect)
 
 
 def _histories(db: Session, today: date) -> dict[str, PlayerHistory]:
@@ -214,7 +200,7 @@ def _group(stated_age: float) -> str:
 
 
 def _build(db: Session, today: date) -> _Model:
-    consents = _consent_signature(db, today)
+    consents = consent_signature(db, ConsentPurpose.ANALYTICS.value, today)
     histories = _histories(db, today)
     model = _Model(built_at=time.time(), consents=consents)
     model.snapshot = Snapshot(today, histories)
@@ -268,7 +254,7 @@ def _refresh_in_background(today: date, generation: int) -> None:
 
 def _get_model(db: Session, today: date) -> _Model:
     global _refreshing
-    consents = _consent_signature(db, today)
+    consents = consent_signature(db, ConsentPurpose.ANALYTICS.value, today)
     with _lock:
         current, generation = _model, _generation
         if current.snapshot is not None:
@@ -334,12 +320,7 @@ class Forecast:
 
 def forecast_height(db: Session, player: Player, *, today: date | None = None) -> Forecast:
     today = today or date.today()
-    consented = db.execute(
-        consent_subquery(ConsentPurpose.ANALYTICS.value, today).where(
-            Consent.player_id == player.id
-        )
-    ).first()
-    if consented is None:
+    if not has_consent(db, player.id, ConsentPurpose.ANALYTICS.value, today):
         return Forecast(
             [],
             None,
