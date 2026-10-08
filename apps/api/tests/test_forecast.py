@@ -27,8 +27,11 @@ def population(db, world):
     """Sixty children and twenty adults, measured every 60 days for three years.
 
     Children grow 6 cm a year with a little deterministic wobble, so the walk-forward run has
-    hundreds of past forecasts per horizon to learn a band from.
+    hundreds of past forecasts per horizon to learn a band from. Everyone holds analytics
+    consent, as everyone does after signing up; the consent tests withdraw it.
     """
+    from app.models.consent import Consent
+    from app.models.enums import ConsentPurpose
     from app.models.measurement import Measurement
     from app.models.player import Player
 
@@ -43,6 +46,18 @@ def population(db, world):
             is_minor=(TODAY - dob).days < 18 * 365.25,
         )
         db.add(player)
+        db.add(
+            Consent(
+                id=uuid.uuid4(),
+                player_id=player.id,
+                purpose=ConsentPurpose.ANALYTICS.value,
+                granted=True,
+                granted_by="guardian",
+                guardian_name="Test Guardian",
+                valid_from=TODAY - timedelta(days=4 * 365),
+                valid_until=None,
+            )
+        )
         when = TODAY - timedelta(days=3 * 365)
         index = 0
         while when <= TODAY - timedelta(days=20):
@@ -88,7 +103,7 @@ def test_the_profile_forecast_is_the_graded_model(db, population):
     result = forecast.forecast_height(db, child, today=TODAY)
     assert len(result.points) == 3
 
-    histories = forecast._histories(db)
+    histories = forecast._histories(db, TODAY)
     snapshot = Snapshot(TODAY, histories)
     for point in result.points:
         expected = xgboost_forecast(snapshot, histories[str(child.id)], point["date"])
@@ -189,6 +204,9 @@ def test_one_reading_is_not_enough(db, population):
     from app.models.player import Player
     from app.services import forecast
 
+    from app.models.consent import Consent
+    from app.models.enums import ConsentPurpose
+
     player = Player(
         id=uuid.uuid4(),
         full_name="One Reading",
@@ -199,6 +217,16 @@ def test_one_reading_is_not_enough(db, population):
         is_minor=True,
     )
     db.add(player)
+    db.add(
+        Consent(
+            id=uuid.uuid4(),
+            player_id=player.id,
+            purpose=ConsentPurpose.ANALYTICS.value,
+            granted=True,
+            granted_by="guardian",
+            valid_from=TODAY - timedelta(days=30),
+        )
+    )
     db.add(
         Measurement(
             player_id=player.id,
@@ -273,3 +301,58 @@ def test_the_band_is_learned_from_the_players_own_gender(db, population):
         assert point["upper"] == pytest.approx(round(point["value"] + quantile(errors, 0.9), 1), abs=0.11)
     assert all(key[1] in ("male", "female") for key in model.errors)
     assert "for boys" in result.note
+
+
+def _withdraw_analytics(db, player) -> None:
+    from app.models.consent import Consent
+    from app.models.enums import ConsentPurpose
+
+    for row in db.query(Consent).filter_by(
+        player_id=player.id, purpose=ConsentPurpose.ANALYTICS.value
+    ):
+        row.granted = False
+    db.flush()
+
+
+def test_withdrawn_analytics_consent_means_no_forecast(db, population):
+    """Forecasting a child's height is analytics on their data. Once the guardian withdraws
+    that consent, the profile draws nothing and says why, on the very next request."""
+    from app.services import forecast
+
+    child = population["kids"][7]
+    assert forecast.forecast_height(db, child, today=TODAY).points
+    _withdraw_analytics(db, child)
+    result = forecast.forecast_height(db, child, today=TODAY)
+    assert result.points == []
+    assert "analytics consent" in result.note
+
+
+def test_a_player_without_consent_does_not_train_the_model(db, population):
+    """Their readings are left out of the population everyone else's forecast learns from."""
+    from app.services import forecast
+
+    child = population["kids"][8]
+    assert str(child.id) in forecast._histories(db, TODAY)
+    _withdraw_analytics(db, child)
+    assert str(child.id) not in forecast._histories(db, TODAY)
+
+
+def test_a_consent_change_rebuilds_the_model_without_waiting(db, population, monkeypatch):
+    """The model is cached for minutes, but a withdrawal must not wait out the cache: a
+    changed consent table starts a rebuild on the next request, even on the same day."""
+    from app.services import forecast
+
+    forecast.forecast_height(db, population["kids"][0], today=TODAY)
+    calls = []
+
+    def fake_refresh(today, generation):
+        calls.append(today)
+        with forecast._lock:
+            forecast._refreshing = False
+
+    monkeypatch.setattr(forecast, "_refresh_in_background", fake_refresh)
+    forecast._get_model(db, TODAY)
+    assert calls == [], "nothing changed, so nothing is rebuilt"
+    _withdraw_analytics(db, population["kids"][9])
+    forecast._get_model(db, TODAY)
+    assert calls == [TODAY]
