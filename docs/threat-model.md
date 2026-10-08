@@ -129,6 +129,27 @@ national scale that is unlikely, but it has not been measured. Two players who b
 self-submit the same invented match confirm each other; the planned mirrored-row fraud check
 (decision 0004, open decision 3) is what would catch that.
 
+## Withdrawn analytics consent
+
+A guardian signs one form at sign-up and can withdraw any part of it later. Analytics consent
+covers anything that ranks, scores or flags a child as a talent, and using their data to rank
+anyone else. Withdrawing it has to reach every one of those, not just the screen in front of
+the coach.
+
+| Threat | What stops it | Tested by |
+| --- | --- | --- |
+| Percentile bars for a child whose analytics consent was withdrawn, or their readings in everyone else's cohort | No percentiles, and the profile says why; their readings leave the cohort reference, which rebuilds on the next request after a consent change | `test_a_withdrawn_player_gets_no_percentiles_and_is_told_why`, `test_a_withdrawn_players_readings_leave_everyone_elses_cohort` |
+| A talent flag (late bloomer, breakout) still shown after a withdrawal | Hidden on the profile, the squad table and in search. The row is kept, since consent can be given again | `test_talent_flags_are_hidden_and_integrity_flags_stay`, `test_a_hidden_talent_flag_is_kept_not_deleted` |
+| A withdrawal used to hide a falsified record from review | Fraud, duplicate and anomaly flags stay visible. They protect the platform and other children, and are not talent analytics | `test_talent_flags_are_hidden_and_integrity_flags_stay` |
+| A scout search ranking the child, or ranking others against them | No search concept matches them, and their records leave the statistics table the stat concepts rank against | `test_a_body_concept_stops_matching_a_withdrawn_player`, `test_a_late_bloomer_search_stops_matching_a_withdrawn_player`, `test_a_withdrawn_players_matches_leave_the_statistics_table` |
+
+Known gaps. There is no endpoint to withdraw consent yet; the tests flip the row directly.
+The flags themselves are still computed by the offline job (`ml/write_flags.py`), which reads
+the generator's export and does not know about consent; hiding is a read rule in the API. The
+written AI summary is built from the already-filtered profile, so it never sees a hidden flag
+or a withheld percentile, but whether a summary should be written at all after a withdrawal
+is an open question.
+
 ## To be written
 
 - Full data-flow diagram with trust boundaries.

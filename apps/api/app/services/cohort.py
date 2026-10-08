@@ -14,7 +14,14 @@ Cached per process
 ------------------
 The reference is rebuilt at most once every `_TTL_SECONDS`. Recomputing it per request would
 scan every measurement in the database on every profile view. A stale-by-minutes reference is
-fine: a cohort median does not move when one player is measured.
+fine: a cohort median does not move when one player is measured. A consent change is the
+exception: it rebuilds the reference on the next request.
+
+Analytics consent
+-----------------
+Only players whose analytics consent is in effect are in the reference. Comparing everyone
+else against a child's measurements is still analytics on that child's data, so a withdrawal
+takes their readings out of every cohort, and the profile gives them no percentiles (views.py).
 """
 
 from __future__ import annotations
@@ -28,8 +35,10 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.enums import ConsentPurpose
 from app.models.measurement import Measurement
 from app.models.player import Player
+from app.services.access import consent_signature, consent_subquery
 
 DAYS_PER_YEAR = 365.25
 
@@ -52,6 +61,8 @@ METRIC_DEFINITIONS: dict[str, tuple[str, str, bool]] = {
 @dataclass
 class CohortReference:
     built_at: float = 0.0
+    # The consent table as it was when this reference was built.
+    consents: tuple = ()
     # (metric, sex, whole years of age) -> sorted observations
     buckets: dict[tuple[str, str, int], list[float]] = field(default_factory=dict)
 
@@ -90,8 +101,8 @@ _reference = CohortReference()
 _lock = threading.Lock()
 
 
-def _build(db: Session) -> CohortReference:
-    reference = CohortReference(built_at=time.time())
+def _build(db: Session, consents: tuple) -> CohortReference:
+    reference = CohortReference(built_at=time.time(), consents=consents)
     rows = db.execute(
         select(
             Measurement.metric,
@@ -104,6 +115,7 @@ def _build(db: Session) -> CohortReference:
         .where(Measurement.metric.in_(tuple(METRIC_DEFINITIONS)))
         .where(Player.date_of_birth.is_not(None))
         .where(Player.sex.is_not(None))
+        .where(Player.id.in_(consent_subquery(ConsentPurpose.ANALYTICS.value)))
     ).all()
 
     for metric, sex, dob, measured_at, value in rows:
@@ -119,9 +131,14 @@ def _build(db: Session) -> CohortReference:
 
 def get_reference(db: Session, *, force: bool = False) -> CohortReference:
     global _reference
+    consents = consent_signature(db, ConsentPurpose.ANALYTICS.value)
     with _lock:
-        if force or (time.time() - _reference.built_at) > _TTL_SECONDS:
-            _reference = _build(db)
+        if (
+            force
+            or (time.time() - _reference.built_at) > _TTL_SECONDS
+            or _reference.consents != consents
+        ):
+            _reference = _build(db, consents)
         return _reference
 
 

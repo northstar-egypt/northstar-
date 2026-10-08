@@ -249,7 +249,7 @@ def squad(db, world):
     """
     from app.models.measurement import Measurement
     from app.models.player import Player
-    from tests.conftest import TODAY
+    from tests.conftest import TODAY, grant_analytics
 
     rows = []
     for i in range(12):
@@ -268,6 +268,7 @@ def squad(db, world):
         )
         db.add(player)
         db.flush()
+        grant_analytics(db, player)
         for metric, value in (("height_cm", 120 + i * 6), ("sprint_10m_s", 1.5 + i * 0.1)):
             db.add(
                 Measurement(

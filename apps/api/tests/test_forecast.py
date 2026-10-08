@@ -19,7 +19,7 @@ from decimal import Decimal
 
 import pytest
 
-from tests.conftest import TODAY
+from tests.conftest import TODAY, withdraw_analytics
 
 
 @pytest.fixture
@@ -303,17 +303,6 @@ def test_the_band_is_learned_from_the_players_own_gender(db, population):
     assert "for boys" in result.note
 
 
-def _withdraw_analytics(db, player) -> None:
-    from app.models.consent import Consent
-    from app.models.enums import ConsentPurpose
-
-    for row in db.query(Consent).filter_by(
-        player_id=player.id, purpose=ConsentPurpose.ANALYTICS.value
-    ):
-        row.granted = False
-    db.flush()
-
-
 def test_withdrawn_analytics_consent_means_no_forecast(db, population):
     """Forecasting a child's height is analytics on their data. Once the guardian withdraws
     that consent, the profile draws nothing and says why, on the very next request."""
@@ -321,7 +310,7 @@ def test_withdrawn_analytics_consent_means_no_forecast(db, population):
 
     child = population["kids"][7]
     assert forecast.forecast_height(db, child, today=TODAY).points
-    _withdraw_analytics(db, child)
+    withdraw_analytics(db, child)
     result = forecast.forecast_height(db, child, today=TODAY)
     assert result.points == []
     assert "analytics consent" in result.note
@@ -333,7 +322,7 @@ def test_a_player_without_consent_does_not_train_the_model(db, population):
 
     child = population["kids"][8]
     assert str(child.id) in forecast._histories(db, TODAY)
-    _withdraw_analytics(db, child)
+    withdraw_analytics(db, child)
     assert str(child.id) not in forecast._histories(db, TODAY)
 
 
@@ -353,6 +342,6 @@ def test_a_consent_change_rebuilds_the_model_without_waiting(db, population, mon
     monkeypatch.setattr(forecast, "_refresh_in_background", fake_refresh)
     forecast._get_model(db, TODAY)
     assert calls == [], "nothing changed, so nothing is rebuilt"
-    _withdraw_analytics(db, population["kids"][9])
+    withdraw_analytics(db, population["kids"][9])
     forecast._get_model(db, TODAY)
     assert calls == [TODAY]
