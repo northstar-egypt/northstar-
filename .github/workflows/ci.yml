@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  api:
+    name: api
+    runs-on: ubuntu-latest
+    env:
+      PYTHONIOENCODING: utf-8
+      DATABASE_URL: postgresql+psycopg://northstar:northstar@localhost:5432/northstar
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: northstar
+          POSTGRES_PASSWORD: northstar
+          POSTGRES_DB: northstar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U northstar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r apps/api/requirements.txt -r apps/api/requirements-dev.txt
+
+      - name: Apply migrations
+        working-directory: apps/api
+        run: alembic upgrade head
+
+      - name: Run tests
+        working-directory: apps/api
+        run: pytest -q -rs --junitxml=result.xml
+
+      # Anti-fake-green: a suite that skips every test with no database connects fine,
+      # prints green, and tests nothing. Fail loudly instead of trusting the exit code.
+      - name: Fail if the suite skipped instead of running
+        if: always()
+        working-directory: apps/api
+        run: |
+          if [ ! -f result.xml ]; then
+            echo "::error::result.xml was not produced; the test run did not complete."
+            exit 1
+          fi
+
+          total=$(grep -o 'tests="[0-9]*"' result.xml | head -1 | grep -o '[0-9]*')
+          skipped=$(grep -o 'skipped="[0-9]*"' result.xml | head -1 | grep -o '[0-9]*')
+          failed=$(grep -o 'failures="[0-9]*"' result.xml | head -1 | grep -o '[0-9]*')
+          errors=$(grep -o 'errors="[0-9]*"' result.xml | head -1 | grep -o '[0-9]*')
+
+          echo "total=$total skipped=$skipped failed=$failed errors=$errors"
+
+          if [ "${total:-0}" -eq 0 ]; then
+            echo "::error::Zero tests were collected. That is not a passing run."
+            exit 1
+          fi
+
+          if grep -qi 'No database at' result.xml; then
+            echo "::error::Tests skipped because no database was reachable. A green run that tested nothing is worse than a red one."
+            exit 1
+          fi
+
+          if [ "${skipped:-0}" -gt 0 ]; then
+            echo "::warning::$skipped test(s) skipped for a reason other than the database. Review result.xml."
+          fi
+
+          if [ "${failed:-0}" -gt 0 ] || [ "${errors:-0}" -gt 0 ]; then
+            echo "::error::$failed failure(s), $errors error(s) in the API suite."
+            exit 1
+          fi
+
+  generator:
+    name: generator
+    runs-on: ubuntu-latest
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r data/pipelines/requirements.txt
+
+      - name: Run tests
+        run: pytest -q data/pipelines/synthetic/tests
+
+  ml:
+    name: ml
+    runs-on: ubuntu-latest
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r data/pipelines/requirements.txt -r ml/requirements.txt
+
+      - name: Run tests
+        run: pytest -q ml/tests
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        working-directory: apps/web
+        run: npx tsc --noEmit
+
+      - name: Build
+        working-directory: apps/web
+        run: npm run build

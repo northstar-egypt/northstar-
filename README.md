@@ -189,6 +189,29 @@ NorthStar is built across four tracks. Pick the one that matches your role.
 5. Never commit secrets. `.env.example` is the template; your real `.env` is gitignored.
 6. Open a pull request into `main` and ask for a review from the relevant workstream.
 
+## Continuous integration
+
+Every pull request and every push to `main` runs four checks (`.github/workflows/ci.yml`):
+
+- **api**: migrates a fresh Postgres 16 service container (`alembic upgrade head`) and runs
+  `pytest` in `apps/api`. If the suite cannot reach a database it normally *skips* instead of
+  failing (see `apps/api/tests/conftest.py`); CI treats that as a failure too, since a green
+  check that ran zero tests is worse than a red one. It also fails on any real test failure
+  or error.
+- **generator**: runs `pytest data/pipelines/synthetic/tests`. No database needed.
+- **ml**: runs `pytest ml/tests`. No database needed.
+- **web**: `npm ci`, then `npx tsc --noEmit` and `npm run build` in `apps/web`.
+
+What CI does **not** cover yet:
+
+- **The Firefox end-to-end tests** (`tests/e2e`). They need the whole stack running; wiring
+  them into CI is a follow-up task.
+- **`npm run lint`**. It does not currently work (`eslint` is not installed and `next lint`
+  no longer exists in Next 16); see "Known traps" in `CLAUDE.md`. It is left out of CI rather
+  than forced to pass.
+
+No job needs or prints a secret. The FootyStats API key is never used in CI.
+
 ## Status
 
 Foundation stage. The repo has the monorepo layout, a working local stack, the data
