@@ -323,6 +323,79 @@ def test_a_reply_cut_off_at_the_token_limit_loses_its_unfinished_sentence(monkey
     assert summary.ask_ollama(SHEET, model="m", url="http://ollama") == "Height is 160.9 cm."
 
 
+def _two_requests_at_once(monkeypatch, answer):
+    """Two summarise() calls for one fact sheet, the second sent while the model is still
+    writing the first. `answer` stands in for ask_ollama. Returns the two results, or the
+    exceptions they raised, and how many times the model was asked."""
+    import threading
+
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "ollama_url", "http://ollama")
+    monkeypatch.setattr(summary, "facts", lambda profile: SHEET)
+    first_asked, second_asked, release = threading.Event(), threading.Event(), threading.Event()
+    calls = []
+
+    def slow_model(lines, *, model, url):
+        calls.append(lines)
+        (second_asked if first_asked.is_set() else first_asked).set()
+        release.wait(5)
+        return answer()
+
+    monkeypatch.setattr(summary, "ask_ollama", slow_model)
+    results = [None, None]
+
+    def request(i):
+        try:
+            results[i] = summary.summarise({})
+        except Exception as exc:  # noqa: BLE001 (the test inspects it)
+            results[i] = exc
+
+    threads = [threading.Thread(target=request, args=(i,)) for i in range(2)]
+    threads[0].start()
+    assert first_asked.wait(5)
+    threads[1].start()
+    # Without the fix the second request reaches the model at once. Give it the chance.
+    second_asked.wait(0.5)
+    release.set()
+    for t in threads:
+        t.join(5)
+    return results, len(calls)
+
+
+def test_a_second_request_for_a_sheet_being_written_waits_for_the_first(monkeypatch):
+    """Ollama answers one request at a time, so a second call queued behind the first and the
+    page waited for both (1m53s and 2m44s for one profile, measured on a laptop CPU)."""
+    (a, b), calls = _two_requests_at_once(monkeypatch, lambda: SHEET[1])
+    assert calls == 1
+    assert a.text == b.text == SHEET[1]
+    assert summary.summarise({}).text == SHEET[1], "the answer is cached for the next visit"
+
+
+def test_a_shared_failure_is_not_cached(monkeypatch):
+    def down():
+        raise summary.OllamaUnavailable("The local language model did not answer.")
+
+    (a, b), calls = _two_requests_at_once(monkeypatch, down)
+    assert calls == 1
+    assert a.text is None and b.text is None
+    assert a.note == b.note == "The local language model did not answer."
+    assert summary._pending == {}
+
+    monkeypatch.setattr(summary, "ask_ollama", lambda lines, **kw: SHEET[1])
+    assert summary.summarise({}).text == SHEET[1], "the next visit asks the model again"
+
+
+def test_an_unexpected_error_reaches_both_requests_and_is_not_left_pending(monkeypatch):
+    def broken():
+        raise ValueError("bad reply")
+
+    (a, b), calls = _two_requests_at_once(monkeypatch, broken)
+    assert calls == 1
+    assert isinstance(a, ValueError) and isinstance(b, ValueError)
+    assert summary._pending == {}
+
+
 def test_a_player_the_caller_may_not_see_is_404(client, auth, world, model):
     response = client.get(
         f"/players/{world['players']['minor_no_a'].id}/summary", headers=auth("scout")
