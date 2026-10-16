@@ -121,8 +121,15 @@ docker exec northstar-ollama ollama pull qwen2.5:7b
 ```
 
 Without it the profile works as before and says, in small print, that the model is not
-running. On a laptop CPU a summary takes about a minute the first time a profile is opened,
-then it is cached. The summary is checked before it is shown: every number in it must come
+running. On a laptop CPU a summary takes one to two minutes the first time a profile is
+opened, then it is cached.
+
+With an NVIDIA card that Docker can reach, add `-f docker/docker-compose.gpu.yml` to the
+command above to put as much of the model on the GPU as fits. On a 4 GB GTX 1650 Ti only 12 of
+its 29 layers fit, and a summary went from 93 to about 75 seconds: reading the prompt got about
+7 times faster, but writing stayed about as slow, held back by the half left on the CPU. A card
+with more memory should gain more; that is untested. The summary
+is checked before it is shown: every number in it must come is checked before it is shown: every number in it must come
 from a fact sheet built from what the page already displays, and a set of mistakes the model
 was caught making is refused, or the summary is withheld. See
 `apps/api/app/services/summary.py`.
