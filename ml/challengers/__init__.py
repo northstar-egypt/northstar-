@@ -13,6 +13,9 @@ Kept apart from the v1 code on purpose:
 - XGBoost won its evaluation, so the API imports `xgb_forecast` for the profile's height
   forecast (under 18). It never imports the isolation forest, which did not win, or
   scikit-learn.
+- `tempo_fit` is a third challenger, not from the thesis: a growth-timing fit for late
+  bloomers, standard library only. It lost to the v1 rule and stays as the measured
+  alternative.
 - Every hyperparameter was fixed before the first run and none was changed afterwards. Tuning
   a challenger on the seeds it is reported on would be the same mistake the README warns about
   for the detectors' thresholds.

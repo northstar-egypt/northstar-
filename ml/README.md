@@ -350,6 +350,35 @@ false accusations over these 20 seeds and caught 92 cases (F1 0.559); the forest
 older boy under a younger birth date looks like, and until 2026-10-16 the synthetic data had no
 early maturers. Real academies do. See Known limits.
 
+### Late bloomers by growth timing: the rule stays
+
+```bash
+python -m ml.challengers.tempo_fit --seed-sweep 101 202 303            # calibration
+python -m ml.challengers.tempo_fit --seed-sweep 20260827 7 99 404 555   # reported
+```
+
+Of the 18 late bloomers v1 missed on the calibration seeds, 17 were missed because they were
+**not short**: a late-maturing boy with tall parents looks ordinary at 13. What sets him apart
+is timing, so `challengers/tempo_fit.py` estimates it the way growth research does (SITAR: size,
+tempo, velocity). Each child's readings are fitted to the dataset's own median growth curve,
+shifted in time by `tau` and scaled in size by `A`, with weak priors on both because over a
+short series a small child on time and a big child running late draw the same points. A fitted
+`tau` of 0.8 years or more is a flag. Standard library only. Tuned on seeds 101, 202 and 303
+only; the module docstring records every step, including the two versions that did worse.
+
+| reported seeds, settings frozen | mean F1 | caught | false alarms | missed |
+| --- | --- | --- | --- | --- |
+| **v1 rule** | **0.567** | 36 | **21** | 34 |
+| timing fit | 0.477 | **44** | 69 | **26** |
+| v1 or a timing flag of 1.8+ years | 0.554 | 39 | 31 | 31 |
+
+The timing fit finds more late bloomers and accuses three times as many other children, so
+**v1 stays**. The likeliest reason is the reference curve: it is cross-sectional, a median of
+children caught at different points in their spurts, and so flatter than any one child's.
+Fitted against it, the planted late bloomers (delayed 1.3 to 2.6 years) came out at a median of
+0.85. Real SITAR fits the curve and the shifts together, and has more years per child than the
+14 to 40 months the synthetic data follows. Both are where to start if this is picked up again.
+
 ### What this says
 
 Neither method was a wasted experiment, and neither is a free win. The more complex forecaster

@@ -33,6 +33,12 @@ as a third gate and removed again. It changed nothing: every player the height a
 velocity rules already agreed on, it also agreed on. Recording that here so the
 next person does not spend an afternoon rediscovering it.
 
+A growth-timing fit (SITAR-style, `ml/challengers/tempo_fit.py`) was also tried as
+a replacement, aimed at the late bloomers this rule misses because they are not
+short. It lost: mean F1 0.477 against this rule's 0.567 on the reported seeds, with
+three times the false alarms. The numbers and the likely reason are in ml/README.md
+under Challenger models.
+
 Thresholds were chosen on datasets generated from seeds 101, 202 and 303, and are
 reported on the committed default seed. See `ml/README.md` for why that split
 matters.
