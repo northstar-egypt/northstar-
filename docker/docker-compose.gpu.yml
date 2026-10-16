@@ -1,0 +1,19 @@
+# Optional: run the profile summary's model (Ollama) on an NVIDIA GPU.
+#
+# Only for machines with an NVIDIA card and Docker able to reach it (Docker Desktop on WSL2
+# with a current NVIDIA Windows driver, or the NVIDIA Container Toolkit on Linux). Everyone
+# else leaves this file out and Ollama runs on the CPU as before.
+#
+#   docker compose -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml --profile llm up -d ollama
+#
+# Check it took: `docker exec northstar-ollama ollama ps` shows the GPU share in PROCESSOR.
+# A model larger than the card's memory runs partly on the GPU and partly on the CPU.
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
