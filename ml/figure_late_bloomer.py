@@ -292,7 +292,10 @@ def main(argv: list[str] | None = None) -> int:
     sample = f"{len(REPORTED_SEEDS)} datasets of {players or 212} players"
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(render(example, rates, seed=DEFAULT_SEED, sample=sample), encoding="utf-8")
+    # LF on every platform, so regenerating on Windows does not rewrite every line.
+    args.out.write_text(
+        render(example, rates, seed=DEFAULT_SEED, sample=sample), encoding="utf-8", newline="\n"
+    )
     d = example.decision
     print(
         f"{args.out}: player {d.player_id[:8]}, cut at {d.stated_age:.1f} on {d.cutoff}, "
