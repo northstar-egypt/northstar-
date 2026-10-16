@@ -124,6 +124,20 @@ def test_a_comparison_in_words_is_caught():
     assert summary.unsupported("His weight is above average.", SHEET) == [
         "comparison: above average"
     ]
+    # Seen on the live stack on 2026-10-16, about a sheet that said "higher than 19% of 139
+    # boys aged 10": a true number in words that claim something else.
+    sheet = [
+        "Height: 129.6 cm, higher than 19% of 139 boys aged 10 in the database.",
+        "10 m sprint: 1.89 s, faster than 32% of 139 boys aged 10 in the database.",
+    ]
+    assert summary.unsupported(
+        "The player's height is above the 19th percentile for 139 boys aged 10.", sheet
+    ) == ["comparison: the 19th", "comparison: percentile"]
+    assert summary.unsupported("His sprint time of 1.89 s is in the 32nd percentile.", sheet) == [
+        "comparison: the 32nd",
+        "comparison: percentile",
+    ]
+    assert summary.unsupported("Height 129.6 cm, higher than 19% of 139 boys aged 10.", sheet) == []
     # The same comparison made with the sheet's own number passes, and so does "an average
     # of" as in a rate, which is not a comparison with other players.
     assert summary.unsupported("Taller than 12% of 46 boys aged 17.", SHEET) == []
