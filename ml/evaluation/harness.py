@@ -159,7 +159,7 @@ def evaluate(data_dir: str | Path) -> Report:
     section = ScoreSet("Fraud")
     predicted = fraud.detect(features)
     report.headline["fraud"] = section.add(
-        score_ids("fraud v1 (both rules)", predicted, truth, population)
+        score_ids("fraud v2 (both rules)", predicted, truth, population)
     )
 
     age_truth = {

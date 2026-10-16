@@ -1,4 +1,4 @@
-"""Fraud detector, v1.
+"""Fraud detector, v2 (v1 plus performance evidence for age misrepresentation).
 
 The answer key plants two kinds of fraud under one label, and they are nothing
 alike:
@@ -7,7 +7,9 @@ alike:
       A recorded date of birth younger than the real one. The body and the season
       were generated from the true age, so the player is too big, too fast and too
       dominant for the age on the record. Hard, statistical, and the one that
-      matters: this is the fraud that actually happens in youth football.
+      matters: this is the fraud that actually happens in youth football. v1 read
+      the body only; v2 also reads output for the stated age, because an early
+      maturer's body looks the same (see FraudParams).
 
   implausible_self_reported_performance    5 of the 14 cases
       Self-submitted match rows whose numbers do not survive arithmetic. More
@@ -71,6 +73,26 @@ class FraudParams:
 
     min_measurements: int = 3
 
+    # Performance, from `features.output_z`: shots and chances created per minute in football,
+    # service winners and unforced errors per set in table tennis, against the role and then
+    # against the stated-age cohort. Since every synthetic child got a maturity timing, growth
+    # alone flags early maturers, who are big and finished growing for their age exactly as an
+    # older boy under a younger birth date is. So an accusation now needs two lines of evidence:
+    #
+    #   growth-led       the growth rule above, plus output at least a little above the
+    #                    stated-age cohort. An early maturer who plays like his age group is
+    #                    no longer accused.
+    #   performance-led  output well above the stated-age cohort, plus a body clearly big for
+    #                    the stated age. This reaches the 11 to 13 band, where a boy two years
+    #                    older has not yet started the spurt that would give him away.
+    #
+    # A player with no output to read (too few minutes or sets) is judged on growth alone, as
+    # before. Tuned on seeds 101, 202 and 303 only; see ml/README.md for the grid and for the
+    # what-if in which early maturers also outplay their age group.
+    min_output_z_with_growth: float = 0.5
+    min_output_z: float = 1.25
+    min_height_z_with_output: float = 1.0
+
 
 def impossible_rows(pf: PlayerFeatures) -> list[tuple[str, str]]:
     """Every performance row of this player's that its sport module says cannot be true.
@@ -110,7 +132,7 @@ def detect_impossible_metrics(features: FeatureSet) -> dict[str, str]:
 def detect_age_misrepresentation(
     features: FeatureSet, params: FraudParams | None = None
 ) -> dict[str, str]:
-    """Players whose body is further through maturity than the record allows."""
+    """Players whose body and output are further along than the record allows."""
     params = params or FraudParams()
     flagged: dict[str, str] = {}
 
@@ -120,27 +142,60 @@ def detect_age_misrepresentation(
         if not (params.min_age <= pf.stated_age <= params.max_age):
             continue
 
-        if pf.maturity_mismatch is not None:
-            if pf.maturity_mismatch < params.min_maturity_mismatch:
-                continue
+        reason = _growth_reason(pf, params)
+        output_z = pf.output_z
+        if output_z is None:
+            # Nothing to read about output, so growth decides alone, as the rule did before
+            # performance was added. The sentence says so.
+            if reason:
+                flagged[pf.player_id] = (
+                    f"{reason} There is not enough playing time on record to check this "
+                    f"against performance."
+                )
+            continue
+
+        output = (
+            f"outproduces players recorded as {pf.stated_age:.0f} by {output_z:+.1f} "
+            f"standard deviations for the time played"
+        )
+        if reason and output_z >= params.min_output_z_with_growth:
+            flagged[pf.player_id] = f"{reason} The player also {output}."
+        elif (
+            output_z >= params.min_output_z
+            and pf.height_z_mean >= params.min_height_z_with_output
+        ):
             flagged[pf.player_id] = (
-                f"Stands {pf.height_z_mean:+.1f} standard deviations from the median "
-                f"height for the recorded age of {pf.stated_age:.0f}, while growing "
-                f"{pf.velocity_z:+.1f} standard deviations slower than that age group. "
-                f"Big for the age on the record and no longer growing, which is the "
-                f"pattern of a player who is older than the record says."
-            )
-        elif pf.height_z_mean >= params.min_height_z_fallback:
-            # No usable velocity estimate, so this rests on height alone and is
-            # correspondingly weaker. The sentence says so.
-            flagged[pf.player_id] = (
-                f"Stands {pf.height_z_mean:+.1f} standard deviations above the median "
-                f"height for the recorded age of {pf.stated_age:.0f}. There is not "
-                f"enough measurement history to check the growth rate, so this rests "
-                f"on size alone."
+                f"Dominates the age group on the record: {output}, and stands "
+                f"{pf.height_z_mean:+.1f} standard deviations above the median height for "
+                f"that age. Output and size together are the pattern of a player who is "
+                f"older than the record says."
             )
 
     return flagged
+
+
+def _growth_reason(pf: PlayerFeatures, params: FraudParams) -> str | None:
+    """The v1 growth rule, as a sentence when it fires and None when it does not."""
+    if pf.maturity_mismatch is not None:
+        if pf.maturity_mismatch < params.min_maturity_mismatch:
+            return None
+        return (
+            f"Stands {pf.height_z_mean:+.1f} standard deviations from the median "
+            f"height for the recorded age of {pf.stated_age:.0f}, while growing "
+            f"{pf.velocity_z:+.1f} standard deviations slower than that age group. "
+            f"Big for the age on the record and no longer growing, which is the "
+            f"pattern of a player who is older than the record says."
+        )
+    if pf.height_z_mean >= params.min_height_z_fallback:
+        # No usable velocity estimate, so this rests on height alone and is
+        # correspondingly weaker. The sentence says so.
+        return (
+            f"Stands {pf.height_z_mean:+.1f} standard deviations above the median "
+            f"height for the recorded age of {pf.stated_age:.0f}. There is not "
+            f"enough measurement history to check the growth rate, so this rests "
+            f"on size alone."
+        )
+    return None
 
 
 def detect(features: FeatureSet, params: FraudParams | None = None) -> dict[str, str]:

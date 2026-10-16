@@ -9,6 +9,9 @@
     # generate and score several datasets, to see how much the headline moves
     python -m ml.run_eval --seed-sweep 20260827 101 202 303
 
+    # the same, in the what-if where early maturers also outplay their age group
+    python -m ml.run_eval --seed-sweep 20260827 7 99 404 555 --performance-follows-maturity
+
 Run from the repository root.
 
 The default dataset is `data/pipelines/synthetic/out`, which is gitignored, so the
@@ -61,6 +64,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate a dataset per seed into a temporary directory and score each. "
         "Reports the spread of the headline F1.",
     )
+    parser.add_argument(
+        "--performance-follows-maturity",
+        action="store_true",
+        help="With --seed-sweep: a what-if in which honest early maturers also outplay "
+        "their age group, as an age cheat does. Off in every reported number.",
+    )
     return parser
 
 
@@ -80,6 +89,10 @@ def _generate(seed: int, out_dir: Path) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.performance_follows_maturity:
+        from data.pipelines.synthetic import players
+
+        players.PERFORMANCE_FOLLOWS_MATURITY = True
 
     if args.seed_sweep:
         reports = []

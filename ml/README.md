@@ -74,6 +74,10 @@ they are. Where a finding changed the text says so, with the old number, includi
 it got worse. The table tennis rating section is the exception: its results did not move by a
 single digit, because nothing in it reads height.
 
+The same day the age-fraud rule gained performance evidence ("Age misrepresentation, v2"
+below). That moved only the fraud numbers; late-bloomer, duplicate, forecast and backtest
+results are identical to the digit. Fraud numbers below are v2, with v1's alongside.
+
 ### Growth timing (2026-10-16)
 
 Real children reach their growth spurt at different ages; the age at peak height velocity
@@ -111,7 +115,8 @@ Five datasets, 212 players each. Headline F1 per detector:
 | detector | 20260827 | 7 | 99 | 404 | 555 | mean | range |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | late_bloomer | 0.522 | 0.615 | 0.533 | 0.750 | 0.417 | **0.567** | 0.417 to 0.750 |
-| fraud | 0.581 | 0.606 | 0.667 | 0.692 | 0.667 | **0.642** | 0.581 to 0.692 |
+| fraud | 0.640 | 0.688 | 0.846 | 0.720 | 0.609 | **0.701** | 0.609 to 0.846 |
+| fraud, v1 (growth only) | 0.581 | 0.606 | 0.667 | 0.692 | 0.667 | 0.642 | 0.581 to 0.692 |
 | duplicate | 1.000 | 0.957 | 1.000 | 0.909 | 1.000 | **0.973** | 0.909 to 1.000 |
 
 Against the trivial baselines on the committed default seed, where flagging every player
@@ -125,11 +130,14 @@ a number that does not survive contact with new data. Late-bloomer F1 averaged 0
 calibration seeds and 0.567 on the reported ones (0.639 and 0.649 before growth timing). The
 thresholds were **not retuned** after the timing change: they are the ones chosen on the old
 calibration data, and retuning them is separate work, done on seeds 101, 202 and 303 only.
+The age-fraud rule's three performance thresholds were tuned on those three seeds after the
+timing change; there fraud F1 is 0.811 (0.682 for v1) against 0.741 over the 20 reported seeds.
 
 **Over more seeds the late-bloomer figure is lower.** The relative age audit below needed 20
 datasets for its statistics, which also gave a wider look at F1. Over the five above plus
-seeds 1000 to 1014 (none used for tuning), mean F1 is **0.479** for late bloomers, **0.638**
-for fraud and **0.961** for duplicates (0.555, 0.726 and 0.961 before growth timing). The five
+seeds 1000 to 1014 (none used for tuning), mean F1 is **0.479** for late bloomers, **0.741**
+for fraud and **0.961** for duplicates (0.555, 0.726 and 0.961 before growth timing; fraud was
+0.638 with growth timing and before performance evidence). The five
 reported seeds are kind to the late-bloomer detector (0.567 against 0.479). Quote the 20-seed
 figures when a single number is needed; the five-seed table stays because the forecasts and
 backtest are reported on the same seeds.
@@ -152,7 +160,7 @@ detection at national scale will be harder than this.
 | fraud subtype | cases | F1 (default seed) |
 | --- | --- | --- |
 | implausible self-reported performance | 5 | 1.000 |
-| age misrepresentation | 9 | 0.381 |
+| age misrepresentation | 9 | 0.400 (was 0.381 before performance evidence) |
 
 The perfect score on the first is arithmetic, not machine learning: those rows record more
 goals than shots, more passes completed than attempted, and distances no human has run, or
@@ -161,10 +169,12 @@ validation rather than in a model, and it now is: the rule is the sport modules'
 (`packages/shared/sports`), the same one ingest runs, so a new sport's rules reach the
 detector without a change to it. The fact that it scores perfectly is a statement about the
 generator. Age misrepresentation is the subtype that
-matters, it carries 9 of the 14 cases, and at 0.381 it is doing well under half the work the
-headline 0.581 on this seed suggests (it was 0.526 before growth timing and 0.632 before the
-boys-only change; see Known limits for why). Anyone quoting the fraud number should quote this
-one alongside it.
+matters, it carries 9 of the 14 cases, and at 0.400 it is doing well under the work the
+headline 0.640 on this seed suggests. On this seed the performance evidence (2026-10-16) cut
+false accusations from 8 to 3 but also lost one catch (4 to 3), so its F1 barely moved (0.381
+to 0.400); over 20 seeds it moved from 0.443 to 0.582, see "Age misrepresentation, v2". It was
+0.526 before growth timing and 0.632 before the boys-only change; see Known limits for why.
+Anyone quoting the fraud number should quote this one alongside it.
 
 ## Height forecasts, v1
 
@@ -324,7 +334,88 @@ rebuilds it in the background every five minutes, so a profile does not wait for
 player's own readings are read fresh on every request, so a height a coach has just logged
 moves that player's forecast at once.
 
-### Age misrepresentation: isolation forest ties, and the rule stays
+### Age misrepresentation, v2: performance evidence (2026-10-16)
+
+Growth timing gave the synthetic data early maturers, and growth data alone cannot tell one
+from an older boy under a younger birth date: both are big for the stated age and finished
+growing. The generator already made age cheats play above the age group on their record
+(`performance_outlier_for_stated_age`), and v1 ignored it. v2 reads it.
+
+**The feature** (`features.output_z`). How much a player produces for the time played, from
+the counts that measure volume rather than skill or results: shots and key passes per minute
+in football, service winners and unforced errors (counting against) per set in table tennis
+(`features.OUTPUT_RATES`). Each count is divided by the median for the same sport and position,
+because a striker shoots more than a centre back for reasons that have nothing to do with age;
+then the result is a z score against the stated-age cohort, the same pooled (sport, gender,
+age) construction as height. Rows that fail their sport module are skipped, and a player with
+under 450 minutes or 20 sets has no output score. It never reads true age or the answer key.
+
+**The rule** (`fraud.detect_age_misrepresentation`). An accusation needs two lines of evidence:
+
+- growth-led: the v1 growth rule (unchanged, mismatch at least 1.8) **and** output at least
+  0.5 above the stated-age cohort. An early maturer who plays like his age group is no longer
+  accused.
+- performance-led: output at least 1.25 above the cohort **and** height at least 1.0 above
+  it. This reaches boys claiming 11 to 13 whose spurt has not started yet.
+
+A player with no output score is judged on growth alone, as before, and the sentence says so.
+
+**How it was tuned.** On seeds 101, 202 and 303 only, with v1's growth threshold kept, over
+a grid of the three new thresholds. The setting chosen is not the best calibration F1: 0.5,
+1.25 and 0.5 scored 0.723 there against 0.682, but in the what-if below it made more false
+accusations than v1. The chosen one made fewer false accusations than v1 and more catches in
+both worlds, and its neighbours in the grid score the same, so it is not a lucky spike.
+Calibration seeds, 27 cases: v1 caught 12 with 10 false accusations (F1 0.490), v2 caught 15
+with 2 (0.682).
+
+**Results, counts pooled over the 20 reported seeds (180 planted cases):**
+
+| | caught | false accusations | precision | recall | F1 |
+| --- | --- | --- | --- | --- | --- |
+| v1, growth only | 83 | 112 | 0.426 | 0.461 | 0.443 |
+| **v2, growth and performance** | **94** | **49** | **0.657** | **0.522** | **0.582** |
+| v2 in the what-if below | 95 | 82 | 0.537 | 0.528 | 0.532 |
+
+False accusations fall from 112 to 49 and catches rise from 83 to 94. Fraud F1 rose on 18 of
+the 20 seeds and fell on two: 555 (0.667 to 0.609) and 1010 (0.667 to 0.621).
+
+**By stated age, 20 seeds** (false accusations here also count the few metric-fraud players
+the age rule flags, which the table above sets aside, so they sum to 114 and 50):
+
+| stated age | 11 to 13 | 13 to 15 | 15 to 17 | 17+ |
+| --- | --- | --- | --- | --- |
+| v1 caught | 10/61 | 50/71 | 16/28 | 7/20 |
+| **v2 caught** | **36/61** | 46/71 | **9/28** | **3/20** |
+| v1 false accusations | 15 | 22 | 69 | 8 |
+| v2 false accusations | 10 | 10 | 26 | 4 |
+
+The gain is in the youngest band, which growth could not reach. **The older bands got worse**:
+15 to 17 went from 16 catches to 9 and 17+ from 7 to 3. In the generator an age cheat's
+performance edge is the ratio of his maturity at his true age to the maturity at his recorded
+age, and that ratio shrinks toward 1 as both ages near adult size, so an older cheat no longer
+outplays his recorded age group and the growth flag goes uncorroborated. Whether that holds in
+real football is unknown: an extra two years of training may show in performance long after
+the body has stopped growing, and the generator does not model it.
+
+**The what-if: performance follows maturity for everyone.** The generator moves only growth
+with maturity timing; an honest early maturer is big but plays like his age group. Real
+academies are not that kind, since an early maturer's size wins games too. So part of v2's
+gain could be the generator's doing. To bound it, `players.PERFORMANCE_FOLLOWS_MATURITY`
+makes every child's performance follow his own maturity (off in every number above, on with
+`--performance-follows-maturity`). Same seeds and same planted cases. v2 then catches 95 with
+82 false accusations: still fewer than v1's 112 (v1 reads no performance, so it does not
+change), but about half of the drop disappears. By stated age, false accusations in the two
+youngest bands are **higher than v1's** (19 against 15, and 25 against 22), and lower above 15
+(35 against 69, 6 against 8). Read the true effect as somewhere between the two worlds: real
+performance mixes body and years of play, and the generator can only show the two extremes.
+
+```bash
+python -m ml.run_eval --seed-sweep 101 202 303                                       # calibration
+python -m ml.run_eval --seed-sweep 20260827 7 99 404 555 $(seq 1000 1014)           # reported
+python -m ml.run_eval --seed-sweep 20260827 7 99 404 555 $(seq 1000 1014) --performance-follows-maturity
+```
+
+### Age misrepresentation: isolation forest ties v1, and v2 beats both
 
 The forest is fitted on growth features of the same eligible players as the rule, with no
 labels and no prevalence given to it (`contamination="auto"`), and it flags only anomalies in
@@ -336,19 +427,23 @@ Counts pooled over 20 seeds, same 180 planted cases for both:
 
 | | caught | false accusations | precision | recall | F1 |
 | --- | --- | --- | --- | --- | --- |
-| rule (v1) | 83 | **112** | **0.426** | 0.461 | 0.443 |
+| rule (v1, growth only) | 83 | 112 | 0.426 | 0.461 | 0.443 |
 | isolation forest | **95** | 151 | 0.386 | **0.528** | 0.446 |
+| rule (v2, growth and performance) | 94 | **49** | **0.657** | 0.522 | **0.582** |
 
-The F1 scores are a tie. The forest catches 12 more cases at the cost of 39 more false
-accusations. For a flag that accuses a child of lying about their age, a false accusation costs
-more than a miss, so **the rule stays**. The forest shows no relative age bias either (false
+Against v1 the F1 scores are a tie. The forest catches 12 more cases at the cost of 39 more
+false accusations. For a flag that accuses a child of lying about their age, a false accusation
+costs more than a miss, so the rule stayed. v2 now catches one case fewer than the forest with
+a third of its false accusations. The comparison is not quite even: the forest sees growth
+features only. Giving it the output score too is the fair next round. The forest shows no relative age bias either (false
 positive rate 3.3% to 4.7% across quarters, p = 0.38).
 
 **Both got much worse with growth timing, and the reason matters.** Before it the rule made 57
 false accusations over these 20 seeds and caught 92 cases (F1 0.559); the forest 102 and 112
 (0.569). An early-maturing boy is big for his age and has finished his spurt, which is what an
 older boy under a younger birth date looks like, and until 2026-10-16 the synthetic data had no
-early maturers. Real academies do. See Known limits.
+early maturers. Real academies do. Performance evidence (v2, above) is the answer that worked,
+with the caveats in that section.
 
 ### What this says
 
@@ -502,15 +597,20 @@ still caught.
 | --- | --- | --- | --- | --- | --- |
 | late_bloomer v1 | 2.3% | 2.8% | 2.5% | 2.6% | 0.45, p = 0.93 |
 | baseline: shortest for age | 5.2% | 6.3% | 4.9% | 5.8% | 2.09, p = 0.55 |
-| fraud: age misrepresentation | 3.9% | 2.6% | 2.3% | 2.5% | 5.84, p = 0.12 |
+| fraud: age misrepresentation (v2, with performance) | 1.5% | 0.7% | 1.5% | 1.4% | 3.83, p = 0.28 |
+| fraud: age misrepresentation (v1, growth only) | 3.9% | 2.6% | 2.3% | 2.5% | 5.84, p = 0.12 |
 | duplicate v1 | 0.0% | 0.0% | 0.0% | 0.0% | 0.00, p = 1.0 |
 | **control: birth-year cohort** | **1.4%** | **2.0%** | **3.5%** | **4.1%** | **17.92, p < 0.001** |
 
 No detector shows a detectable difference by quarter, and the biased control does. The
-age-fraud rule is now the closest call (p = 0.12), and its pattern is the one to watch: the
-oldest quarter is accused most (3.9% against about 2.5%). Not significant, but it is the
-direction a relative age effect would push, and real academies over-select both early-born
-and early-maturing boys, which could turn it into one. Before growth timing the closest call was the late-bloomer
+growth-only age-fraud rule (v1) was the closest call (p = 0.12), with the pattern to watch: the
+oldest quarter accused most (3.9% against about 2.5%), the direction a relative age effect
+would push. With performance evidence (v2, 2026-10-16) the rule accuses fewer than half as
+many children in every quarter, the oldest quarter is no longer singled out (1.5%, level with
+Q3 and Q4; Q2 is lowest at 0.7%), and p = 0.28. In the what-if where early maturers also
+outplay their age group (see "Age misrepresentation, v2") it is 2.2%, 1.5%, 2.2%, 2.4%,
+p = 0.52. Real academies over-select both early-born and early-maturing boys, so this is still
+the detector to re-audit first on real data. Before growth timing the closest call was the late-bloomer
 detector (p = 0.12, with no relative age pattern); it is now flat (p = 0.93). What keeps the
 detectors clean is a design choice made for other reasons: the height reference is bucketed by
 exact age at each measurement (`features.height_z`), not by birth year, so a December child is
@@ -676,12 +776,19 @@ requires anyway.
 
 ## Known limits
 
-- **Age fraud is missed below a stated age of 13.** Recall by stated age, over the 45 planted
-  age-fraud cases in the five reported seeds:
+- **Age fraud: the youngest band is now reached, the oldest are missed.** Recall by stated
+  age, over the 45 planted age-fraud cases in the five reported seeds (20-seed counts are in
+  "Age misrepresentation, v2"):
 
   | stated age | 11 to 13 | 13 to 15 | 15 to 17 | 17+ |
   | --- | --- | --- | --- | --- |
-  | recall | **0.14 (2/14)** | **0.67 (14/21)** | 0.50 (2/4) | 0.50 (3/6) |
+  | v2 recall | **0.64 (9/14)** | 0.52 (11/21) | **0.00 (0/4)** | 0.17 (1/6) |
+  | v1 recall | 0.14 (2/14) | 0.67 (14/21) | 0.50 (2/4) | 0.50 (3/6) |
+
+  v2 reads performance, which reaches the 11 to 13 band; v1's paragraph below explains why
+  growth alone could not. Above 15 v2 catches less than v1, because in the generator an older
+  cheat's performance edge fades and the growth flag now needs corroborating. Over 20 seeds
+  that is 9 of 28 and 3 of 20, against v1's 16 and 7. v1's text, kept for the record:
 
   The signal is a body further through maturity than the record allows. A boy claiming 11 to
   13 who is really two years older is only just starting his growth spurt, so his body does
@@ -692,16 +799,20 @@ requires anyway.
   at about 13.
 - **An early maturer looks like an age cheat.** A boy who reaches his spurt a year early is
   big for his age and slowing down, which is the same signal as an older boy under a younger
-  birth date. Since growth timing gave the synthetic data early maturers, the age-fraud rule's
+  birth date. Since growth timing gave the synthetic data early maturers, the growth-only rule's
   false accusations roughly doubled (57 to 112 over 20 seeds) while its catches fell (92 to
-  83). Growth data alone cannot separate the two. This is the strongest argument for the next
-  item, and for treating every age flag as a question for a reviewer, never a finding.
+  83). Growth data alone cannot separate the two. v2 adds performance and brings false
+  accusations down to 49, but in the generator an early maturer plays like his age group, which
+  real ones do not. In the what-if where they outplay it too, v2 makes 82 false accusations,
+  and more than v1 among boys claiming 11 to 15. Every age flag is a question for a reviewer,
+  never a finding.
 - **The cohort reference is built from the dataset itself**, planted cases included. At
   roughly 7% prevalence and using medians the effect is small, and it is the same problem
   any real deployment has, but it is not nothing.
-- **Nothing here uses performance data for age fraud yet.** The generator plants
-  `performance_outlier_for_stated_age` as a signal and the detector ignores it. That is the
-  most obvious next improvement.
+- **The output score reads volume, not opponents.** Shots and key passes per minute, service
+  winners and errors per set. A table tennis win rate would say more, but depends on who was
+  across the table; the rating in `ml/rating` accounts for that and is not used here yet. The
+  per-sport counts live in `features.OUTPUT_RATES`, not yet in the sport module files.
 - **Girls are few, so everything learned about girls is thin.** Girls play table tennis only,
   about 5% of players. Cohort references and growth curves are per gender, so the girls' ones
   come from about a dozen children per dataset: forecast error is 1.96 cm for girls against

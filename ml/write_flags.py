@@ -178,6 +178,12 @@ def main(argv: list[str] | None = None) -> int:
                             if pf.velocity_z is not None
                             else "No usable growth rate, this rests on size alone"
                         ),
+                        (
+                            f"Output for the time played {pf.output_z:+.2f} SD against that "
+                            f"age group"
+                            if pf.output_z is not None
+                            else "Not enough playing time on record to read output"
+                        ),
                         "Body and recorded date of birth disagree",
                     ]
                 },
