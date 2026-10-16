@@ -110,6 +110,18 @@ are short for their cohort at 13–15, then have a steep spurt and catch up to t
 same adult height. Forecasters fit on the flat early series systematically
 under-predict them, which is exactly why they are worth labelling.
 
+**Everyone else has a maturity timing too.** Real children reach their spurt at
+different ages, by about a year either way, so every player draws a timing offset
+from a normal distribution (spread `maturity_tempo_sd_years`, 0.9 years) before any
+case is planted. It comes from a random stream of its own, so names, dates of birth,
+adult heights and the answer key do not change with it; set the spread to 0 to get
+the old population, in which every unplanted child grew on the same timetable. No
+unplanted child is drawn as late as the planted late bloomers' range
+(`late_bloomer_offset_years`), so the answer key stays complete. The early
+maturers this creates are what make age fraud hard: a boy who spurts early is big
+for his age and slowing down, like an older boy under a younger birth date. Added on
+2026-10-16; every number in `ml/README.md` was re-measured with it.
+
 **Duplicates.** The same human entered twice. The clone shares the original's
 biology, so its measurements and performance are consistent with one person. The
 two records differ the way real duplicate entries differ: Arabic orthography

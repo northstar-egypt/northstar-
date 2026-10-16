@@ -85,6 +85,16 @@ class MeasurementConfig:
     min_gap_days: int = 21
     max_gap_days: int = 150
 
+    # Maturity timing. Children do not all reach their growth spurt at the same age: the age
+    # at peak height velocity varies by roughly a year either way in published growth
+    # studies (Malina, Bouchard and Bar-Or, Growth, Maturation, and Physical Activity, 2004).
+    # Every player gets a timing offset drawn from a normal distribution with this spread,
+    # in years, from a stream of its own (players.draw_maturity_tempo). Late maturers past
+    # the planted range's lower bound come only from planting, so the answer key stays
+    # complete; see PlantedConfig.late_bloomer_offset_years. 0 reproduces the old data, in
+    # which every child who was not planted grew on exactly the same timetable.
+    maturity_tempo_sd_years: float = 0.9
+
     # Measurement noise (cm / kg / seconds), applied on top of the curve.
     height_noise_cm: float = 0.55
     weight_noise_kg: float = 1.1
@@ -122,6 +132,9 @@ class PlantedConfig:
     # a steep catch-up. The forecasting models should struggle with these, which
     # is exactly what makes them worth labelling.
     n_late_bloomers: int = 14
+    # How late, in years, a planted late bloomer's spurt arrives. The lower bound is also the
+    # line between late bloomer and not: no unplanted child is drawn this late.
+    late_bloomer_offset_years: tuple[float, float] = (1.3, 2.6)
 
     # Age misrepresentation: the player's body and performance come from their
     # true age, but the recorded date_of_birth is younger. This is generated
@@ -199,6 +212,7 @@ class GeneratorConfig:
             performance=self.performance,
             planted=PlantedConfig(
                 n_late_bloomers=scale(self.planted.n_late_bloomers),
+                late_bloomer_offset_years=self.planted.late_bloomer_offset_years,
                 n_age_fraud=scale(self.planted.n_age_fraud),
                 fraud_age_inflation_years=self.planted.fraud_age_inflation_years,
                 n_metric_fraud_players=scale(self.planted.n_metric_fraud_players),
