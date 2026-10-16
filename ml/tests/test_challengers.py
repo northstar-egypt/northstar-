@@ -174,3 +174,42 @@ def test_the_api_trains_the_same_model_the_evaluation_scores():
         assert xgb_forecast.predict(model, snapshot, history, target) == pytest.approx(
             xgb_forecast.xgboost_forecast(snapshot, history, target)
         )
+
+
+# ---------------------------------------------------------------------------
+# Growth-timing fit (tempo_fit). It lost to the v1 rule; these check it is the method it says
+# it is, so the reported loss is the method's and not a bug's.
+# ---------------------------------------------------------------------------
+
+
+def _toy_curve():
+    """A made-up median curve with a spurt at 12 to 15: cm by whole year, 8 to 22."""
+    heights = [127, 132, 137, 142, 148, 155, 162, 168, 172, 174, 175, 175.5, 176, 176, 176]
+    return list(zip(range(8, 23), heights))
+
+
+def test_tempo_fit_finds_a_late_spurt_and_an_on_time_one():
+    from ml.challengers import tempo_fit
+
+    curve = _toy_curve()
+    ages = [12.0, 12.5, 13.0, 13.5, 14.0, 14.5]
+    on_time = [(a, tempo_fit._at(curve, a)) for a in ages]
+    late = [(a, tempo_fit._at(curve, a - 1.5)) for a in ages]
+
+    tau_on, size_on = tempo_fit.fit(on_time, curve, 0.04)
+    tau_late, _ = tempo_fit.fit(late, curve, 0.04)
+    assert abs(tau_on) < 0.15 and abs(size_on - 1) < 0.01
+    # The prior pulls toward on time, so the estimate is shrunk, but it is clearly late.
+    assert 1.0 <= tau_late <= 1.6
+    assert tau_late >= tempo_fit.TAU_THRESHOLD
+
+
+def test_tempo_fit_does_not_read_a_small_on_time_child_as_late():
+    from ml.challengers import tempo_fit
+
+    curve = _toy_curve()
+    ages = [12.0, 12.5, 13.0, 13.5, 14.0, 14.5]
+    small = [(a, 0.95 * tempo_fit._at(curve, a)) for a in ages]
+    tau, size = tempo_fit.fit(small, curve, 0.04)
+    assert tau < tempo_fit.TAU_THRESHOLD
+    assert size < 1
