@@ -75,7 +75,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .models
-          key: fastembed-paraphrase-multilingual-MiniLM-L12-v2-v1
+          # Keyed on the code that names the model and the pinned fastembed version, so a
+          # model change downloads the new one instead of reusing a stale cache.
+          key: fastembed-${{ hashFiles('apps/api/app/concepts.py', 'apps/api/requirements.txt') }}
 
       - name: Migrate the schema
         working-directory: apps/api
