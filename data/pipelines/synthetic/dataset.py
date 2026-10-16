@@ -3,7 +3,7 @@
 The order below is not arbitrary and changing it changes the data:
 
 1. organizations, because affiliations need somewhere to point
-2. players, the base population
+2. players, the base population, then each one's maturity timing (its own stream)
 3. planted age fraud, which rewrites `date_of_birth` and must happen before any
    measurement or performance row is generated from it
 4. planted late bloomers, which set the maturity offset the growth curves read
@@ -38,7 +38,7 @@ from .planted import (
     plant_late_bloomers,
     plant_metric_fraud,
 )
-from .players import PlayerProfile, generate_players
+from .players import PlayerProfile, draw_maturity_tempo, generate_players
 from .rng import Rng
 
 
@@ -91,6 +91,7 @@ def build_dataset(config: GeneratorConfig) -> Dataset:
 
     ds.organizations = generate_organizations(rng, config)
     ds.profiles = generate_players(rng, config)
+    draw_maturity_tempo(config, ds.profiles)
 
     cases = PlantedCases()
     cases.fraud = plant_age_fraud(rng, config, ds.profiles)

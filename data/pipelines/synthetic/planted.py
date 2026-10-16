@@ -124,7 +124,7 @@ def plant_late_bloomers(
 
     cases: list[LateBloomerCase] = []
     for profile in chosen:
-        offset = rng.uniform(1.3, 2.6)
+        offset = rng.uniform(*config.planted.late_bloomer_offset_years)
         profile.maturity_offset_years = offset
         profile.is_planted_late_bloomer = True
         # Late maturers grow for longer and tend to end up slightly taller.

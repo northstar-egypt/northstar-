@@ -213,3 +213,31 @@ def generate_players(rng: Rng, config: GeneratorConfig) -> list[PlayerProfile]:
         )
 
     return profiles
+
+
+# Maturity timing draws from its own stream, so turning it on or off changes growth timing and
+# nothing else: every name, date of birth, adult height and planted case stays the same.
+_TEMPO_STREAM_OFFSET = 6151
+# A floor on how early, in years. Only a guard against an absurd draw; at the default spread
+# it binds less than once in a million children.
+_EARLIEST_TEMPO_YEARS = -4.5
+
+
+def draw_maturity_tempo(config: GeneratorConfig, profiles: list[PlayerProfile]) -> None:
+    """Give every player a maturity timing offset, before any case is planted.
+
+    Drawn from N(0, maturity_tempo_sd_years), redrawn whenever it reaches the planted late
+    bloomers' lower bound. Without the redraw, about one child in fourteen would be as late as
+    a planted late bloomer without being labelled one, and every detector would be scored as
+    wrong for finding them. Planting then overwrites the chosen players' offsets.
+    """
+    sd = config.measurements.maturity_tempo_sd_years
+    if sd <= 0:
+        return
+    late = config.planted.late_bloomer_offset_years[0]
+    rng = Rng(config.seed + _TEMPO_STREAM_OFFSET, config.name_locale)
+    for profile in profiles:
+        offset = rng.gauss(0.0, sd)
+        while not _EARLIEST_TEMPO_YEARS < offset < late:
+            offset = rng.gauss(0.0, sd)
+        profile.maturity_offset_years = offset
