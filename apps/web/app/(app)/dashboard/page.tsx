@@ -30,7 +30,7 @@ import { useAuth } from "@/lib/auth";
 import { STALE_DAYS, cx, daysLabel, isStale } from "@/lib/format";
 import type { SquadRow } from "@/lib/types";
 
-type Filter = "all" | "overdue" | "consent" | "flagged";
+type Filter = "all" | "overdue" | "consent" | "flagged" | "readings";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -46,11 +46,12 @@ export default function DashboardPage() {
   }, []);
 
   const counts = useMemo(() => {
-    if (!rows) return { overdue: 0, consent: 0, flagged: 0 };
+    if (!rows) return { overdue: 0, consent: 0, flagged: 0, readings: 0 };
     return {
       overdue: rows.filter((r) => isStale(r.daysSinceLastLog)).length,
       consent: rows.filter((r) => !r.consentComplete).length,
       flagged: rows.filter((r) => r.flags.some((f) => f.type !== "consent")).length,
+      readings: rows.filter((r) => r.heightReadingsNeeded > 0).length,
     };
   }, [rows]);
 
@@ -60,6 +61,7 @@ export default function DashboardPage() {
       if (filter === "overdue") return isStale(r.daysSinceLastLog);
       if (filter === "consent") return !r.consentComplete;
       if (filter === "flagged") return r.flags.some((f) => f.type !== "consent");
+      if (filter === "readings") return r.heightReadingsNeeded > 0;
       return true;
     });
     // Attention first: the stalest records at the top, because this is a work queue.
@@ -108,7 +110,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {rows && (counts.overdue > 0 || counts.consent > 0 || counts.flagged > 0) ? (
+      {rows && (counts.overdue > 0 || counts.consent > 0 || counts.flagged > 0 || counts.readings > 0) ? (
         <Card className="border-amber-900/50 bg-amber-950/20">
           <SectionTitle>Needs you first</SectionTitle>
           <div className="flex flex-wrap gap-2">
@@ -127,10 +129,22 @@ export default function DashboardPage() {
                 {counts.flagged} flagged by the models
               </Chip>
             ) : null}
+            {counts.readings > 0 ? (
+              <Chip tone="warn" onClick={() => setFilter("readings")} active={filter === "readings"}>
+                {counts.readings} {counts.readings === 1 ? "needs" : "need"} more height readings
+              </Chip>
+            ) : null}
             {filter !== "all" ? (
               <Chip onClick={() => setFilter("all")}>clear filter</Chip>
             ) : null}
           </div>
+          {filter === "readings" ? (
+            <p className="mt-3 max-w-2xl text-xs text-slate-400">
+              The late-bloomer check needs a growth rate, and a growth rate needs several height
+              readings. In the backtest it could not flag any late bloomer measured fewer times,
+              and more than half of them were. Measure these players now and every few months.
+            </p>
+          ) : null}
         </Card>
       ) : null}
 
@@ -197,6 +211,12 @@ export default function DashboardPage() {
                   </Td>
                   <Td>
                     <div className="flex flex-wrap gap-1">
+                      {r.heightReadingsNeeded > 0 ? (
+                        <Chip tone="warn">
+                          {r.heightReadingsNeeded} more height{" "}
+                          {r.heightReadingsNeeded === 1 ? "reading" : "readings"} needed
+                        </Chip>
+                      ) : null}
                       {r.flags.map((f) => (
                         <Chip key={f.type} tone={f.type === "consent" ? "warn" : "brand"}>
                           {f.label}
