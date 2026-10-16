@@ -1,8 +1,8 @@
-# Runs the project's test suites on every pull request and on every push to main.
+# CI: the project's test suites on every pull request and every push to main.
 #
-# Four jobs, so a red check says which part broke: api, generator, ml, web.
-# What this does not check (the Firefox end-to-end tests, lint) is listed in README.md under
-# "Continuous integration".
+# Four jobs, so a red check names the part that broke: api, generator, ml, web.
+# README.md, under "Continuous integration", says what this checks and what it does not
+# (the Firefox end-to-end tests, lint, the published ML numbers).
 #
 # No secrets. Nothing here needs the FootyStats key, and it must never be added to CI.
 
@@ -12,22 +12,27 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:   # re-run by hand from the Actions tab
 
 permissions:
   contents: read
 
-# A new push to a pull request cancels the run still going for the previous one.
+# A new push to the same pull request cancels the run still going for the previous one.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
-  # Player names are Arabic and some test output prints them.
-  PYTHONIOENCODING: utf-8
+  PYTHON_VERSION: "3.11"   # the API image's version (apps/api/Dockerfile)
+  NODE_VERSION: "20"       # the web image's version (apps/web/Dockerfile)
+  PYTHONIOENCODING: utf-8  # player names are Arabic and some test output prints them
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:
   api:
+    name: api
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -38,91 +43,118 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U northstar"
+          --health-cmd "pg_isready -U northstar -d northstar"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      # Read by both app/config.py and tests/conftest.py.
+      # Throwaway credentials for the service container above, not a secret.
       DATABASE_URL: postgresql+psycopg://northstar:northstar@localhost:5432/northstar
-      # Where fastembed keeps the search model (about 240 MB), so it is cached between runs.
-      NORTHSTAR_MODELS_DIR: ${{ github.workspace }}/../fastembed-models
-    defaults:
-      run:
-        working-directory: apps/api
+      # Where the search model (app/concepts.py) is kept, so the cache below can restore it.
+      NORTHSTAR_MODELS_DIR: ${{ github.workspace }}/.models
     steps:
       - uses: actions/checkout@v5
+
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: |
-            apps/api/requirements.txt
-            apps/api/requirements-dev.txt
+            apps/api/requirements*.txt
             data/pipelines/requirements.txt
-      # The generator's requirements as well as the API's: some API tests check the API
-      # against the generator (tests/test_sports.py, tests/test_names.py) and need faker.
-      # data/pipelines/requirements.txt pulls in requirements.txt itself.
-      - run: pip install -r ../../data/pipelines/requirements.txt -r requirements-dev.txt
-      - uses: actions/cache@v5
+
+      # The API suite imports the synthetic generator in a few tests (test_sports.py,
+      # test_names.py), so it needs the generator's environment, which pulls in the API's own
+      # pins. This is the environment CLAUDE.md tells everyone to build.
+      - name: Install dependencies
+        run: pip install -r data/pipelines/requirements.txt -r apps/api/requirements-dev.txt
+
+      # The multilingual embedding model is about 240 MB. Without it the search-concept tests
+      # skip; cached, they run on every PR without downloading it each time.
+      - name: Cache the search model
+        uses: actions/cache@v5
         with:
-          path: ${{ env.NORTHSTAR_MODELS_DIR }}
-          key: fastembed-${{ hashFiles('apps/api/app/concepts.py', 'apps/api/requirements.txt') }}
+          path: .models
+          key: fastembed-paraphrase-multilingual-MiniLM-L12-v2-v1
+
       - name: Migrate the schema
+        working-directory: apps/api
         run: alembic upgrade head
+
       - name: Run the API tests
-        # With no database the suite skips instead of failing (tests/conftest.py). A green
-        # check that ran zero tests is worse than no check, so a database skip fails the job.
-        run: |
-          set -o pipefail
-          pytest -q -rs | tee "$RUNNER_TEMP/pytest.log"
-          if grep -q "No database at" "$RUNNER_TEMP/pytest.log"; then
-            echo "::error::The API tests were skipped because no database was reachable."
-            exit 1
-          fi
+        working-directory: apps/api
+        run: pytest -q -rs --junitxml="$RUNNER_TEMP/api.xml"
+
+      # With no database the suite skips instead of failing (tests/conftest.py), so pytest
+      # alone would report success having tested nothing. This turns that into a red check.
+      - name: Check nothing skipped for lack of a database
+        if: ${{ !cancelled() }}
+        run: >-
+          python .github/scripts/pytest_report.py "$RUNNER_TEMP/api.xml"
+          --title "API tests" --fail-on-skip "No database at" --min-tests 100
 
   generator:
+    name: generator
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: |
             apps/api/requirements.txt
             data/pipelines/requirements.txt
-      - run: pip install -r data/pipelines/requirements.txt
-      - run: pytest -q -rs data/pipelines/synthetic/tests
+      - name: Install dependencies
+        run: pip install -r data/pipelines/requirements.txt
+      - name: Run the generator tests
+        run: pytest -q -rs data/pipelines/synthetic/tests --junitxml="$RUNNER_TEMP/generator.xml"
+      - name: Summarise
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/pytest_report.py "$RUNNER_TEMP/generator.xml" --title "Generator tests"
 
   ml:
+    name: ml
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: |
             apps/api/requirements.txt
             data/pipelines/requirements.txt
             ml/requirements.txt
-      - run: pip install -r data/pipelines/requirements.txt -r ml/requirements.txt
-      - run: pytest -q -rs ml/tests
+      - name: Install dependencies
+        run: pip install -r data/pipelines/requirements.txt -r ml/requirements.txt
+      - name: Run the ML tests
+        run: pytest -q -rs ml/tests --junitxml="$RUNNER_TEMP/ml.xml"
+      - name: Summarise
+        if: ${{ !cancelled() }}
+        run: python .github/scripts/pytest_report.py "$RUNNER_TEMP/ml.xml" --title "ML tests"
 
   web:
+    name: web
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      # npm workspaces: install once at the root.
-      - run: npm ci
+      # npm workspaces: the lockfile is at the root. `npm ls` is not used as a check because it
+      # exits non-zero on the deliberate postcss override (CLAUDE.md, "Known traps").
+      - name: Install dependencies
+        run: npm ci
       - name: Type-check
+        working-directory: apps/web
         run: npx tsc --noEmit
-        working-directory: apps/web
       - name: Build
-        run: npm run build
         working-directory: apps/web
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"

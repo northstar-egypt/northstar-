@@ -169,15 +169,19 @@ On Windows, set `PYTHONIOENCODING=utf-8` first: the generated player names are A
 
 ### Continuous integration
 
-Every pull request, and every push to `main`, runs `.github/workflows/ci.yml`. It has four
-checks, so a red one tells you which part broke:
+Every pull request, and every push to `main`, runs `.github/workflows/ci.yml`. It can also be
+started by hand from the Actions tab. There are four checks, so a red one says which part broke:
 
 | Check | What it runs |
 |---|---|
-| `api` | `alembic upgrade head`, then the API test suite (access control included) against a real Postgres 16. The job fails if the suite skipped for lack of a database, because a green check that ran nothing is worse than no check. |
+| `api` | A Postgres 16 service, `alembic upgrade head`, then the API test suite (access control included). The job also fails if any test skipped because no database was reachable, or if fewer than 100 tests ran: the suite skips rather than fails without a database, and a green check that tested nothing is worse than no check. |
 | `generator` | `pytest data/pipelines/synthetic/tests` |
 | `ml` | `pytest ml/tests`: detectors, forecasts, metrics and the fairness audit |
-| `web` | `npx tsc --noEmit` and `npm run build` in `apps/web` |
+| `web` | `npm ci` at the root, then `npx tsc --noEmit` and `npm run build` in `apps/web` |
+
+Each Python job writes a small table to the run's summary page: tests passed, failed and
+skipped, and why each skipped test skipped. `.github/scripts/pytest_report.py` builds it from
+pytest's JUnit report and is what turns a database skip into a failure.
 
 What CI does **not** check yet:
 
@@ -189,6 +193,9 @@ What CI does **not** check yet:
   or `python -m ml.run_forecast_eval`, so it would not notice a change that moves a number in
   `ml/README.md` while the tests still pass. If you touch the generator, `ml/detectors` or
   `ml/evaluation`, re-run both and put the before and after in your PR.
+
+If a test passes on your machine and fails in CI, do not change the test to make it pass. Say
+what happened in the pull request so it can be looked at.
 
 CI uses no secrets. The FootyStats key must never be added to it.
 
