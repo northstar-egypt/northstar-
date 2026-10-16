@@ -26,6 +26,13 @@ from .rng import Rng
 
 MINOR_AGE = 18
 
+# Off in every dataset the project reports. When on, an honest early maturer also plays above
+# his age group, by the same rule an age cheat does: performance follows how far through
+# maturity the body is, not how old the player is. It is the pessimistic case for the
+# age-fraud detector, which reads performance to tell a cheat from an early maturer. See
+# `python -m ml.run_eval --performance-follows-maturity` and ml/README.md.
+PERFORMANCE_FOLLOWS_MATURITY = False
+
 
 @dataclass
 class PlayerProfile:
@@ -82,10 +89,16 @@ class PlayerProfile:
         has, rather than a label asserting a signal nobody planted. The exponent
         turns the small ratio between two points on the maturity curve into the
         kind of dominance that is visible in a season's returns.
+
+        The ratio ignores the player's own maturity timing, so an honest early
+        maturer is big for his age but plays like everyone else his age. Real
+        academies do not work like that; `PERFORMANCE_FOLLOWS_MATURITY` is the
+        what-if in which this does not either.
         """
         recorded = max(self.recorded_age(on), 6.0)
         true = max(self.true_age(on), 6.0)
-        ratio = growth.height_fraction(true, self.sex) / growth.height_fraction(
+        offset = self.maturity_offset_years if PERFORMANCE_FOLLOWS_MATURITY else 0.0
+        ratio = growth.height_fraction(true, self.sex, offset) / growth.height_fraction(
             recorded, self.sex
         )
         return self.ability * (ratio**8)

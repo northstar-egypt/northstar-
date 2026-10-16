@@ -21,6 +21,7 @@ rows from Postgres.
 from __future__ import annotations
 
 import json
+import math
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -38,6 +39,48 @@ TABLES = (
 )
 
 
+@dataclass(frozen=True)
+class OutputRates:
+    """Which counts in a sport's performance rows measure how much a player produces.
+
+    Counts are read per unit of playing time (`exposure`), so a substitute's 20 minutes and a
+    full match are comparable. `higher` counts are better when they rise, `lower` ones when
+    they fall. These are volume measures that a bigger, stronger, more experienced player
+    racks up against a younger field: shots and chances created in football, service winners
+    and few unforced errors in table tennis. Skill ratios (conversion, pass completion) and
+    results (sets won) are left out on purpose. Ratios barely move with physical dominance,
+    and a result depends on who the opponent was.
+
+    TODO: this belongs in the sport module files (`packages/shared/sports`) next to `derived`,
+    so a new sport brings its own. Until a second consumer needs it, it lives here.
+    """
+
+    exposure: tuple[str, ...]
+    min_exposure: float
+    higher: tuple[str, ...] = ()
+    lower: tuple[str, ...] = ()
+
+
+OUTPUT_RATES: dict[str, OutputRates] = {
+    # Season rows carry shots but not key passes, so they add to the shot rate only.
+    "football": OutputRates(
+        exposure=("minutes_played",), min_exposure=450, higher=("shots", "key_passes")
+    ),
+    "table_tennis": OutputRates(
+        exposure=("sets_won", "sets_lost"),
+        min_exposure=20,
+        higher=("service_winners",),
+        lower=("unforced_errors",),
+    ),
+}
+
+
+def _number(value) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
 def _as_date(value) -> date | None:
     if value is None:
         return None
@@ -47,13 +90,16 @@ def _as_date(value) -> date | None:
 
 
 def _pooled_reference(
-    buckets: dict[tuple[str, int], list[float]],
+    buckets: dict[tuple, list[float]],
     *,
     min_spread: float,
     min_members: int = 5,
     window: int = 1,
-) -> dict[tuple[str, int], tuple[float, float]]:
+) -> dict[tuple, tuple[float, float]]:
     """Median and spread per (sex, age) bucket, pooling neighbouring ages.
+
+    Any key works as long as age is its last element, so (sport, sex, age) pools the
+    same way.
 
     A bucket borrows from the years either side of it before deciding it has too
     few members to be a reference at all. Without this the population thins out at
@@ -68,14 +114,15 @@ def _pooled_reference(
     still being compared against the right thing.
     """
     reference: dict[tuple[str, int], tuple[float, float]] = {}
-    for sex, age in buckets:
+    for key in buckets:
+        *group, age = key
         pooled: list[float] = []
         for offset in range(-window, window + 1):
-            pooled.extend(buckets.get((sex, age + offset), ()))
+            pooled.extend(buckets.get((*group, age + offset), ()))
         if len(pooled) < min_members:
             continue
         spread = statistics.pstdev(pooled)
-        reference[(sex, age)] = (
+        reference[key] = (
             statistics.median(pooled),
             spread if spread > min_spread else min_spread,
         )
@@ -103,6 +150,10 @@ class PlayerFeatures:
     recent_velocity: float = 0.0
     velocity_z: float | None = None
     maturity_mismatch: float | None = None
+    # How much a player produces for the time they play, against others in the same role, and
+    # then against their stated-age cohort. See `OUTPUT_RATES` and `_fill_output`.
+    output_index: float | None = None
+    output_z: float | None = None
 
     @property
     def date_of_birth(self) -> date | None:
@@ -171,6 +222,7 @@ class FeatureSet:
         self._fill_derived()
         self.velocity_reference = self._build_velocity_reference()
         self._fill_maturity_mismatch()
+        self._fill_output()
 
     # ------------------------------------------------------------------
     # Population reference
@@ -293,6 +345,97 @@ class FeatureSet:
             pf.velocity_z = (pf.recent_velocity - median) / spread
             if pf.height_z_mean is not None:
                 pf.maturity_mismatch = pf.height_z_mean - pf.velocity_z
+
+    def _fill_output(self) -> None:
+        """How much each player produces for the time they play, against their stated age.
+
+        Two steps. First, against the role: a striker shoots more than a centre back for
+        reasons that have nothing to do with age, so each count is divided by what the
+        median player in the same sport and position produces in the same playing time. The
+        log of that ratio, averaged over the sport's counts (with `lower` ones negated), is
+        `output_index`: 0 is a typical player for the role, +0.3 is about a third more.
+
+        Second, against the stated-age cohort, the same pooled (sport, gender, age)
+        construction as height, giving `output_z`. A 17-year-old passing as 14 plays
+        against 14-year-olds and dominates them; this is the number that says so.
+
+        Rows that their sport module says cannot be true are skipped: an impossible row says
+        nothing about output, and those are caught by the arithmetic rule anyway.
+        """
+        from ml import sport_modules  # needs apps/api on the path; only this method uses it
+
+        # (sport, metric) -> counts and exposure per player
+        totals: dict[str, dict[str, list[float]]] = {}
+        for pf in self.players.values():
+            per_metric: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0])
+            for e in pf.performance:
+                rates = OUTPUT_RATES.get(e.get("sport") or pf.player.get("primary_sport"))
+                metrics = e.get("metrics")
+                if rates is None or not isinstance(metrics, dict):
+                    continue
+                if sport_modules.impossibilities(metrics, e.get("schema_ref", "")):
+                    continue
+                exposure = [_number(metrics.get(k)) for k in rates.exposure]
+                if any(x is None for x in exposure) or sum(exposure) <= 0:
+                    continue
+                for metric in rates.higher + rates.lower:
+                    count = _number(metrics.get(metric))
+                    if count is None:
+                        continue
+                    per_metric[metric][0] += count
+                    per_metric[metric][1] += sum(exposure)
+            totals[pf.player_id] = dict(per_metric)
+
+        # Median rate per (sport, position, metric), falling back to the whole sport when a
+        # position has too few players to be a reference.
+        role_rates: dict[tuple, list[float]] = defaultdict(list)
+        for pf in self.players.values():
+            sport = pf.player.get("primary_sport")
+            rates = OUTPUT_RATES.get(sport)
+            if rates is None:
+                continue
+            for metric, (count, exposure) in totals[pf.player_id].items():
+                if exposure >= rates.min_exposure:
+                    rate = count / exposure
+                    role_rates[(sport, pf.player.get("position"), metric)].append(rate)
+                    role_rates[(sport, None, metric)].append(rate)
+        role_median = {k: statistics.median(v) for k, v in role_rates.items() if len(v) >= 5}
+
+        for pf in self.players.values():
+            sport = pf.player.get("primary_sport")
+            rates = OUTPUT_RATES.get(sport)
+            if rates is None:
+                continue
+            logs = []
+            for metric, (count, exposure) in totals[pf.player_id].items():
+                if exposure < rates.min_exposure:
+                    continue
+                median = role_median.get((sport, pf.player.get("position"), metric))
+                if median is None:
+                    median = role_median.get((sport, None, metric))
+                if median is None:
+                    continue
+                # +0.5 on both sides keeps a zero count finite without moving a real one much.
+                ratio = math.log((count + 0.5) / (median * exposure + 0.5))
+                logs.append(-ratio if metric in rates.lower else ratio)
+            if logs:
+                pf.output_index = sum(logs) / len(logs)
+
+        buckets: dict[tuple, list[float]] = defaultdict(list)
+        for pf in self.players.values():
+            if pf.output_index is not None:
+                buckets[self._output_key(pf)].append(pf.output_index)
+        self.output_reference = _pooled_reference(buckets, min_spread=0.05)
+        for pf in self.players.values():
+            entry = self.output_reference.get(self._output_key(pf))
+            if pf.output_index is None or entry is None:
+                continue
+            median, spread = entry
+            pf.output_z = (pf.output_index - median) / spread
+
+    @staticmethod
+    def _output_key(pf: PlayerFeatures) -> tuple:
+        return (pf.player.get("primary_sport"), pf.sex, round(pf.stated_age))
 
     @staticmethod
     def _velocity(series: list[tuple[date, float]]) -> float:

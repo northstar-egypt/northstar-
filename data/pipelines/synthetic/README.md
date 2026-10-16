@@ -122,6 +122,13 @@ maturers this creates are what make age fraud hard: a boy who spurts early is bi
 for his age and slowing down, like an older boy under a younger birth date. Added on
 2026-10-16; every number in `ml/README.md` was re-measured with it.
 
+Timing moves growth only, not performance. An early maturer is big for his age but
+plays like everyone else his age; only an age cheat outplays the age group on his
+record. Real academies are not that kind: an early maturer's size wins games too.
+`players.PERFORMANCE_FOLLOWS_MATURITY` (off in every reported dataset) is the what-if
+in which performance follows the body for everyone, and the age-fraud detector is
+reported both ways (`python -m ml.run_eval --seed-sweep ... --performance-follows-maturity`).
+
 **Duplicates.** The same human entered twice. The clone shares the original's
 biology, so its measurements and performance are consistent with one person. The
 two records differ the way real duplicate entries differ: Arabic orthography
