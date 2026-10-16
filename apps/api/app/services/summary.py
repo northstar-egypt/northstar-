@@ -15,8 +15,8 @@ The model writes sentences. It does not decide what is true. The design keeps th
    and number words alike, and accepts it only if it is a number on the fact sheet, or that
    number rounded to fewer decimals. A reply that also names a flag the fact sheet does not
    hold is refused the same way, and so are the other mistakes the evaluation caught the
-   model making: a flag said to be absent, comparisons in words ("faster than most")
-   instead of the sheet's percentage, judgements ("not impressive"), and forecasts of
+   model making: a flag said to be absent, comparisons in words ("faster than most", "above
+   the 19th percentile") instead of the sheet's percentage, judgements ("not impressive"), and forecasts of
    anything but height. One problem and the whole summary is withheld, because a summary
    that is right except for one invented figure is the failure this project exists not to
    ship.
@@ -93,7 +93,11 @@ _VAGUE = re.compile(
     # The sheet says "higher than 9% of 16 girls"; the model wrote "15 out of 16" and
     # "the top 82%". Neither form is on the sheet, so neither is allowed.
     r"|\bout of\b"
-    r"|\b(?:top|bottom) \d",
+    r"|\b(?:top|bottom) \d"
+    # The sheet says "higher than 19% of 139 boys aged 10"; the model wrote "above the 19th
+    # percentile", which is a different claim. The sheet never says "percentile" or "the 19th".
+    r"|\bpercentiles?\b"
+    r"|\bthe \d+(?:st|nd|rd|th)\b",
     re.IGNORECASE,
 )
 
