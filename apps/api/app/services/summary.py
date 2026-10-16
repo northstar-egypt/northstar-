@@ -29,7 +29,8 @@ PR reports how many were still wrong.
 When there is no summary the endpoint says why (Ollama not running, model not pulled,
 reply withheld, or analytics consent not in effect, in which case the model is never asked:
 writing about a player is analytics on their data), and the profile renders without it. Results are cached per fact sheet, so a
-profile is written once until its numbers change.
+profile is written once until its numbers change, and requests for a sheet that is being
+written right now wait for that one call to the model rather than making another.
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ import threading
 import urllib.error
 import urllib.request
 from collections import OrderedDict
+from concurrent.futures import Future
 from dataclasses import dataclass
 from datetime import date
 
@@ -367,6 +369,11 @@ def ask_ollama(lines: list[str], *, model: str, url: str) -> str:
 
 
 _cache: OrderedDict[str, Summary] = OrderedDict()
+# Summaries being written right now, by fact sheet. A second request for the same sheet waits
+# for the first instead of asking the model again. Ollama answers one request at a time, so a
+# second call would queue behind the first and double the wait. The web app in dev mode
+# (React strict mode) always sends the request twice, and two people can open one profile.
+_pending: dict[str, Future] = {}
 _lock = threading.Lock()
 
 
@@ -383,12 +390,39 @@ def summarise(profile: dict) -> Summary:
         if key in _cache:
             _cache.move_to_end(key)
             return _cache[key]
+        if key in _pending:
+            waiting = _pending[key]
+        else:
+            waiting = None
+            _pending[key] = Future()
+    if waiting is not None:
+        return waiting.result()
 
+    future = _pending[key]
+    try:
+        result, keep = _write(lines, model=model, url=url)
+    except BaseException as exc:
+        with _lock:
+            _pending.pop(key, None)
+        future.set_exception(exc)
+        raise
+    with _lock:
+        _pending.pop(key, None)
+        if keep:
+            _cache[key] = result
+            while len(_cache) > _CACHE_SIZE:
+                _cache.popitem(last=False)
+    future.set_result(result)
+    return result
+
+
+def _write(lines: list[str], *, model: str, url: str) -> tuple[Summary, bool]:
+    """Ask the model and check the reply. The flag says whether the result may be cached."""
     try:
         text = ask_ollama(lines, model=model, url=url)
     except OllamaUnavailable as exc:
         # Not cached: the next request should try again once Ollama is up.
-        return Summary(None, str(exc))
+        return Summary(None, str(exc)), False
 
     problems = unsupported(text, lines) if text else ["empty reply"]
     if problems:
@@ -406,12 +440,7 @@ def summarise(profile: dict) -> Summary:
             "in it was checked against them. Not a scouting opinion.",
             model,
         )
-
-    with _lock:
-        _cache[key] = result
-        while len(_cache) > _CACHE_SIZE:
-            _cache.popitem(last=False)
-    return result
+    return result, True
 
 
 def clear_cache() -> None:
