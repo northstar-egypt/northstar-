@@ -33,6 +33,11 @@ class SquadRowOut(CamelModel):
     days_since_last_log: int | None = None
     # Last six height readings, oldest first, for the sparkline.
     height_trend: list[float] = []
+    # All height readings, not only the six above.
+    height_readings: int = 0
+    # How many more height readings the late-bloomer check needs; 0 when none
+    # (app/services/views.py height_readings_needed).
+    height_readings_needed: int = 0
     flags: list[FlagSummaryOut] = []
     consent_complete: bool = False
 

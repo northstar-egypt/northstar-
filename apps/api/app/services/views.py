@@ -39,8 +39,14 @@ from app.services.access import (
     permissions,
 )
 
+# `forecast` above puts ml/ on the path. The detector's own parameters, so the squad's
+# "needs height readings" rule cannot drift from the rule the detector applies.
+from ml.detectors.late_bloomer import LateBloomerParams  # noqa: E402
+
 # How many recent height readings the squad sparkline shows.
 TREND_POINTS = 6
+
+LATE_BLOOMER = LateBloomerParams()
 
 # A squad row is "stale" past this. The oversight screen counts them.
 STALE_AFTER_DAYS = 90
@@ -104,6 +110,27 @@ def latest_value(series: list[tuple[date, float]] | None) -> float | None:
 # ---------------------------------------------------------------------------
 
 
+def height_readings_needed(
+    date_of_birth: date | None, readings: int, analytics: bool, today: date
+) -> int:
+    """How many more height readings the late-bloomer check is waiting on for this player.
+
+    The check needs `min_measurements` readings to see a growth rate, and only looks at ages
+    `min_age` to `max_age`. The backtest found it flagged none of the late bloomers it had
+    measured fewer times, and more than half of them were (ml/README.md). So a player of that
+    age with too few readings is one the coach can help by measuring, which is the nudge.
+
+    Not for a player whose analytics consent is not in effect: the check does not run on them,
+    so measuring them for it would be asking for data the platform will not use.
+    """
+    if date_of_birth is None or not analytics:
+        return 0
+    age = (today - date_of_birth).days / 365.25
+    if not LATE_BLOOMER.min_age <= age <= LATE_BLOOMER.max_age:
+        return 0
+    return max(0, LATE_BLOOMER.min_measurements - readings)
+
+
 def build_squad(db: Session, caller: Caller, stmt: Select) -> list[dict]:
     """The coach's squad table.
 
@@ -141,6 +168,13 @@ def build_squad(db: Session, caller: Caller, stmt: Select) -> list[dict]:
                 "height_cm": latest_value(series),
                 "days_since_last_log": (today - logged_on).days if logged_on else None,
                 "height_trend": [value for _, value in series[-TREND_POINTS:]],
+                "height_readings": len(series),
+                "height_readings_needed": height_readings_needed(
+                    player.date_of_birth,
+                    len(series),
+                    state.get(ConsentPurpose.ANALYTICS.value, False),
+                    today,
+                ),
                 "flags": flag_map.get(player.id, []),
                 "consent_complete": consent_complete(state),
                 "_organization_name": org_names.get(player.id),

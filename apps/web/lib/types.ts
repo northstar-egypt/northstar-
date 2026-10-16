@@ -106,6 +106,14 @@ export interface SquadRow {
   daysSinceLastLog: number | null;
   /** Last six height readings, oldest first, for the sparkline. */
   heightTrend: number[];
+  /** All height readings, not only the six above. */
+  heightReadings: number;
+  /**
+   * How many more height readings the late-bloomer check needs before it can run on this
+   * player; 0 when none. The API applies the detector's own rule (age range, minimum readings,
+   * analytics consent), so the screen never restates it.
+   */
+  heightReadingsNeeded: number;
   flags: FlagSummary[];
   consentComplete: boolean;
 }
