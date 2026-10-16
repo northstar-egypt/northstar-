@@ -21,6 +21,21 @@ inserting orphans.
     of relying on an export being in step. That is the right shape once there is real ingest,
     and it is not worth building while the only source is a generator that writes both.
 
+Consent
+-------
+Late-bloomer and breakout flags are analytics about a child, so they are written only for
+players whose analytics consent is in effect on the day of the run, by the same rule the API
+applies when it reads them (`flags.TALENT_TYPES`, `access.consent_subquery`). Integrity flags
+(fraud, duplicate) are written regardless: withdrawing analytics consent must not hide a
+falsified record from review, which is the API's rule too. A talent flag written before a
+withdrawal is left in place; the API stops showing it, and shows it again if consent is
+granted again.
+
+    TODO(ml): players without analytics consent still count toward the cohort reference the
+    detectors compare everyone with, because the reference is built from the export. The API's
+    own cohort reference already leaves them out. Fixing this belongs with the database-backed
+    FeatureSet above.
+
 Reruns
 ------
 Safe to run repeatedly. Every flag carries a `dedupe_key`, so a case already raised is
@@ -60,6 +75,11 @@ def _bootstrap_api_path() -> None:
     raise RuntimeError(f"Could not locate the repository root from {here}.")
 
 
+def withheld_for_consent(flag_type: str, player_id: str, analytics: set[str], talent_types) -> bool:
+    """True when a flag must not be written because it is analytics the player has not consented to."""
+    return flag_type in talent_types and player_id not in analytics
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="write_flags",
@@ -92,8 +112,10 @@ def main(argv: list[str] | None = None) -> int:
     from sqlalchemy.orm import Session
 
     from app.models.enums import FlagType
+    from app.models.enums import ConsentPurpose
     from app.models.player import Player
     from app.services import flags as flag_service
+    from app.services.access import consent_subquery
 
     from ml.detectors import duplicate, fraud, late_bloomer
     from ml.detectors.features import FeatureSet
@@ -101,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
     features = FeatureSet(args.data_dir)
 
     engine = create_engine(args.database_url, future=True)
-    written = {"created": 0, "existing": 0, "skipped": 0}
+    written = {"created": 0, "existing": 0, "skipped": 0, "withheld": 0}
 
     with Session(engine) as session:
         known = {
@@ -126,10 +148,21 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
         print(f"{overlap} of {len(features.players)} exported players found in the database")
+        analytics = {
+            str(player_id)
+            for player_id in session.execute(
+                consent_subquery(ConsentPurpose.ANALYTICS.value)
+            ).scalars()
+        }
 
         def raise_flag(player_id: str, **kwargs) -> None:
             if player_id not in known:
                 written["skipped"] += 1
+                return
+            if withheld_for_consent(
+                kwargs["flag_type"], player_id, analytics, flag_service.TALENT_TYPES
+            ):
+                written["withheld"] += 1
                 return
             _, created = flag_service.upsert(
                 session,
@@ -241,6 +274,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"flags raised {written['created']}, already present {written['existing']}, "
         f"skipped (not in database) {written['skipped']}, "
+        f"withheld (no analytics consent) {written['withheld']}, "
         f"closed against merged records {dropped}"
     )
     return 0
