@@ -523,6 +523,26 @@ rate needs history, so **a player who is measured once on arrival and cut a few 
 cannot be helped by any model**. The fix is operational rather than statistical: measure every
 player at intake and every few months after. The coach logging screen exists for that.
 
+### The figure
+
+```bash
+python -m ml.figure_late_bloomer           # writes docs/figures/late-bloomer.svg
+```
+
+![A late bloomer at the moment of the size cut](../docs/figures/late-bloomer.svg)
+
+One player from the default dataset, picked by a fixed rule rather than by eye: of the planted
+football late bloomers the size cut reached and the detector flagged at that moment, the one
+whose age at the cut is closest to 14. The caption carries the pooled rates above, so the
+example is never read as "the system catches them all".
+
+Two honest limits are drawn on the figure itself. The synthetic data follows each player for
+at most 40 months, so his readings stop at 16; the dashed line after them is the growth the
+generator planted (the answer key), which a real deployment would not have. And he does not
+become a giant: he ends 2.1 cm below the median for men aged 21. That is the point. He was in
+the shortest quarter at 14 because his growth came late, not because he would stay small, and
+a cut on height alone would have released an ordinary adult as a small child.
+
 The two sizes disagree more than their intervals suggest they should (47% against 65%). The
 detector's thresholds were tuned on 212-player datasets, where the cohort reference is built
 from fewer children, and they transfer imperfectly to a larger population. Reported rather than

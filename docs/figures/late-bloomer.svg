@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 600" width="100%" style="max-width:820px" font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+<title id="title">A late bloomer at the moment of the size cut</title>
+<desc id="desc">Height readings of one synthetic boy, the date a size cut would have released him at age 14.2, the same date the system flagged him as a late bloomer, and the growth the generator planted for him afterwards.</desc>
+<rect width="820" height="600" fill="#ffffff"/>
+<text x="70.0" y="32.0" font-size="18" fill="#1f2937" text-anchor="start" font-weight="600">A late bloomer at the moment of the size cut</text>
+<text x="70.0" y="52.0" font-size="12" fill="#6b7280" text-anchor="start" font-weight="400">Height of one synthetic boy against his age group. Solid: measured. Dashed: the answer key, never measured.</text>
+<line x1="70" y1="400.0" x2="790" y2="400.0" stroke="#e5e7eb"/>
+<text x="62.0" y="404.0" font-size="11" fill="#6b7280" text-anchor="end" font-weight="400">120</text>
+<line x1="70" y1="352.9" x2="790" y2="352.9" stroke="#e5e7eb"/>
+<text x="62.0" y="356.9" font-size="11" fill="#6b7280" text-anchor="end" font-weight="400">130</text>
+<line x1="70" y1="305.7" x2="790" y2="305.7" stroke="#e5e7eb"/>
+<text x="62.0" y="309.7" font-size="11" fill="#6b7280" text-anchor="end" font-weight="400">140</text>
+<line x1="70" y1="258.6" x2="790" y2="258.6" stroke="#e5e7eb"/>
+<text x="62.0" y="262.6" font-size="11" fill="#6b7280" text-anchor="end" font-weight="400">150</text>
+<line x1="70" y1="211.4" x2="790" y2="211.4" stroke="#e5e7eb"/>
+<text x="62.0" y="215.4" font-size="11" fill="#6b7280" text-anchor="end" font-weight="400">160</text>
+<line x1="70" y1="164.3" x2="790" y2="164.3" stroke="#e5e7eb"/>
+<text x="62.0" y="168.3" font-size="11" fill="#6b7280" text-anchor="end" font-weight="400">170</text>
+<line x1="70" y1="117.1" x2="790" y2="117.1" stroke="#e5e7eb"/>
+<text x="62.0" y="121.1" font-size="11" fill="#6b7280" text-anchor="end" font-weight="400">180</text>
+<line x1="70" y1="70.0" x2="790" y2="70.0" stroke="#e5e7eb"/>
+<text x="62.0" y="74.0" font-size="11" fill="#6b7280" text-anchor="end" font-weight="400">190</text>
+<text x="70.0" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">12</text>
+<text x="135.5" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">13</text>
+<text x="200.9" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">14</text>
+<text x="266.4" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">15</text>
+<text x="331.8" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">16</text>
+<text x="397.3" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">17</text>
+<text x="462.7" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">18</text>
+<text x="528.2" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">19</text>
+<text x="593.6" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">20</text>
+<text x="659.1" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">21</text>
+<text x="724.5" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">22</text>
+<text x="790.0" y="418.0" font-size="11" fill="#6b7280" text-anchor="middle" font-weight="400">23</text>
+<text x="430.0" y="438.0" font-size="12" fill="#6b7280" text-anchor="middle" font-weight="400">age (years)</text>
+<text x="62.0" y="60.0" font-size="11" fill="#6b7280" text-anchor="end" font-weight="400">cm</text>
+<polygon points="70.0,254.7 135.5,218.3 200.9,180.0 266.4,153.5 331.8,133.9 397.3,121.4 462.7,120.6 528.2,129.9 593.6,134.4 659.1,139.6 724.5,124.5 790.0,106.2 790.0,169.6 724.5,195.1 659.1,196.5 593.6,195.5 528.2,196.8 462.7,193.9 397.3,201.5 331.8,221.1 266.4,248.1 200.9,279.6 135.5,312.0 70.0,337.9" fill="#e5e7eb" opacity="0.8"/>
+<polyline points="70.0,296.3 135.5,265.2 200.9,229.8 266.4,200.8 331.8,177.5 397.3,161.5 462.7,157.2 528.2,163.3 593.6,165.0 659.1,168.1 724.5,159.8 790.0,137.9" fill="none" stroke="#9ca3af" stroke-width="1.5"/>
+<text x="76.0" y="84.0" font-size="11" fill="#6b7280" text-anchor="start" font-weight="400">grey: his age group,</text>
+<text x="76.0" y="98.0" font-size="11" fill="#6b7280" text-anchor="start" font-weight="400">median ± 1 SD</text>
+<line x1="215.3" y1="70" x2="215.3" y2="400" stroke="#b45309" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="221.3" y="84.0" font-size="12" fill="#b45309" text-anchor="start" font-weight="600">Age 14.2: in the shortest quarter of boys,</text>
+<text x="221.3" y="100.0" font-size="12" fill="#b45309" text-anchor="start" font-weight="400">the size cut would release him.</text>
+<text x="221.3" y="120.0" font-size="12" fill="#0f766e" text-anchor="start" font-weight="600">Same day, from 5 readings, NorthStar</text>
+<text x="221.3" y="136.0" font-size="12" fill="#0f766e" text-anchor="start" font-weight="400">flags him as a late bloomer.</text>
+<polyline points="356.0,262.3 362.6,258.9 369.1,255.5 375.6,252.1 382.2,248.7 388.7,245.3 395.3,241.9 401.8,238.5 408.4,235.2 414.9,231.8 421.5,228.4 428.0,226.0 434.6,223.7 441.1,221.3 447.6,218.9 454.2,216.6 460.7,214.2 467.3,211.8 473.8,209.5 480.4,207.1 486.9,204.8 493.5,203.3 500.0,201.9 506.6,200.5 513.1,199.1 519.6,197.7 526.2,196.2 532.7,194.8 539.3,193.4 545.8,192.0 552.4,190.6 558.9,189.8 565.5,189.0 572.0,188.2 578.6,187.4 585.1,186.6 591.6,185.8 598.2,185.1 604.7,184.3 611.3,183.5 617.8,182.7 624.4,182.4 630.9,182.1 637.5,181.7 644.0,181.4 650.6,181.1 657.1,180.8 663.6,180.5 670.2,180.2 676.7,179.8 683.3,179.5 689.8,179.4 696.4,179.2 702.9,179.1 709.5,178.9 716.0,178.7 722.6,178.6 729.1,178.4 735.6,178.3 742.2,178.1 790.0,178.0" fill="none" stroke="#0f766e" stroke-width="2" stroke-dasharray="6 4"/>
+<polyline points="155.3,353.8 168.9,347.7 180.7,341.5 203.0,336.8 208.3,337.3 230.6,326.9 250.6,318.9 264.3,305.7 287.6,297.7 296.5,292.5 305.3,285.9 330.4,275.5 356.0,258.6" fill="none" stroke="#0f766e" stroke-width="2"/>
+<circle cx="155.3" cy="353.8" r="4" stroke="#0f766e" stroke-width="1.5" fill="#0f766e"/>
+<circle cx="168.9" cy="347.7" r="4" stroke="#0f766e" stroke-width="1.5" fill="#0f766e"/>
+<circle cx="180.7" cy="341.5" r="4" stroke="#0f766e" stroke-width="1.5" fill="#0f766e"/>
+<circle cx="203.0" cy="336.8" r="4" stroke="#0f766e" stroke-width="1.5" fill="#0f766e"/>
+<circle cx="208.3" cy="337.3" r="4" stroke="#0f766e" stroke-width="1.5" fill="#0f766e"/>
+<circle cx="230.6" cy="326.9" r="4" stroke="#0f766e" stroke-width="1.5" fill="#ffffff"/>
+<circle cx="250.6" cy="318.9" r="4" stroke="#0f766e" stroke-width="1.5" fill="#ffffff"/>
+<circle cx="264.3" cy="305.7" r="4" stroke="#0f766e" stroke-width="1.5" fill="#ffffff"/>
+<circle cx="287.6" cy="297.7" r="4" stroke="#0f766e" stroke-width="1.5" fill="#ffffff"/>
+<circle cx="296.5" cy="292.5" r="4" stroke="#0f766e" stroke-width="1.5" fill="#ffffff"/>
+<circle cx="305.3" cy="285.9" r="4" stroke="#0f766e" stroke-width="1.5" fill="#ffffff"/>
+<circle cx="330.4" cy="275.5" r="4" stroke="#0f766e" stroke-width="1.5" fill="#ffffff"/>
+<circle cx="356.0" cy="258.6" r="4" stroke="#0f766e" stroke-width="1.5" fill="#ffffff"/>
+<text x="786.0" y="198.0" font-size="12" fill="#0f766e" text-anchor="end" font-weight="600">Planted adult height 167.1 cm</text>
+<text x="786.0" y="214.0" font-size="12" fill="#0f766e" text-anchor="end" font-weight="400">2.1 cm below the median for men aged 21</text>
+<text x="70.0" y="466.0" font-size="11.5" fill="#6b7280" text-anchor="start" font-weight="400">Filled points: readings the system had on the day of the cut. Hollow: measured after it.</text>
+<text x="70.0" y="484.0" font-size="11.5" fill="#6b7280" text-anchor="start" font-weight="400">The synthetic data follows each player for at most 40 months, so the readings stop early.</text>
+<text x="70.0" y="502.0" font-size="11.5" fill="#6b7280" text-anchor="start" font-weight="400">Dashed: the growth the generator planted for him, maturity delayed 2.37 years. A real deployment would not have this line.</text>
+<text x="70.0" y="520.0" font-size="11.5" fill="#6b7280" text-anchor="start" font-weight="400">Chosen by rule, not by eye (seed 20260827): of the flagged football late bloomers the size cut reached,</text>
+<text x="70.0" y="538.0" font-size="11.5" fill="#6b7280" text-anchor="start" font-weight="400">the one whose age at the cut is closest to 14. The rule is in ml/figure_late_bloomer.py.</text>
+<text x="70.0" y="556.0" font-size="11.5" fill="#6b7280" text-anchor="start" font-weight="400">Not every late bloomer is caught. Backtest over 5 datasets of 1000 players, at the moment of the cut:</text>
+<text x="70.0" y="574.0" font-size="11.5" fill="#6b7280" text-anchor="start" font-weight="400">flagged 40 of 86 (47%) of late bloomers measured 3+ times, 23 of 142 (16%) of other small players,</text>
+<text x="70.0" y="592.0" font-size="11.5" fill="#6b7280" text-anchor="start" font-weight="400">and 0 of 117 (0%) of late bloomers measured fewer times.</text>
+</svg>
