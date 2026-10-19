@@ -390,7 +390,10 @@ class IntegrityFlagOut(CamelModel):
     organization_name: str | None = None
     raised_at: str
     age_days: int
-    confidence: float
+    # Which rule raised it (`flag.detector_name`), so the board can say what was checked.
+    detector: str | None = None
+    # Null for a rule with no calibrated probability, which is every detector today.
+    confidence: float | None = None
     reason: str
     evidence: list[str] = []
     records: FlagRecordsOut | None = None
