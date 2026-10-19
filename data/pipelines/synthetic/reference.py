@@ -6,10 +6,8 @@ review and extend without touching generation logic.
 
 from __future__ import annotations
 
-# Country codes follow config.COUNTRY_CODE_STANDARD (alpha-2 today). apps/web
-# currently expects alpha-3; there is a board item to settle it in
-# docs/schema.md. Every code the generator emits comes from this module, so the
-# flip is contained here.
+# Country codes follow config.COUNTRY_CODE_STANDARD: ISO 3166-1 alpha-2, as
+# docs/schema.md records. Every code the generator emits comes from this module.
 EGYPT = "EG"
 
 # Where the diaspora tier actually plays: the leagues with Egyptian-eligible

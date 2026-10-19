@@ -193,10 +193,9 @@ sampled on the measurement date. Growth between two readings therefore scales
 with the gap between their dates, and adults sit on the flat part of the curve
 and stop growing, with no special case for either.
 
-**Country codes are alpha-2** here, and `apps/web` uses alpha-3. That is a known
-inconsistency with a board item against it. Every code the generator emits comes
-from `reference.py` and the choice is named in `config.COUNTRY_CODE_STANDARD`, so
-the flip is a one-line change when `docs/schema.md` settles it.
+**Country codes are ISO 3166-1 alpha-2** (`EG`), as `docs/schema.md` records and as
+the API validates and the web app sends. Every code the generator emits comes from
+`reference.py`, and the choice is named in `config.COUNTRY_CODE_STANDARD`.
 
 ## Tests
 

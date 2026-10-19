@@ -66,7 +66,7 @@ resolves to.
 | known_as             | text, null    | Short or common name.                                             |
 | date_of_birth        | date, null    | Drives all age and maturity math. Null when a source hides it.    |
 | sex                  | enum, null    | `male` / `female`. TODO confirm value set.                        |
-| nationality          | text[]        | ISO country codes. Array because diaspora players are dual.       |
+| nationality          | text[]        | ISO 3166-1 alpha-2 codes (`EG`). Array: diaspora players are dual. |
 | is_egypt_eligible    | boolean       | Core to the diaspora tier. Derived or manually set.               |
 | primary_sport        | enum          | `football` / `table_tennis`. Extensible. See sport modules.       |
 | tier                 | enum, null    | `pro` / `youth` / `diaspora`. Football tiers; null for others.    |
@@ -94,7 +94,7 @@ to a club and a club can sit under a federation.
 | name            | text          |                                                              |
 | type            | enum          | `club` / `academy` / `national_team` / `federation`.         |
 | sport           | enum, null    | Null for multi-sport bodies.                                 |
-| country         | text          | ISO country code.                                            |
+| country         | text          | ISO 3166-1 alpha-2 code (`EG`).                              |
 | parent_org_id   | UUID FK, null | Self-reference for hierarchy.                                |
 | external_ids    | JSONB         | Source ids.                                                  |
 
