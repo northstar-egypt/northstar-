@@ -76,7 +76,13 @@ single digit, because nothing in it reads height.
 
 The same day the age-fraud rule gained performance evidence ("Age misrepresentation, v2"
 below). That moved only the fraud numbers; late-bloomer, duplicate, forecast and backtest
-results are identical to the digit. Fraud numbers below are v2, with v1's alongside.
+results are identical to the digit.
+
+On 2026-10-19 the fraud detector gained a third rule, for table tennis results changed by the
+player ("Result tampering", below), and the generator plants three such cases per dataset.
+That moved the fraud numbers again (up) and the table tennis rating slightly, because a
+contradicted match is no longer rated; late-bloomer, duplicate, forecast and backtest results
+are identical to the digit, checked against a copy of main.
 
 ### Growth timing (2026-10-16)
 
@@ -115,8 +121,9 @@ Five datasets, 212 players each. Headline F1 per detector:
 | detector | 20260827 | 7 | 99 | 404 | 555 | mean | range |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | late_bloomer | 0.522 | 0.615 | 0.533 | 0.750 | 0.417 | **0.567** | 0.417 to 0.750 |
-| fraud | 0.640 | 0.688 | 0.846 | 0.720 | 0.609 | **0.701** | 0.609 to 0.846 |
-| fraud, v1 (growth only) | 0.581 | 0.606 | 0.667 | 0.692 | 0.667 | 0.642 | 0.581 to 0.692 |
+| fraud | 0.688 | 0.718 | 0.848 | 0.774 | 0.690 | **0.744** | 0.688 to 0.848 |
+| fraud, before the table tennis rule | 0.640 | 0.688 | 0.846 | 0.720 | 0.609 | 0.700 | 0.609 to 0.846 |
+| fraud, v1 (growth only, no table tennis rule) | 0.581 | 0.606 | 0.667 | 0.692 | 0.667 | 0.642 | 0.581 to 0.692 |
 | duplicate | 1.000 | 0.957 | 1.000 | 0.909 | 1.000 | **0.973** | 0.909 to 1.000 |
 
 Against the trivial baselines on the committed default seed, where flagging every player
@@ -131,13 +138,15 @@ calibration seeds and 0.567 on the reported ones (0.639 and 0.649 before growth 
 thresholds were **not retuned** after the timing change: they are the ones chosen on the old
 calibration data, and retuning them is separate work, done on seeds 101, 202 and 303 only.
 The age-fraud rule's three performance thresholds were tuned on those three seeds after the
-timing change; there fraud F1 is 0.811 (0.682 for v1) against 0.741 over the 20 reported seeds.
+timing change; there fraud F1 is 0.830 (0.811 before the table tennis rule, 0.682 for v1)
+against 0.769 over the 20 reported seeds. The table tennis rule has no threshold to tune.
 
 **Over more seeds the late-bloomer figure is lower.** The relative age audit below needed 20
 datasets for its statistics, which also gave a wider look at F1. Over the five above plus
-seeds 1000 to 1014 (none used for tuning), mean F1 is **0.479** for late bloomers, **0.741**
+seeds 1000 to 1014 (none used for tuning), mean F1 is **0.479** for late bloomers, **0.769**
 for fraud and **0.961** for duplicates (0.555, 0.726 and 0.961 before growth timing; fraud was
-0.638 with growth timing and before performance evidence). The five
+0.638 with growth timing and before performance evidence, and 0.741 before the table tennis
+rule). The five
 reported seeds are kind to the late-bloomer detector (0.567 against 0.479). Quote the 20-seed
 figures when a single number is needed; the five-seed table stays because the forecasts and
 backtest are reported on the same seeds.
@@ -161,6 +170,7 @@ detection at national scale will be harder than this.
 | --- | --- | --- |
 | implausible self-reported performance | 5 | 1.000 |
 | age misrepresentation | 9 | 0.400 (was 0.381 before performance evidence) |
+| table tennis result tampering | 3 | 0.857 (3 caught, 1 honest opponent flagged) |
 
 The perfect score on the first is arithmetic, not machine learning: those rows record more
 goals than shots, more passes completed than attempted, and distances no human has run, or
@@ -169,12 +179,63 @@ validation rather than in a model, and it now is: the rule is the sport modules'
 (`packages/shared/sports`), the same one ingest runs, so a new sport's rules reach the
 detector without a change to it. The fact that it scores perfectly is a statement about the
 generator. Age misrepresentation is the subtype that
-matters, it carries 9 of the 14 cases, and at 0.400 it is doing well under the work the
-headline 0.640 on this seed suggests. On this seed the performance evidence (2026-10-16) cut
+matters, it carries 9 of the 17 cases, and at 0.400 it is doing well under the work the
+headline 0.688 on this seed suggests. On this seed the performance evidence (2026-10-16) cut
 false accusations from 8 to 3 but also lost one catch (4 to 3), so its F1 barely moved (0.381
 to 0.400); over 20 seeds it moved from 0.443 to 0.582, see "Age misrepresentation, v2". It was
 0.526 before growth timing and 0.632 before the boys-only change; see Known limits for why.
 Anyone quoting the fraud number should quote this one alongside it.
+
+### Result tampering (table tennis, 2026-10-19)
+
+A match between two registered table tennis players is logged by both of them, as two rows
+that point at each other (decision 0004). That makes a fraud check possible that football has
+no equivalent of: a player who logs a match they lost as a win is contradicted by the
+opponent's own row of the same match. The generator plants three such players per dataset (a
+lost match rewritten as a win, made self-submitted), on a random stream of its own, so no
+other row moves (`data/pipelines/synthetic/planted.py`, `plant_result_tampering`).
+
+The rule (`fraud.detect_result_contradictions`) pairs the two sides' rows of each day off,
+one match at a time, and looks at what is left unpaired on both sides. Who is flagged follows
+which row can be trusted: against a verified row (coach logged or official), the unverified
+side; if neither is verified, both, as one conflict for a reviewer, with a sentence that says
+it does not know which is true; if both are verified, nothing, because that is a data error
+between two trusted sources, not fraud. A match only one side logged is never evidence: one
+in eight registered matches is logged that way, honestly.
+
+| result tampering, pooled | caught | false alarms | missed | F1 |
+| --- | --- | --- | --- | --- |
+| 20 reported seeds, 60 cases | **60** | 18 | **0** | 0.870 |
+| 5 reported seeds, 15 cases | 15 | 3 | 0 | 0.909 |
+| calibration seeds, 9 cases | 9 | 2 | 0 | 0.900 |
+
+Every false alarm is the same thing: the honest opponent in a match where both rows were
+self-submitted, flagged as the other half of a conflict. None is a contradiction against a
+verified row. That cost is the policy working as chosen (a reviewer sees both names and is
+told neither is proven); a club that coach-logs its matches never pays it.
+
+The first version missed 2 of the 60 (58 caught, 11 false alarms). A pair that met twice on
+one day had one match whose rows agreed, and the rule let the whole day pass; and one planted
+case was against a merged duplicate record, which the rule rightly ignores. Both were found on
+reported seeds (1000 and 1013) and fixed: rows are now paired one match at a time, and the
+generator plants only on matches whose opponent is not a merged record, and only on players
+who carry no other planted case (the generator's tests require every label set to be
+disjoint, and the first version broke that twice). So the 60 of 60 comes after fixes made with
+sight of reported data, and the first version's 58 of 60 is the number to quote alongside it.
+The false alarms rose from 11 to 18 with the fixes, only because the planted cases moved to
+different matches and more of them had two self-submitted rows.
+
+**What it cannot see:** a win invented outright, over a registered opponent who never logged
+the match. One such row looks exactly like the honest one-sided logging above, and only a
+pattern of them could be evidence; that was left out on purpose rather than built with a
+threshold that would accuse honest players (see Known limits). With the rule, fraud F1 over
+20 seeds rose from 0.741 to 0.769. It fell on three seeds (1005, 0.897 to 0.865; 1012, 0.783
+to 0.774; 1013, 0.846 to 0.824), each from a conflict flag on an honest opponent.
+
+The age rule's counts in the next sections were measured before this rule existed. Over 20
+seeds they now read one false accusation fewer for the rule (49 to 48) and four fewer for the
+isolation forest (151 to 147), only because the tampering players are no longer part of the
+population the age subtype is scored on.
 
 ## Height forecasts, v1
 
@@ -518,23 +579,23 @@ so their ratings are separate scales; 54 girls and 121 boys over the five seeds)
 | --- | --- | --- |
 | **point rating** | **0.907** | **0.893** |
 | Glicko-2 | 0.817 | 0.800 |
-| point win rate | 0.833 | 0.856 |
-| match win rate | 0.762 | 0.803 |
+| point win rate | 0.819 | 0.859 |
+| match win rate | 0.749 | 0.815 |
 
 Predicting matches it has not seen (walk-forward, from the seventh month on; lower is better
 for Brier and log loss):
 
 | | Brier | log loss | favourite won |
 | --- | --- | --- | --- |
-| **point rating** | **0.1924** | **0.5643** | **0.701** |
-| point win rate | 0.1968 | 0.5776 | 0.686 |
-| match win rate | 0.2040 | 0.5941 | 0.690 |
+| **point rating** | **0.1924** | **0.5642** | **0.701** |
+| point win rate | 0.1965 | 0.5769 | 0.688 |
+| match win rate | 0.2034 | 0.5929 | 0.690 |
 | Glicko-2 | 0.2079 | 0.6078 | 0.693 |
 | coin flip | 0.2500 | 0.6931 | |
 
 **The point rating wins, and it is what the profile shows.** It orders players better than
-anything else (Spearman 0.07 higher than point win rate for girls, 0.04 for boys) and predicts results
-better, though by a modest margin (log loss 0.564 against 0.578). Its range is honest: the
+anything else (Spearman 0.09 higher than point win rate for girls, 0.03 for boys) and predicts results
+better, though by a modest margin (log loss 0.564 against 0.577). Its range is honest: the
 profile shows it only when the range of point share is at most 7 points wide, which covers
 171 of 175 players, and for 168 of those 171 (98%) the player's true chance of winning a
 point against an average opponent lies inside it. Nominal is about 95%, so the range is
@@ -561,10 +622,10 @@ opponents close in level, with nothing retuned:
 
 | Spearman, by-level schedule | girls | boys |
 | --- | --- | --- |
-| **point rating** | **0.785** | **0.683** |
-| Glicko-2 | 0.728 | 0.590 |
-| point win rate | 0.595 | 0.406 |
-| match win rate | 0.539 | 0.304 |
+| **point rating** | **0.785** | **0.682** |
+| Glicko-2 | 0.728 | 0.588 |
+| point win rate | 0.570 | 0.410 |
+| match win rate | 0.536 | 0.304 |
 
 When everyone plays their own level, everyone wins about half their matches, and a win rate
 says almost nothing (0.30 for boys). Opponent adjustment is what keeps the ranking. Two
@@ -797,7 +858,8 @@ requires anyway.
 - `detectors/late_bloomer.py` flags adolescents who are below the cohort median and still
   growing fast. Height alone flags every short child in the academy; the pair is what
   separates a late maturer from a player who is simply short.
-- `detectors/fraud.py` runs two independent rules, the arithmetic one and the maturity one.
+- `detectors/fraud.py` runs three independent rules: the arithmetic one, the age one (growth
+  and performance), and, for table tennis, the mirrored-row one.
 - `detectors/duplicate.py` blocks candidates on sex, sport and birth year, then matches on
   Arabic-normalised name containment plus a date-of-birth relation. It deliberately never
   reads `status` or `merged_into`.
@@ -847,6 +909,12 @@ requires anyway.
   come from about a dozen children per dataset: forecast error is 1.96 cm for girls against
   0.89 for boys. Detector scores are not reported split by gender, and with this few girls a
   split would be mostly noise.
+- **An invented table tennis win is invisible.** The mirrored-row rule needs the opponent's
+  own row. A win over a registered player who never logged the match looks exactly like the
+  one match in eight that only one side logs honestly, so it is not flagged, and the generator
+  does not plant it. Catching it would take a pattern (several unconfirmed wins over stronger
+  registered players) and a threshold that would also accuse honest players. Those wins
+  already do not move the table tennis rating, which counts only confirmed matches.
 
 ## Layout
 

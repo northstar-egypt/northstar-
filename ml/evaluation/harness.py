@@ -159,7 +159,7 @@ def evaluate(data_dir: str | Path) -> Report:
     section = ScoreSet("Fraud")
     predicted = fraud.detect(features)
     report.headline["fraud"] = section.add(
-        score_ids("fraud v2 (both rules)", predicted, truth, population)
+        score_ids("fraud v2 (all three rules)", predicted, truth, population)
     )
 
     age_truth = {
@@ -170,7 +170,10 @@ def evaluate(data_dir: str | Path) -> Report:
         for c in cases["fraud"]
         if c["fraud_type"] == "implausible_self_reported_performance"
     }
-    # Each subtype is scored on a population with the *other* subtype's cases
+    tamper_truth = {
+        c["player_id"] for c in cases["fraud"] if c["fraud_type"] == "result_tampering"
+    }
+    # Each subtype is scored on a population with the *other* subtypes' cases
     # removed. Leaving them in would count a metric-fraud player that the age rule
     # correctly ignored as a false negative for age fraud, which it is not.
     age_predicted = fraud.detect_age_misrepresentation(features)
@@ -179,7 +182,7 @@ def evaluate(data_dir: str | Path) -> Report:
             "  rule: age misrepresentation",
             age_predicted,
             age_truth,
-            population - metric_truth,
+            population - metric_truth - tamper_truth,
             note=f"the hard subtype, {len(age_truth)} cases",
         )
     )
@@ -193,7 +196,7 @@ def evaluate(data_dir: str | Path) -> Report:
                 "  challenger: isolation forest",
                 forest_predicted,
                 age_truth,
-                population - metric_truth,
+                population - metric_truth - tamper_truth,
                 note="same cases as the rule above, see ml/challengers/isolation.py",
             )
         )
@@ -206,7 +209,7 @@ def evaluate(data_dir: str | Path) -> Report:
             "fraud: age misrepresentation",
             age_predicted,
             age_truth,
-            population - metric_truth,
+            population - metric_truth - tamper_truth,
             quarters,
         )
     )
@@ -216,7 +219,7 @@ def evaluate(data_dir: str | Path) -> Report:
                 "fraud, age: isolation forest",
                 forest_predicted,
                 age_truth,
-                population - metric_truth,
+                population - metric_truth - tamper_truth,
                 quarters,
             )
         )
@@ -225,8 +228,17 @@ def evaluate(data_dir: str | Path) -> Report:
             "  rule: impossible metrics",
             fraud.detect_impossible_metrics(features),
             metric_truth,
-            population - age_truth,
+            population - age_truth - tamper_truth,
             note=f"arithmetic, not a model, {len(metric_truth)} cases",
+        )
+    )
+    report.subtypes["fraud, result tampering"] = section.add(
+        score_ids(
+            "  rule: mirrored rows contradict",
+            fraud.detect_result_contradictions(features),
+            tamper_truth,
+            population - age_truth - metric_truth,
+            note=f"table tennis, two records of one match, {len(tamper_truth)} cases",
         )
     )
     section.add(

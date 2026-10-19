@@ -146,6 +146,10 @@ class PlantedConfig:
 
     # A handful of deliberately impossible performance rows, attributed to a
     # small number of players, as a second and much cruder fraud signal.
+    # Table tennis players who change one of their results: a match they lost, logged by them
+    # as a win, while the opponent's own row of the same match still records the loss. Planted
+    # last, on a stream of its own (planted.plant_result_tampering), so no other row moves.
+    n_result_tampering: int = 3
     n_metric_fraud_players: int = 5
 
     # The same human entered twice. Half are left unresolved (both rows active)
@@ -216,6 +220,7 @@ class GeneratorConfig:
                 n_age_fraud=scale(self.planted.n_age_fraud),
                 fraud_age_inflation_years=self.planted.fraud_age_inflation_years,
                 n_metric_fraud_players=scale(self.planted.n_metric_fraud_players),
+                n_result_tampering=scale(self.planted.n_result_tampering),
                 n_duplicate_clusters=scale(self.planted.n_duplicate_clusters),
                 resolved_duplicate_fraction=self.planted.resolved_duplicate_fraction,
             ),

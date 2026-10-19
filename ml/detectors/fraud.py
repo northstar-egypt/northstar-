@@ -1,9 +1,9 @@
 """Fraud detector, v2 (v1 plus performance evidence for age misrepresentation).
 
-The answer key plants two kinds of fraud under one label, and they are nothing
-alike:
+The answer key plants three kinds of fraud under one label, and they are nothing
+alike (counts for the default 212-player dataset):
 
-  age_misrepresentation                    9 of the 14 cases
+  age_misrepresentation                    9 of the 17 cases
       A recorded date of birth younger than the real one. The body and the season
       were generated from the true age, so the player is too big, too fast and too
       dominant for the age on the record. Hard, statistical, and the one that
@@ -11,14 +11,24 @@ alike:
       the body only; v2 also reads output for the stated age, because an early
       maturer's body looks the same (see FraudParams).
 
-  implausible_self_reported_performance    5 of the 14 cases
+  implausible_self_reported_performance    5 of the 17 cases
       Self-submitted match rows whose numbers do not survive arithmetic. More
       goals than shots. More passes completed than attempted. A distance covered
       that no human has run. Easy, deterministic, and worth catching at the point
       of entry rather than by a model at all.
 
+  result_tampering                         3 of the 17 cases
+      A table tennis player logs a match they lost as a win, while the opponent's
+      own row of the same match still records the loss. Only table tennis has this
+      evidence: a match between two registered players is logged by both of them
+      (docs/decisions/0004). Deterministic like the arithmetic rule, but it needs
+      two records, so it cannot run at entry; who is flagged follows which row is
+      verified (`detect_result_contradictions`). A changed result whose opponent
+      never logged the match is invisible to it, by design: one match in eight is
+      logged by one side only, honestly.
+
 Scoring them as one number hides everything interesting, so this module exposes
-the two rules separately as well as combined, and the harness reports the
+each rule separately as well as combined, and the harness reports the
 breakdown. A combined F1 of 0.8 that is 5 easy cases and 6 of 9 hard ones is a
 different result from 0.8 spread evenly, and only one of them is worth shipping.
 
@@ -199,15 +209,108 @@ def _growth_reason(pf: PlayerFeatures, params: FraudParams) -> str | None:
 
 
 def detect(features: FeatureSet, params: FraudParams | None = None) -> dict[str, str]:
-    """Both rules, combined. This is what the headline fraud number is scored on."""
+    """Every rule, combined. This is what the headline fraud number is scored on."""
     flagged = dict(detect_age_misrepresentation(features, params))
-    for player_id, reason in detect_impossible_metrics(features).items():
-        # A player can trip both rules. Keep both sentences: the integrity board
-        # should see that the record is inconsistent in two independent ways.
-        flagged[player_id] = (
-            f"{flagged[player_id]} {reason}" if player_id in flagged else reason
-        )
+    for rule in (detect_impossible_metrics, detect_result_contradictions):
+        for player_id, reason in rule(features).items():
+            # A player can trip more than one rule. Keep every sentence: the integrity
+            # board should see each independent way the record is inconsistent.
+            flagged[player_id] = (
+                f"{flagged[player_id]} {reason}" if player_id in flagged else reason
+            )
     return flagged
+
+
+# A match between two registered players is logged as two rows that point at each other: the
+# same date, each naming the other in `opponent_player_id`. What one side won the other lost.
+# These are the fields that must mirror, as (this side, the other side).
+MIRRORED_FIELDS = (("sets_won", "sets_lost"), ("points_won", "points_lost"))
+
+
+def _mirrors(a: dict, b: dict) -> bool | None:
+    """True if two rows of one match agree, False if they contradict, None if unknown.
+
+    Unknown when any compared value is missing or not a number: absence is not zero (see the
+    note at the top of this module), and an incomplete row cannot contradict anything.
+    """
+    ma, mb = a.get("metrics") or {}, b.get("metrics") or {}
+    for mine, theirs in MIRRORED_FIELDS:
+        values = (ma.get(mine), ma.get(theirs), mb.get(mine), mb.get(theirs))
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
+            return None
+    return all(ma[x] == mb[y] and ma[y] == mb[x] for x, y in MIRRORED_FIELDS)
+
+
+def contradicting_matches(features: FeatureSet) -> list[tuple[dict, dict]]:
+    """Pairs of rows, (one side, the other side), of the same match that disagree.
+
+    Two players can meet more than once on a day, so the rows of a day are paired off first:
+    each row of one side with a row of the other side that mirrors it. What is left over on
+    both sides is a contradiction, paired in date order. A row left over on one side only is a
+    match the other player never logged, which is common and honest, so it is not evidence;
+    likewise an extra row that agrees with an already-paired one is a duplicate entry, not a
+    changed result. Rows of merged records are left out; they are copies.
+    """
+    merged = {pid for pid, pf in features.players.items() if pf.player.get("status") == "merged"}
+    sides: dict[tuple[str, str, str], list[dict]] = {}
+    for e in features.raw["performance_entries"]:
+        opponent = e.get("opponent_player_id")
+        if not opponent or e.get("player_id") in merged or opponent in merged:
+            continue
+        key = (str(e["player_id"]), str(opponent), str(e.get("period_start"))[:10])
+        sides.setdefault(key, []).append(e)
+
+    found = []
+    for (player, opponent, played_on), rows in sides.items():
+        if player > opponent:
+            continue  # each day once, from the side whose id sorts first
+        others = list(sides.get((opponent, player, played_on), []))
+        left = []
+        for row in rows:
+            partner = next((o for o in others if _mirrors(row, o) is True), None)
+            if partner is not None:
+                others.remove(partner)
+            else:
+                left.append(row)
+        # A row that is unknown against every candidate (a missing value) proves nothing.
+        left = [r for r in left if any(_mirrors(r, o) is False for o in others)]
+        others = [o for o in others if any(_mirrors(r, o) is False for r in left)]
+        found.extend(zip(left, others))
+    return found
+
+
+def detect_result_contradictions(features: FeatureSet) -> dict[str, str]:
+    """Players whose own row of a match contradicts the opponent's row of it.
+
+    Who is flagged follows how far each row can be trusted. Against a verified row (coach
+    logged or from an official source), the unverified side is flagged. If neither row is
+    verified, both are, as one conflict for a reviewer, because nothing says which one is
+    true. If both are verified, it is a data error between two trusted sources, not fraud, and
+    nothing is flagged.
+    """
+    flagged: dict[str, list[str]] = {}
+    for a, b in contradicting_matches(features):
+        played_on = str(a.get("period_start"))[:10]
+        a_ok, b_ok = a.get("is_validated") is True, b.get("is_validated") is True
+        if a_ok and b_ok:
+            continue
+        if a_ok != b_ok:
+            liar, truth = (b, a) if a_ok else (a, b)
+            m = liar["metrics"]
+            flagged.setdefault(str(liar["player_id"]), []).append(
+                f"Their own row of the match on {played_on} records {m['sets_won']}-"
+                f"{m['sets_lost']} in sets; the opponent's verified row of the same match "
+                f"records {truth['metrics']['sets_won']}-{truth['metrics']['sets_lost']} "
+                f"the other way."
+            )
+            continue
+        for row in (a, b):
+            flagged.setdefault(str(row["player_id"]), []).append(
+                f"Two self-submitted rows of the match on {played_on} disagree about the "
+                f"result, and neither is verified. Flagged on both sides for a reviewer; this "
+                f"does not say which one is true."
+            )
+    return {pid: " ".join(reasons) for pid, reasons in flagged.items()}
 
 
 def flagged_entry_ids(features: FeatureSet) -> set[str]:

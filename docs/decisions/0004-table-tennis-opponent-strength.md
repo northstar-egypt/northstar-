@@ -168,6 +168,12 @@ Full numbers, the unflattering ones included, are in `ml/README.md`, "Table tenn
    self-submitted win whose opponent's own row records a loss to someone else, or a win over
    a registered opponent with no matching row. Recommended: later, as its own task, so this
    change stays one topic and the fraud numbers move only once for a known reason.
+   **Answered 2026-10-19 and built:** the first kind only (a changed result, contradicted by
+   the opponent's row). An invented win with no matching row is not planted or detected,
+   because it looks the same as an honest one-sided log. When the two rows disagree, the
+   unverified side is flagged; if neither is verified, both are, as one conflict that does not
+   say who is right; if both are verified, nothing is flagged as fraud. Results in
+   `ml/README.md`, "Result tampering".
 4. **Accept that published numbers move once** (see Consequences), reported in the PR with
    before and after.
 

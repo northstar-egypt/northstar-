@@ -58,9 +58,20 @@ def test_football_rows_never_name_an_opponent_player(dataset):
 
 
 def test_both_rows_of_a_match_tell_the_same_result(dataset):
-    """Most registered matches are logged by both players, and the two rows mirror."""
+    """Most registered matches are logged by both players, and the two rows mirror.
+
+    Except the planted changed results (planted.plant_result_tampering), which disagree with
+    their mirror on purpose; those rows and their opponents' rows of that day are left out.
+    """
+    disputed = set()
+    for c in dataset.ground_truth["cases"]["fraud"]:
+        if c["fraud_type"] == "result_tampering":
+            disputed.add((c["player_id"], c["detail"]["opponent_player_id"], c["detail"]["played_on"]))
+            disputed.add((c["detail"]["opponent_player_id"], c["player_id"], c["detail"]["played_on"]))
     by_key = collections.defaultdict(list)
     for e in _matches(dataset):
+        if (str(e.player_id), str(e.opponent_player_id), str(e.period_start)) in disputed:
+            continue
         if e.opponent_player_id:
             by_key[(e.player_id, e.opponent_player_id, e.period_start)].append(e)
 
@@ -136,6 +147,14 @@ def test_table_tennis_is_on_its_own_random_stream(monkeypatch):
     assert [(m.id, m.value) for m in before.measurements] == [
         (m.id, m.value) for m in after.measurements
     ]
-    assert before.ground_truth["cases"] == after.ground_truth["cases"]
+    # Which matches carry a planted changed result depends on the matches, so that one class
+    # moves with them by design; every other planted case must not.
+    def untouched(cases):
+        return {
+            **cases,
+            "fraud": [c for c in cases["fraud"] if c["fraud_type"] != "result_tampering"],
+        }
+
+    assert untouched(before.ground_truth["cases"]) == untouched(after.ground_truth["cases"])
     tt = lambda ds: [e.metrics for e in ds.performance_entries if e.sport == "table_tennis"]  # noqa: E731
     assert tt(before) != tt(after), "the change did nothing, so the test proves nothing"

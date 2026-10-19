@@ -243,6 +243,30 @@ def main(argv: list[str] | None = None) -> int:
                 detector_name="fraud.impossible_metrics",
             )
 
+        # Table tennis results the opponent's own row contradicts. The rows of the disputed
+        # matches are the case: a new dispute is a new case even if an earlier one was dismissed.
+        disputed: dict[str, list[str]] = {}
+        for a, b in fraud.contradicting_matches(features):
+            for row in (a, b):
+                disputed.setdefault(str(row["player_id"]), []).append(str(row["id"]))
+        for player_id, reason in fraud.detect_result_contradictions(features).items():
+            rows = sorted(disputed.get(player_id, []))
+            raise_flag(
+                player_id,
+                flag_type=FlagType.FRAUD.value,
+                reason=reason,
+                fingerprint="mirror:" + ",".join(rows),
+                evidence={
+                    "points": [
+                        f"{len(rows)} match row(s) the opponent's own row of the same match "
+                        f"contradicts",
+                        "Same date, and each row names the other player",
+                        "The disputed row is self-submitted and unvalidated",
+                    ]
+                },
+                detector_name="fraud.result_contradiction",
+            )
+
         # Duplicates. Written once per pair rather than once per record, with the partner on
         # `related_player_id` so the integrity board can render the field-by-field diff.
         for (a, b), reason in duplicate.detect_pairs(features).items():
