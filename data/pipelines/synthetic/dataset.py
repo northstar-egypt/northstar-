@@ -150,6 +150,11 @@ def build_dataset(config: GeneratorConfig) -> Dataset:
             for p in ds.profiles
             if p.player.primary_sport == enums.Sport.TABLE_TENNIS.value
         },
+        football_ability={
+            str(p.id): round(p.effective_ability(config.population.reference_date), 4)
+            for p in ds.profiles
+            if p.player.primary_sport == enums.Sport.FOOTBALL.value
+        },
     )
     if config.attrition:
         ds.ground_truth["attrition"] = {

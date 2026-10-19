@@ -653,6 +653,57 @@ nearer is unknown until the ITTF and WTT results are ingested.
 - **Settings were tuned on seeds 101, 202 and 303**: Glicko-2 tau 0.5 (no setting tried made
   a difference), point rating prior 0.15, display range 0.07, baseline slopes 3 and 20.
 
+## Player similarity
+
+```bash
+python -m ml.run_similarity_eval --seed-sweep 101 202 303                              # tuning
+python -m ml.run_similarity_eval --seed-sweep 20260827 7 99 404 555                    # reported
+python -m ml.run_similarity_eval --seed-sweep 20260827 7 99 404 555 $(seq 1000 1014)   # 20 seeds
+```
+
+"Players like this one", for football and table tennis (`ml/similarity.py`). Each player's
+profile is their own record scaled to the time played: football per 90 minutes (shots, shots
+on target, goals, assists, key passes, tackles, passes attempted, distance) plus pass
+completion; table tennis per set (service winners, unforced errors) plus the share of points
+and sets won. Each statistic is standardised within the sport and players are compared by
+distance, only within the same sport and gender. A profile needs 450 minutes or 20 sets on
+record, skips rows the sport module says cannot be true and rows the opponent's own row
+contradicts, and never reads position or the answer key. Standard library only.
+
+**What it can be graded on, and what not.** The generator draws a footballer's statistics from
+their position and one hidden number, ability, which scales only shots and key passes; a
+table tennis player's from ability alone. So in this data "similar" can only mean the same
+role and the same level, and those are the two things graded. Real players differ in style in
+ways this data does not have; nothing here says how well it finds that. The statistic list
+and K = 5 were fixed before the first run and nothing was tuned.
+
+Pooled over 20 seeds (the five reported seeds alone, and the tuning seeds, agree within a few
+points):
+
+| | the 5 most similar players | chance or random | the obvious single number | best possible |
+| --- | --- | --- | --- | --- |
+| football, same kind of position (never read) | **73%** | 28% | | |
+| football, level: share of the gap from random to best | **37%** | 0% | 27% (shots per 90) | 100% |
+| table tennis, level | **85%** | 0% | 72% (share of points won) | 100% |
+| table tennis, same playing style (not used by the generator) | 27% | 26% | | |
+
+Read it this way:
+
+- **It finds role.** Without reading position, nearly three in four of a footballer's most
+  similar players play the same kind of position, against fewer than three in ten by chance.
+  Passing, tackling and distance give a role away.
+- **It beats the obvious single number on level, in both sports**, but in football only
+  modestly: it closes about a third of the gap between random and perfect. Most of a
+  footballer's profile carries no ability in this data (only shots and key passes do), so the
+  rest is noise for this question. Real data, where more statistics reflect quality, should do
+  better here; that is untested.
+- **It does not find what is not there.** Playing style in table tennis is recorded but the
+  generator never uses it, and the most similar players share a style at chance. A method that
+  beat chance there would be fitting noise.
+- **Table tennis level comes mostly from the share of points won**, which is close to what the
+  rating in the previous section measures, against opponents of any strength. The rating is
+  the better number for level; similarity adds which kind of player.
+
 ## Relative age audit
 
 Children born early in the selection year are older, bigger and more mature than team-mates
@@ -934,7 +985,7 @@ backtest.py    the late-bloomer backtest, run_backtest.py is its CLI      done
 export_db.py   database to JSON export, for running any harness on real data  done
 rating/        table tennis ratings: Glicko-2 and the point rating          done
 run_rating_eval.py  grades both against hidden ability                       done
-similarity/    embedding + nearest-neighbor search                        TODO
+similarity.py  player similarity, run_similarity_eval.py grades it             done
 assistant/     Ollama prompt + retrieval grounding                        TODO
 artifacts/     trained models (gitignored)
 ```
