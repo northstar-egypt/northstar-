@@ -20,10 +20,11 @@ script actually uses them:
   A doubled letter counts once.
 - A **long vowel written in Arabic** (ا و ي, and ى) must be spelled by a Latin vowel that can
   spell it: ي by i, e or y; و by o, u or w; ا by a. This is why "Hassan" does not find
-  حسين: its a cannot spell ي. The other way round it cannot help: "Hussein" still finds حسن,
-  because nothing in حسن rules out the Latin vowels, which are read as short ones.
+  حسين: its a cannot spell ي.
 - A **Latin vowel with no Arabic long vowel under it** is a short vowel, unwritten in Arabic,
-  and is skipped.
+  and is skipped. Only a single vowel letter can be one: a run of two (ei, ee, ae, ai, oo)
+  cannot, so "Hussein" no longer finds حسن. The exception is "ou", the French-style spelling
+  of one short vowel (Mounir, Moustafa), which is why "Mahmoud" still finds محمد.
 - ع and hamza inside a word are written in Latin as a vowel, an apostrophe or nothing (Saad,
   Sa'ad, Shaaban), so they may match a vowel or nothing. A final ة is not written as a
   consonant in Latin (Fatma), and a final h after a vowel may be silent (Fatmah, Abdalla).
@@ -44,8 +45,10 @@ Scored on real-world spellings of every name the synthetic generator uses, half 
 out while the rules were written: apps/api/tests/test_names.py prints the numbers and fails
 if they drop. On the held-out half: every one of 117 spellings finds its name, and 0.21% of
 checks against a different name match it. Latin against Latin, 0.26%. In a search that
-means nothing is missed, but 71% of the players returned are the right ones: the names that
-collide are common, so one collision returns many players. Names that share their
+means nothing is missed, but 71% of the players returned were the right ones: the names that
+collide are common, so one collision returns many players. The double-vowel rule above
+(2026-10-19) was judged on a fresh set of spellings written before it: search precision 80.0%
+to 85.4% there, at the cost of one spelling of 103 (El-Guindy, whose "gu" is a French hard g). Names that share their
 consonants and differ only in vowels (Said and El-Sayed, Omar and Amr, Salah and Saleh) are
 listed there, not hidden. There is no tolerance for a wrong consonant, so a typo like
 "Mohamef" finds nothing.
@@ -70,6 +73,8 @@ from functools import lru_cache
 #   ("start", allowed) Arabic: the word starts with a vowel (allowed None: any vowel)
 
 _LATIN_VOWELS = frozenset("aeiou")
+# Latin vowel runs that may spell one short, unwritten Arabic vowel (see _arabic_spelled_by).
+_SHORT_VOWEL_RUNS = frozenset({"ou"})
 _LATIN_DIGRAPHS = {"sh": "S", "ch": "S", "kh": "x", "gh": "g", "th": "t", "dh": "d", "ph": "f"}
 _LATIN_SOUNDS = {
     "b": "b", "p": "b", "c": "k", "d": "d", "f": "f", "v": "f", "g": "g", "j": "g",
@@ -296,7 +301,12 @@ def _arabic_spelled_by(a: tuple, l: tuple) -> bool:
         if latin is None:
             return False
         if latin[0] == "v":
-            return go(i, j + 1)  # a short vowel, which Arabic does not write
+            # A short vowel, which Arabic does not write. One Latin vowel letter can be one;
+            # a run of two cannot (Hussein is not حسن, Saeid is not سعد), except the runs
+            # French-style spelling uses for a single short vowel (Mounir, Moustafa).
+            if len(latin[1]) > 1 and latin[1] not in _SHORT_VOWEL_RUNS:
+                return False
+            return go(i, j + 1)
         if latin == ("h?",):
             return a[i] == ("c", "h") and go(i + 1, j + 1)
         return latin == a[i] and go(i + 1, j + 1)

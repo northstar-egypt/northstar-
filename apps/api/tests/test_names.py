@@ -18,11 +18,18 @@ Measured when the rules were frozen (held-out half):
 - Word level: 117 of 117 spellings find their name; 0.21% of checks against another name
   match it. Latin against Latin: 0.26%.
 - Search level, on the generated dataset: recall 100%, precision 71.2% (92.9% on the tune
-  half). Most wrong results come from a Latin double vowel read as an unwritten short one,
-  so Hussein finds حسن, Said finds سعد, Mahmoud finds محمد. A rule against that is the obvious
-  next step, but it was spotted on the held-out half, and it would cost the French-style
-  spellings that write a short vowel as "ou" (Mounir, Moustafa). It needs a fresh set of
-  spellings to be judged on, so it is not in.
+  half). Most wrong results came from a Latin double vowel read as an unwritten short one,
+  so Hussein found حسن.
+
+The double-vowel rule (2026-10-19). A run of two Latin vowels may no longer stand for a
+short vowel Arabic does not write, except "ou", the French-style spelling of one short vowel
+(Mounir, Moustafa). It was spotted on the held-out half, so a fresh set of spellings
+(tests/name_spellings_fresh.py) was written and committed before it, and judges it. The "ou"
+exception was chosen on the tune half: without it, Mounir and Moustafa stop finding their
+players. On the fresh set, search precision went from 80.0% to 85.4% and one spelling of 103
+stopped finding its name (El-Guindy, see FRESH_MISSES). Tune half 92.9% to 93.7%; held-out
+half, no longer a fair judge, 71.2% to 78.1%. Said and Saeed still find سعد: ع is written as
+a vowel, so no rule on the letters alone can tell those apart.
 """
 
 from __future__ import annotations
@@ -39,10 +46,11 @@ from tests.name_spellings import SPELLINGS, half
 # consonants and differs only in a vowel one side does not write, so no rule based on the
 # letters alone can tell them apart without losing real spellings of one of them.
 KNOWN_CROSS_SCRIPT = {
-    ("Mahmoud", "محمد"), ("Mahmud", "محمد"), ("Mahmood", "محمد"),
+    # Mahmoud keeps its collision: "ou" is the French-style spelling of one short vowel
+    # (Mounir, Moustafa), so it may stand for the u that محمد does not write.
+    ("Mahmoud", "محمد"), ("Mahmud", "محمد"),
     ("Omar", "عمرو"), ("Umar", "عمرو"), ("Amr", "عمر"), ("Amro", "عمر"), ("Amrou", "عمر"),
-    ("Amira", "عمر"), ("Amira", "عمرو"), ("Ameera", "عمر"), ("Ameera", "عمرو"),
-    ("Hussein", "حسن"), ("Hossein", "حسن"), ("Hussain", "حسن"), ("Hosein", "حسن"),
+    ("Amira", "عمر"), ("Amira", "عمرو"),
     ("Ayman", "إيمان"), ("Aiman", "إيمان"), ("Eman", "أيمن"), ("Iman", "أيمن"),
     ("Bassem", "بسمة"), ("Basem", "بسمة"), ("Basim", "بسمة"), ("Basma", "باسم"),
     ("Reham", "رحمة"), ("Riham", "رحمة"),
@@ -158,8 +166,44 @@ def test_evaluation_search_level(generated_names):
         )
         assert recall == 1.0
         # Held at what was measured when the rules were frozen, so a change that makes
-        # search worse cannot pass quietly.
-        assert precision >= {"tune": 0.90, "held out": 0.69}[which]
+        # search worse cannot pass quietly (before the double-vowel rule: 92.9% and 71.2%).
+        assert precision >= {"tune": 0.93, "held out": 0.78}[which]
+
+
+# The fresh set (tests/name_spellings_fresh.py) was written and committed before the
+# double-vowel rule, so it is the one that judges it. These four do not find their name.
+# Three are French-style consonant spellings the matcher has never read (c for s, ou for w,
+# dj for j); El-Guindy is the cost of the rule: its "gu" is a French hard g, so "ui" reads as
+# a double vowel standing for a short one. Each is a known gap, not something to fit to.
+FRESH_MISSES = {("Youcef", "يوسف"), ("Oualid", "وليد"), ("Djamel", "جمال"), ("El-Guindy", "الجندي")}
+
+
+def test_evaluation_fresh_spellings(generated_names):
+    """Measured once, after the rule was chosen on the tune half: precision 80.0% before the
+    rule and 85.4% with it; word recall 100 of 103 before, 99 of 103 with it."""
+    from tests.name_spellings_fresh import FRESH
+
+    misses = {
+        (spelling, arabic)
+        for arabic, spellings in FRESH.items()
+        for spelling in spellings
+        if not (names.matches(spelling, arabic) and names.matches(arabic, spelling))
+    }
+    assert misses == FRESH_MISSES
+
+    right = wrong = 0
+    for arabic, spellings in FRESH.items():
+        truth = {i for i, (full, _) in enumerate(generated_names) if names.matches(arabic, full)}
+        for spelling in spellings:
+            found = {
+                i for i, (full, known) in enumerate(generated_names)
+                if names.matches(spelling, full, known)
+            }
+            right += len(found & truth)
+            wrong += len(found - truth)
+    precision = right / (right + wrong)
+    print(f"\nsearch, fresh spellings: precision {right}/{right + wrong} = {precision:.1%}")
+    assert precision >= 0.85
 
 
 def test_the_test_set_covers_every_name_the_generator_uses():
