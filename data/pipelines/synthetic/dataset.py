@@ -15,6 +15,7 @@ The order below is not arbitrary and changing it changes the data:
 9. measurements and performance
 10. injected fraud rows, consent and audit
 11. optionally, simulated release at 14 (attrition.py), off by default
+12. table tennis result tampering, on rows that survived step 11 (its own stream)
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ from .planted import (
     plant_duplicates,
     plant_late_bloomers,
     plant_metric_fraud,
+    plant_result_tampering,
 )
 from .players import PlayerProfile, draw_maturity_tempo, generate_players
 from .rng import Rng
@@ -130,6 +132,10 @@ def build_dataset(config: GeneratorConfig) -> Dataset:
             [e for e in ds.performance_entries if e.id not in injected_ids],
         )
         ds.performance_entries = kept + injected
+    # After attrition, so a tampered row is one that is still there, and on its own stream.
+    cases.fraud += plant_result_tampering(
+        config, ds.profiles, ds.performance_entries, cases.duplicates
+    )
     ds.consents = generate_consents(rng, config, ds.profiles)
     ds.audit_logs = generate_audit_log(rng, config, ds.users, ds.profiles)
 

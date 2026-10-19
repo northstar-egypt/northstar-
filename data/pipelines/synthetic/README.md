@@ -102,8 +102,16 @@ at the source, so the signals a detector should find appear on their own.
 age, and a younger `date_of_birth` is recorded against them. The biometric
 outlier and the dominance over the stated age group are consequences of the lie,
 not decorations added on top. A second, cruder class exists too: a few players
-carry self-submitted match rows that fail arithmetic. Those rows are the only
-inconsistent rows in the dataset, and their ids are in the answer key.
+carry self-submitted match rows that fail arithmetic. Their ids are in the answer key
+(`flagged_performance_entry_ids`).
+
+**Changed table tennis results.** A few table tennis players log a match they lost
+as a win: their own row is rewritten and made self-submitted, while the opponent's
+row of the same match still records the loss. Planted last, on a stream of its own,
+so no other row moves; only matches whose both rows exist and whose opponent is not a
+merged record qualify. The tampered rows are in each case's `tampered_entry_ids`,
+kept apart from the arithmetic rows above. Apart from those two classes, every row is
+consistent with every other.
 
 **Late bloomers.** A maturity offset shifts the whole growth curve later. They
 are short for their cohort at 13–15, then have a steep spurt and catch up to the

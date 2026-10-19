@@ -482,3 +482,83 @@ def plant_duplicates(
         )
 
     return clones, clusters
+
+
+# ---------------------------------------------------------------------------
+# Result tampering (table tennis)
+# ---------------------------------------------------------------------------
+
+# Planted after every other row exists, on a stream of its own, so turning it on changes only
+# the tampered rows and the answer key. See docs/decisions/0004 (open decision 3).
+_TAMPER_STREAM_OFFSET = 7643
+
+
+def plant_result_tampering(
+    config: GeneratorConfig,
+    profiles: list[PlayerProfile],
+    rows: list,
+    duplicates: list[DuplicateCluster] = (),
+) -> list[FraudCase]:
+    """A player logs a match they lost as a win.
+
+    Only matches between two registered players whose both rows exist qualify, because the
+    point is the contradiction: the opponent's own row of the same match still records the
+    real result. The tampered row becomes self-submitted and unvalidated, which is how a
+    changed result would reach the platform. One row per player, on players who carry no
+    other planted case of any kind (fraud, late bloomer, duplicate), so each case has one cause
+    and the label sets stay disjoint.
+    """
+    rng = Rng(config.seed + _TAMPER_STREAM_OFFSET, config.name_locale)
+    excluded = {
+        p.id
+        for p in profiles
+        if p.is_planted_age_fraud
+        or p.is_planted_metric_fraud
+        or p.is_planted_late_bloomer
+        or p.player.status == "merged"
+    } | {str(pid) for cluster in duplicates for pid in cluster.player_ids}
+    # A merged record is a copy of a player already counted, and its rows are no evidence
+    # about anyone, so a match against one cannot carry a planted contradiction.
+    merged = {p.id for p in profiles if p.player.status == "merged"}
+    tt = [r for r in rows if r.schema_ref == "table_tennis.match.v1" and r.opponent_player_id]
+    by_side = {(r.player_id, r.opponent_player_id, r.period_start): r for r in tt}
+
+    losses: dict = {}
+    for row in tt:
+        mirror = by_side.get((row.opponent_player_id, row.player_id, row.period_start))
+        m = row.metrics
+        if (
+            mirror is not None
+            and row.player_id not in excluded
+            and str(row.player_id) not in excluded
+            and row.opponent_player_id not in merged
+            and m["sets_won"] < m["sets_lost"]
+            and mirror.metrics["sets_won"] == m["sets_lost"]
+        ):
+            losses.setdefault(row.player_id, []).append(row)
+
+    chosen = rng.sample(sorted(losses, key=str), min(config.planted.n_result_tampering, len(losses)))
+    cases: list[FraudCase] = []
+    for player_id in chosen:
+        row = rng.choice(sorted(losses[player_id], key=lambda r: str(r.id)))
+        m = dict(row.metrics)
+        m["sets_won"], m["sets_lost"] = m["sets_lost"], m["sets_won"]
+        m["points_won"], m["points_lost"] = m["points_lost"], m["points_won"]
+        assert not sports.validate(m, row.schema_ref), "a tampered row must still look valid"
+        row.metrics = m
+        row.source = enums.PerformanceSource.SELF_SUBMITTED.value
+        row.is_validated = False
+        cases.append(
+            FraudCase(
+                player_id=str(player_id),
+                fraud_type="result_tampering",
+                signals=["mirror_contradiction"],
+                detail={
+                    "tampered_entry_ids": [str(row.id)],
+                    "opponent_player_id": str(row.opponent_player_id),
+                    "played_on": str(row.period_start),
+                },
+            )
+        )
+    return cases
+
