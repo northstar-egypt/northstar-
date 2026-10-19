@@ -30,6 +30,7 @@ import type {
   ProfileSummary,
   SearchResult,
   SessionUser,
+  SimilarPlayers,
   SportModule,
   SquadRow,
 } from "./types";
@@ -192,6 +193,16 @@ export async function getProfile(playerId: string): Promise<PlayerProfile | null
 export async function getSummary(playerId: string): Promise<ProfileSummary | null> {
   try {
     return await request<ProfileSummary>(`/players/${encodeURIComponent(playerId)}/summary`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+/** Players whose match record looks most like this one's. Null on 404, as `getProfile`. */
+export async function getSimilar(playerId: string): Promise<SimilarPlayers | null> {
+  try {
+    return await request<SimilarPlayers>(`/players/${encodeURIComponent(playerId)}/similar`);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;

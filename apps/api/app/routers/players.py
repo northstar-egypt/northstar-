@@ -18,7 +18,12 @@ from app.deps import current_user
 from app.models.enums import ConsentPurpose
 from app.models.player import Player
 from app.schemas.core import MeasurementOut, PlayerOut
-from app.schemas.views import PlayerProfileOut, ProfileSummaryOut, SquadRowOut
+from app.schemas.views import (
+    PlayerProfileOut,
+    ProfileSummaryOut,
+    SimilarPlayersOut,
+    SquadRowOut,
+)
 from app.schemas.writes import (
     ConsentWithdrawalIn,
     ConsentWithdrawnOut,
@@ -27,7 +32,7 @@ from app.schemas.writes import (
     PlayerCreatedOut,
     PlayerCreateIn,
 )
-from app.services import summary, views, writes
+from app.services import similar, summary, views, writes
 from app.services.access import (
     Caller,
     consent_state,
@@ -131,6 +136,21 @@ def player_summary(
         )
     result = summary.summarise(views.build_profile(db, caller, player))
     return ProfileSummaryOut(summary=result.text, note=result.note, model=result.model)
+
+
+@router.get("/players/{player_id}/similar", response_model=SimilarPlayersOut)
+def player_similar(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> SimilarPlayersOut:
+    """Players whose match record looks most like this one's. See app/services/similar.py.
+
+    Only players the caller may see are listed, and only players with analytics consent in
+    effect are compared at all.
+    """
+    player = _viewable_player(db, caller, player_id)
+    return SimilarPlayersOut.model_validate(similar.similar_players(db, caller, player))
 
 
 # ---------------------------------------------------------------------------
