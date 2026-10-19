@@ -212,6 +212,24 @@ class PlayerProfileOut(CamelModel):
     permissions: PermissionsOut
 
 
+class SimilarPlayerOut(CamelModel):
+    player_id: uuid.UUID
+    full_name: str
+    position: str | None = None
+    age_label: str
+    # Distance between the two profiles, in standard deviations on a typical statistic.
+    distance: float
+    # The statistics on which the two are most alike, in words.
+    alike: list[str] = []
+
+
+class SimilarPlayersOut(CamelModel):
+    """GET /players/{id}/similar. `items` may be empty; `note` always says what this is or why."""
+
+    items: list[SimilarPlayerOut] = []
+    note: str
+
+
 class ProfileSummaryOut(CamelModel):
     """The written summary for the profile, from GET /players/{id}/summary.
 

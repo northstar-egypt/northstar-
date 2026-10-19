@@ -260,6 +260,21 @@ export interface SportModule {
  * The written summary, from GET /players/{id}/summary. `summary` is null when there is none,
  * and `note` always says why, or which model wrote it and that its numbers were checked.
  */
+/** GET /players/{id}/similar. `items` may be empty; `note` always says what this is or why. */
+export interface SimilarPlayers {
+  items: {
+    playerId: string;
+    fullName: string;
+    position: string | null;
+    ageLabel: string;
+    /** In standard deviations on a typical statistic. */
+    distance: number;
+    /** The statistics on which the two are most alike, in words. */
+    alike: string[];
+  }[];
+  note: string;
+}
+
 export interface ProfileSummary {
   summary: string | null;
   note: string;

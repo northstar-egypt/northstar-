@@ -31,7 +31,7 @@ import {
   Th,
   inputClass,
 } from "@/components/ui";
-import { getProfile, getSummary, withdrawConsent, writeRefusal } from "@/lib/api";
+import { getProfile, getSimilar, getSummary, withdrawConsent, writeRefusal } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { num, ordinal, shortDate } from "@/lib/format";
 import type {
@@ -40,6 +40,7 @@ import type {
   PlayerProfile,
   ProfileSummary,
   Rating,
+  SimilarPlayers,
   SummaryStat,
 } from "@/lib/types";
 
@@ -260,6 +261,8 @@ export default function PlayerProfilePage() {
         ))
       )}
 
+      <SimilarCard playerId={playerId} />
+
       {/* provenance */}
       <Card className="bg-slate-900/40">
         <SectionTitle>Where this data came from</SectionTitle>
@@ -459,6 +462,55 @@ function SummaryCard({ playerId }: { playerId: string }) {
       <SectionTitle>Summary</SectionTitle>
       <p className="text-sm leading-relaxed text-slate-300">{summary.summary}</p>
       <p className="mt-2 text-xs text-slate-500">{summary.note}</p>
+    </Card>
+  );
+}
+
+/**
+ * Players whose match record looks most like this one's (ml/similarity.py, graded in
+ * ml/README.md, "Player similarity"). Its own request, so the profile never waits for it. The
+ * API lists only players the caller may see, and compares nobody without analytics consent.
+ */
+function SimilarCard({ playerId }: { playerId: string }) {
+  const [similar, setSimilar] = useState<SimilarPlayers | "loading" | "failed">("loading");
+
+  useEffect(() => {
+    let alive = true;
+    setSimilar("loading");
+    getSimilar(playerId)
+      .then((s) => alive && setSimilar(s ?? "failed"))
+      .catch(() => alive && setSimilar("failed"));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (similar === "failed") return null;
+
+  return (
+    <Card>
+      <SectionTitle>Similar players</SectionTitle>
+      {similar === "loading" ? (
+        <Skeleton className="h-16" />
+      ) : similar.items.length === 0 ? (
+        <p className="text-sm text-slate-500">{similar.note}</p>
+      ) : (
+        <>
+          <ul className="flex flex-col divide-y divide-slate-800">
+            {similar.items.map((p) => (
+              <li key={p.playerId} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                <Link href={`/players/${p.playerId}`} className="font-semibold text-slate-100 hover:text-sky-300">
+                  {p.fullName}
+                </Link>
+                <span className="text-xs text-slate-400">
+                  {[p.position, p.ageLabel].filter(Boolean).join(" · ")} · alike on {p.alike.join(", ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-500">{similar.note}</p>
+        </>
+      )}
     </Card>
   );
 }
