@@ -296,6 +296,20 @@ def test_a_board_row_carries_its_evidence_and_history(client, auth, raise_flag):
     assert row["playerName"] == "Adult A"
 
 
+def test_a_rule_without_a_score_shows_none_and_says_which_rule_it_was(client, auth, raise_flag):
+    """The board once showed "confidence 0.00" for every flag, because a missing score was sent
+    as 0.0. On screen that reads as "the model is sure this is nothing", a made-up number."""
+    raise_flag("adult_a", confidence=None)
+    raise_flag("adult_b", confidence=0.8)
+    rows = {
+        row["playerName"]: row
+        for row in client.get("/integrity/flags", headers=auth("federation")).json()
+    }
+    assert rows["Adult A"]["confidence"] is None
+    assert rows["Adult B"]["confidence"] == 0.8
+    assert rows["Adult A"]["detector"] == "test_detector"
+
+
 def test_a_duplicate_flag_carries_the_field_by_field_diff(client, auth, raise_flag):
     """For a duplicate this diff is the whole decision, and it has to show which record has
     more history, because that determines which one survives the merge."""

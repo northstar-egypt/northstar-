@@ -279,6 +279,13 @@ def contradicting_matches(features: FeatureSet) -> list[tuple[dict, dict]]:
     return found
 
 
+def _result(row: dict) -> str:
+    """'won 3-1 in sets' from the point of view of the row's own player."""
+    m = row["metrics"]
+    verb = "won" if m["sets_won"] > m["sets_lost"] else "lost"
+    return f"{verb} {m['sets_won']}-{m['sets_lost']} in sets"
+
+
 def detect_result_contradictions(features: FeatureSet) -> dict[str, str]:
     """Players whose own row of a match contradicts the opponent's row of it.
 
@@ -296,12 +303,10 @@ def detect_result_contradictions(features: FeatureSet) -> dict[str, str]:
             continue
         if a_ok != b_ok:
             liar, truth = (b, a) if a_ok else (a, b)
-            m = liar["metrics"]
             flagged.setdefault(str(liar["player_id"]), []).append(
-                f"Their own row of the match on {played_on} records {m['sets_won']}-"
-                f"{m['sets_lost']} in sets; the opponent's verified row of the same match "
-                f"records {truth['metrics']['sets_won']}-{truth['metrics']['sets_lost']} "
-                f"the other way."
+                f"Their own row of the match on {played_on} says they {_result(liar)}. The "
+                f"opponent's verified row of the same match says the opponent "
+                f"{_result(truth)}. Both cannot be true."
             )
             continue
         for row in (a, b):

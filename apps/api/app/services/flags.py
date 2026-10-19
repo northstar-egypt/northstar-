@@ -281,15 +281,16 @@ def list_integrity_flags(
             {
                 "id": str(flag.id),
                 "type": flag.type,
+                "detector": flag.detector_name,
                 "status": flag.status,
                 "playerName": flag.player.full_name,
                 "organizationName": organization.name if organization else None,
                 "raisedAt": raised_on.isoformat(),
                 "ageDays": (today - raised_on).days,
-                # The frontend types confidence as a number. A rule-based detector has no
-                # calibrated probability, and 0.0 is the honest stand-in for "no score" here
-                # rather than a made-up one.
-                "confidence": flag.confidence if flag.confidence is not None else 0.0,
+                # A rule-based detector has no calibrated probability, so there is no score to
+                # show. It goes out as null and the board shows none: a 0.00 on screen reads
+                # as "the model is sure this is not fraud", which is a made-up number.
+                "confidence": flag.confidence,
                 "reason": flag.reason,
                 "evidence": list(flag.evidence.get("points", [])),
                 "records": _duplicate_records(db, flag),

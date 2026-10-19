@@ -41,6 +41,21 @@ const TONE: Record<IntegrityFlag["type"], "bad" | "warn" | "brand"> = {
   anomaly: "warn",
 };
 
+/** What the rule that raised a flag actually checked, so a reviewer starts from the right question. */
+function flagTitle(flag: IntegrityFlag): string {
+  switch (flag.detector) {
+    case "fraud.age_misrepresentation":
+      return "Possible age misrepresentation";
+    case "fraud.impossible_metrics":
+      return "Self-submitted rows that do not add up";
+    case "fraud.result_contradiction":
+      return "A result the opponent's own record contradicts";
+  }
+  if (flag.type === "duplicate") return "Possible duplicate record";
+  if (flag.type === "fraud") return "Possible fraud";
+  return "Measurement anomaly";
+}
+
 export default function IntegrityPage() {
   const [flags, setFlags] = useState<IntegrityFlag[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -159,22 +174,24 @@ export default function IntegrityPage() {
               <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-bold tracking-tight">
-                    {selected.type === "duplicate"
-                      ? "Possible duplicate record"
-                      : selected.type === "fraud"
-                        ? "Possible self submission fraud"
-                        : "Measurement anomaly"}
+                    {flagTitle(selected)}
                   </h2>
                   <p className="text-xs text-slate-500">
                     {selected.playerName} &middot; raised {selected.ageDays} days ago
                   </p>
                 </div>
-                <Chip
-                  tone={TONE[selected.type]}
-                  title="The model's own number. Converting it to a word would lose the feedback the ML track needs."
-                >
-                  confidence {selected.confidence.toFixed(2)}
-                </Chip>
+                {selected.confidence != null ? (
+                  <Chip
+                    tone={TONE[selected.type]}
+                    title="The model's own number. Converting it to a word would lose the feedback the ML track needs."
+                  >
+                    confidence {selected.confidence.toFixed(2)}
+                  </Chip>
+                ) : (
+                  <Chip title="This rule gives a reason, not a probability, so there is no score to show.">
+                    rule, no score
+                  </Chip>
+                )}
               </div>
 
               {/* Evidence before verdict. A reviewer must be able to disagree with the model,

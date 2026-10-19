@@ -354,7 +354,10 @@ export interface IntegrityFlag {
   organizationName: string | null;
   raisedAt: string;
   ageDays: number;
-  confidence: number;
+  /** The rule that raised it, e.g. "fraud.age_misrepresentation". */
+  detector: string | null;
+  /** Null when the rule has no calibrated probability, which is every detector today. */
+  confidence: number | null;
   reason: string;
   evidence: string[];
   /** Populated for duplicate flags only. */
