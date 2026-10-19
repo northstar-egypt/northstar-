@@ -136,7 +136,12 @@ one of them.** Tuning a threshold on the set you then report is the easiest way 
 a number that does not survive contact with new data. Late-bloomer F1 averaged 0.557 on the
 calibration seeds and 0.567 on the reported ones (0.639 and 0.649 before growth timing). The
 thresholds were **not retuned** after the timing change: they are the ones chosen on the old
-calibration data, and retuning them is separate work, done on seeds 101, 202 and 303 only.
+calibration data. Retuning was tried on 2026-10-19, on seeds 101, 202 and 303 only, over a grid
+of height cut-offs (-1.2 to -0.5) and growth gates (1 to 6 cm/year). The best mean F1 was 0.589
+against 0.557, but only by lowering the growth gate to 1 cm/year, which turns the rule back into
+"short" alone; the best setting that keeps the gate (-0.8, 3 cm/year) scored 0.578, better on two
+seeds and worse on the third, each by about one case. With 14 late bloomers a dataset that is
+noise, so the thresholds were kept and no reported number moved.
 The age-fraud rule's three performance thresholds were tuned on those three seeds after the
 timing change; there fraud F1 is 0.830 (0.811 before the table tennis rule, 0.682 for v1)
 against 0.769 over the 20 reported seeds. The table tennis rule has no threshold to tune.
