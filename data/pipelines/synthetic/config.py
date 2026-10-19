@@ -21,10 +21,9 @@ from datetime import date
 # output, which is what makes it safe to gitignore the data itself.
 DEFAULT_SEED = 20260827
 
-# docs/schema.md stores nationality as ISO country codes. The repo is currently
-# inconsistent: the API/pipeline side uses alpha-2, apps/web uses alpha-3. There
-# is a board item to settle it. Keeping the choice in one named constant means
-# the flip is a one-line change here rather than a hunt through the generators.
+# docs/schema.md stores nationality and country as ISO 3166-1 alpha-2 codes (EG),
+# decided on 2026-10-19. The API validates alpha-2 and the web app sends it. The
+# choice stays in one named constant so the generators have a single source.
 COUNTRY_CODE_STANDARD = "alpha-2"
 
 
