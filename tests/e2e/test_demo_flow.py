@@ -505,3 +505,44 @@ def test_a_coach_can_add_a_table_tennis_player(sign_in, page, identities):
     # Tier is a football idea; the table tennis module says so and the API obeyed it.
     assert row["player"]["tier"] is None
     assert row["player"]["sex"] == "female"
+
+
+def test_a_coach_imports_players_from_a_spreadsheet(sign_in, page, identities, tmp_path):
+    """Bulk import, through the screen: preview, confirm one unusual row, import.
+
+    The CSV is written to pytest's temporary folder from made-up names, never into the repo.
+    """
+    from datetime import date, timedelta
+
+    tag = uuid.uuid4().hex[:6]
+    dob = (date.today() - timedelta(days=14 * 365)).isoformat()
+    today = date.today().isoformat()
+    header = "full_name,date_of_birth,sport,position,consent_signed,guardian_name,measured_on,height_cm"
+    rows = [
+        f"E2E Import Ready {tag},{dob},football,CM,yes,Test Guardian,{today},155",
+        f"E2E Import Tall {tag},{dob},football,ST,yes,Test Guardian,{today},230",
+        f"E2E Import NoGuardian {tag},{dob},football,CB,yes,,{today},150",
+    ]
+    file = tmp_path / "players.csv"
+    file.write_text("\n".join([header, *rows]) + "\n", encoding="utf-8")
+
+    sign_in("Coach", "/dashboard")
+    page.get_by_role("link", name="Import from spreadsheet").click()
+    page.wait_for_url("**/players/import", timeout=15000)
+    page.get_by_label("CSV file").set_input_files(str(file))
+    page.get_by_text("I checked this, import it").wait_for(timeout=15000)
+
+    body = text_of(page)
+    assert "1 ready" in body and "1 confirm" in body and "1 rejected" in body
+    assert "named guardian" in body
+    assert "outside the usual range" in body
+
+    page.get_by_text("I checked this, import it").click()
+    page.get_by_role("button", name="Import 2 players").click()
+    page.get_by_text("3. Imported").wait_for(timeout=15000)
+    assert "2 created" in text_of(page)
+
+    squad = {r["player"]["fullName"] for r in api("/players", identities["coach"]["email"])}
+    assert f"E2E Import Ready {tag}" in squad
+    assert f"E2E Import Tall {tag}" in squad
+    assert f"E2E Import NoGuardian {tag}" not in squad

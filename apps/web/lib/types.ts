@@ -386,3 +386,20 @@ export interface IntegrityFlag {
   } | null;
   history: { at: string; who: string; what: string }[];
 }
+
+/** POST /players/import/preview and /players/import. See apps/api/app/services/imports.py. */
+export interface PlayerImport {
+  fileProblems: string[];
+  rows: {
+    /** Line in the file, counting the header as 1. */
+    line: number;
+    name: string;
+    /** Preview: ready, confirm or rejected. After an import: created, skipped or rejected. */
+    status: "ready" | "confirm" | "rejected" | "created" | "skipped";
+    problems: string[];
+    warnings: string[];
+    playerId: string | null;
+  }[];
+  counts: Record<string, number>;
+  saved: boolean;
+}

@@ -82,6 +82,9 @@ export default function DashboardPage() {
           <Link href="/compare">
             <Button variant="ghost">Compare players</Button>
           </Link>
+          <Link href="/players/import">
+            <Button variant="ghost">Import from spreadsheet</Button>
+          </Link>
           <Link href="/players/new">
             <Button variant="primary">Add player</Button>
           </Link>

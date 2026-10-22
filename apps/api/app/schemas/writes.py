@@ -206,3 +206,32 @@ class ConsentWithdrawnOut(CamelModel):
     withdrawn_by: str
     # Current state per purpose after the withdrawal, as the profile shows it.
     consents: dict[str, bool]
+
+
+class PlayerImportIn(CamelModel):
+    """A spreadsheet of players, as CSV text (app/services/imports.py). The browser reads the
+    file and sends its text, so no file is uploaded or stored."""
+
+    csv: str = Field(max_length=1_000_000)
+    # Lines (as numbered in the preview) whose warnings the coach has read and confirmed.
+    confirm: list[int] = Field(default_factory=list, max_length=500)
+    # Required for an admin, ignored for a coach, as for a single player.
+    organization_id: uuid.UUID | None = None
+
+
+class ImportRowOut(CamelModel):
+    line: int
+    name: str
+    status: str  # ready | confirm | rejected, and after an import also created | skipped
+    problems: list[str] = []
+    warnings: list[str] = []
+    player_id: uuid.UUID | None = None
+
+
+class PlayerImportOut(CamelModel):
+    file_problems: list[str] = []
+    rows: list[ImportRowOut] = []
+    counts: dict[str, int] = {}
+    # False for a preview, true once rows were saved.
+    saved: bool = False
+

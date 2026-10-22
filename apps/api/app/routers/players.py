@@ -31,8 +31,11 @@ from app.schemas.writes import (
     MeasurementsSavedOut,
     PlayerCreatedOut,
     PlayerCreateIn,
+    ImportRowOut,
+    PlayerImportIn,
+    PlayerImportOut,
 )
-from app.services import similar, summary, views, writes
+from app.services import imports, similar, summary, views, writes
 from app.services.access import (
     Caller,
     consent_state,
@@ -270,6 +273,79 @@ def log_measurements(
         measurements=[MeasurementOut.model_validate(row) for row in rows],
         acknowledged_warnings=warnings,
     )
+
+
+def _import_rows(result, created: dict[int, uuid.UUID] | None = None) -> list[ImportRowOut]:
+    rows = []
+    for row in result.rows:
+        status_ = row.status
+        player_id = None
+        if created is not None:
+            player_id = created.get(row.line)
+            status_ = "created" if player_id else ("rejected" if row.status == "rejected" else "skipped")
+        rows.append(
+            ImportRowOut(
+                line=row.line,
+                name=row.name,
+                status=status_,
+                problems=row.problems,
+                warnings=row.warnings,
+                player_id=player_id,
+            )
+        )
+    return rows
+
+
+@router.post("/players/import/preview", response_model=PlayerImportOut)
+def import_preview(
+    payload: PlayerImportIn,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> PlayerImportOut:
+    """What importing this file would do, row by row. Nothing is saved. See
+    app/services/imports.py."""
+    organization_id, reason = may_create_player(caller, payload.organization_id)
+    if organization_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
+    result = imports.preview(db, payload.csv)
+    return PlayerImportOut(
+        file_problems=result.file_problems, rows=_import_rows(result), counts=result.counts()
+    )
+
+
+@router.post("/players/import", response_model=PlayerImportOut)
+def import_players(
+    payload: PlayerImportIn,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> PlayerImportOut:
+    """Save the ready rows, and the confirm rows listed in `confirm`, in one transaction.
+
+    The file is checked again from scratch rather than trusting an earlier preview. A file
+    with a problem of its own (unknown columns, too large) saves nothing and answers 422.
+    """
+    organization_id, reason = may_create_player(caller, payload.organization_id)
+    if organization_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
+    result, created = imports.commit(
+        db,
+        text=payload.csv,
+        confirmed_lines=set(payload.confirm),
+        organization_id=organization_id,
+        actor_user_id=caller.user_id,
+    )
+    if result.file_problems:
+        # imports.commit stops before any write when the file itself is wrong, so there is
+        # nothing to roll back.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": "Nothing was saved.", "problems": result.file_problems},
+        )
+    db.commit()
+    made = {line: player.id for line, player in created}
+    rows = _import_rows(result, made)
+    counts = {s: sum(r.status == s for r in rows) for s in ("created", "skipped", "rejected")}
+    return PlayerImportOut(rows=rows, counts=counts, saved=True)
 
 
 @router.post("/players/{player_id}/consent/withdraw", response_model=ConsentWithdrawnOut)

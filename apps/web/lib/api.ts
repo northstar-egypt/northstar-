@@ -33,6 +33,7 @@ import type {
   SimilarPlayers,
   SportModule,
   SquadRow,
+  PlayerImport,
 } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -301,6 +302,22 @@ export function writeRefusal(error: unknown): WriteRefusal | null {
  */
 export async function createPlayer(input: NewPlayer): Promise<PlayerCreated> {
   return request<PlayerCreated>("/players", { method: "POST", body: JSON.stringify(input) });
+}
+
+/** What importing this CSV would do, row by row. Saves nothing. */
+export async function previewImport(csv: string): Promise<PlayerImport> {
+  return request<PlayerImport>("/players/import/preview", {
+    method: "POST",
+    body: JSON.stringify({ csv }),
+  });
+}
+
+/** Import the ready rows and the confirmed ones. The server checks the file again first. */
+export async function importPlayers(csv: string, confirm: number[]): Promise<PlayerImport> {
+  return request<PlayerImport>("/players/import", {
+    method: "POST",
+    body: JSON.stringify({ csv, confirm }),
+  });
 }
 
 /** POST /players/{id}/measurements. One visit for a player the caller may log for. */
