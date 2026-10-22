@@ -36,7 +36,16 @@ not compliance checkboxes.
    an HttpOnly cookie, forgery checks. Designed in full under "Authentication and sessions"
    below, including the gaps that are still open (rate limiting, early revocation).
 5. **Malicious uploads.** Bulk import and document uploads. Mitigation: upload validation,
-   type and size checks.
+   type and size checks. The bulk player import (`apps/api/app/services/imports.py`, built
+   2026-10-22) works this way: the browser reads the CSV and sends its text, so no file is
+   uploaded or stored; the text is capped at 1,000,000 characters and 500 players; unknown
+   columns refuse the whole file; a cell that starts like a spreadsheet formula (= + @, or -
+   followed by a letter) is refused, so a name cannot run as a formula when exported to Excel
+   later; and every row passes the same checks as a player added by hand, signed consent and
+   a named guardian for a minor included. Nothing is saved by the preview, the import checks
+   the file again rather than trusting it, and one audit record names who imported how many
+   rows into which organization. Only coaches (into their own organization) and admins may
+   import. Document uploads (consent scans) are not built.
 
 ## Authentication and sessions
 
