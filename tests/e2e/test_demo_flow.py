@@ -592,3 +592,31 @@ def test_the_coach_screens_fit_a_phone(browser, identities):
             assert _page_overflow(page) <= 1, f"{path} scrolls sideways on a phone"
     finally:
         context.close()
+
+
+def test_the_radar_shows_on_the_profile_and_overlays_on_compare(sign_in, page, identities):
+    """The percentile radar: on a profile with enough match time, and two players overlaid on
+    the compare screen, each named with the players they are compared among."""
+    sign_in("Federation", "/oversight")
+    squad = api("/players", identities["coach"]["email"])
+    with_radar = []
+    for row in squad:
+        pid = row["player"]["id"]
+        radar = api(f"/players/{pid}/radar", identities["federation"]["email"])
+        if radar["axes"] and row["player"]["primarySport"] == "football":
+            with_radar.append(pid)
+        if len(with_radar) == 2:
+            break
+    if len(with_radar) < 2:
+        pytest.skip("the local data has fewer than two footballers with a radar in this squad")
+
+    page.goto(f"{WEB_URL}/players/{with_radar[0]}", wait_until="load")
+    page.get_by_text("Match statistics against comparable players").wait_for(timeout=20000)
+    page.get_by_text("Among ").first.wait_for(timeout=20000)
+    assert page.locator("svg[role=img][aria-label*='This player']").count() == 1
+
+    page.goto(f"{WEB_URL}/compare?players={','.join(with_radar)}", wait_until="load")
+    page.get_by_text("Match statistics, overlaid").wait_for(timeout=20000)
+    page.wait_for_timeout(SETTLE_MS)
+    body = text_of(page)
+    assert body.count(", among ") >= 2

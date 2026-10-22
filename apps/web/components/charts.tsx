@@ -410,3 +410,107 @@ export function OverlaidGrowth({
     </figure>
   );
 }
+
+export interface RadarSeries {
+  name: string;
+  /** Axis key -> percentile 1 to 99, or null when there is none. */
+  values: Record<string, number | null>;
+}
+
+/** Colours for up to three players on one radar. */
+export const RADAR_COLOURS = ["#38bdf8", "#f59e0b", "#34d399"];
+
+/**
+ * A percentile radar: one spoke per statistic, 0 at the centre and 100 at the edge, one shape
+ * per player. An axis with no percentile gets no point and its label says why, so the shape
+ * never implies a value that is not known. Rings mark 25, 50 and 75.
+ */
+export function Radar({
+  axes,
+  series,
+  size = 300,
+}: {
+  axes: { key: string; label: string }[];
+  series: RadarSeries[];
+  size?: number;
+}) {
+  if (axes.length < 3) {
+    return <p className="text-sm text-slate-500">Not enough statistics for a radar.</p>;
+  }
+  const pad = 56;
+  const side = 60;
+  const c = size / 2;
+  const r = c - pad;
+  const angle = (i: number) => -Math.PI / 2 + (2 * Math.PI * i) / axes.length;
+  const at = (i: number, value: number) => [
+    c + Math.cos(angle(i)) * r * (value / 100),
+    c + Math.sin(angle(i)) * r * (value / 100),
+  ];
+  const ring = (value: number) => axes.map((_, i) => at(i, value).join(",")).join(" ");
+  const summary = series
+    .map(
+      (s) =>
+        `${s.name}: ` +
+        axes
+          .map((a) => `${a.label} ${s.values[a.key] == null ? "no percentile" : s.values[a.key]}`)
+          .join(", "),
+    )
+    .join(". ");
+
+  return (
+    // Extra room left and right, where the axis labels run outwards.
+    <svg
+      viewBox={`${-side} 0 ${size + 2 * side} ${size}`}
+      className="mx-auto w-full max-w-md"
+      role="img"
+      aria-label={summary}
+    >
+      {[25, 50, 75, 100].map((v) => (
+        <polygon key={v} points={ring(v)} fill={v === 100 ? "#0f172a" : "none"} stroke="#1e293b" />
+      ))}
+      {axes.map((a, i) => {
+        const [x, y] = at(i, 100);
+        const [lx, ly] = at(i, 122);
+        const missing = series.every((s) => s.values[a.key] == null);
+        return (
+          <g key={a.key}>
+            <line x1={c} y1={c} x2={x} y2={y} stroke="#1e293b" />
+            <text
+              x={lx}
+              y={ly}
+              fill={missing ? "#475569" : "#94a3b8"}
+              fontSize="10"
+              textAnchor={Math.abs(lx - c) < 8 ? "middle" : lx > c ? "start" : "end"}
+              dominantBaseline="middle"
+            >
+              {a.label}
+              {missing ? " (not enough players)" : ""}
+            </text>
+          </g>
+        );
+      })}
+      {series.map((s, k) => {
+        const colour = RADAR_COLOURS[k % RADAR_COLOURS.length];
+        const points = axes
+          .map((a, i) => (s.values[a.key] == null ? null : at(i, s.values[a.key] as number)))
+          .filter((p): p is number[] => p !== null);
+        return (
+          <g key={s.name}>
+            {points.length >= 3 ? (
+              <polygon
+                points={points.map((p) => p.join(",")).join(" ")}
+                fill={colour}
+                fillOpacity="0.18"
+                stroke={colour}
+                strokeWidth="2"
+              />
+            ) : null}
+            {points.map(([x, y], i) => (
+              <circle key={i} cx={x} cy={y} r="3.5" fill={colour} />
+            ))}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}

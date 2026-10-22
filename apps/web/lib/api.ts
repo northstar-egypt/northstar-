@@ -34,6 +34,7 @@ import type {
   SportModule,
   SquadRow,
   PlayerImport,
+  PlayerRadar,
 } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -194,6 +195,16 @@ export async function getProfile(playerId: string): Promise<PlayerProfile | null
 export async function getSummary(playerId: string): Promise<ProfileSummary | null> {
   try {
     return await request<ProfileSummary>(`/players/${encodeURIComponent(playerId)}/summary`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+/** Percentiles of a player's match statistics among comparable players. Null on 404. */
+export async function getRadar(playerId: string): Promise<PlayerRadar | null> {
+  try {
+    return await request<PlayerRadar>(`/players/${encodeURIComponent(playerId)}/radar`);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;

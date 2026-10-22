@@ -212,6 +212,26 @@ class PlayerProfileOut(CamelModel):
     permissions: PermissionsOut
 
 
+class RadarAxisOut(CamelModel):
+    key: str
+    label: str
+    # The player's own value, as a screen shows it (a rate, or a percentage).
+    value: float
+    unit: str
+    # Null when fewer than cohort.MIN_COHORT comparable players have this statistic.
+    percentile: int | None = None
+    compared_with: int
+
+
+class RadarOut(CamelModel):
+    """GET /players/{id}/radar. `axes` may be empty; `note` always says why or how to read it."""
+
+    axes: list[RadarAxisOut] = []
+    # Who the percentiles are among, in words. Null when there is no radar.
+    population: str | None = None
+    note: str
+
+
 class SimilarPlayerOut(CamelModel):
     player_id: uuid.UUID
     full_name: str

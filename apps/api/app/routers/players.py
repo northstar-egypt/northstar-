@@ -21,6 +21,7 @@ from app.schemas.core import MeasurementOut, PlayerOut
 from app.schemas.views import (
     PlayerProfileOut,
     ProfileSummaryOut,
+    RadarOut,
     SimilarPlayersOut,
     SquadRowOut,
 )
@@ -35,7 +36,7 @@ from app.schemas.writes import (
     PlayerImportIn,
     PlayerImportOut,
 )
-from app.services import imports, similar, summary, views, writes
+from app.services import imports, radar, similar, summary, views, writes
 from app.services.access import (
     Caller,
     consent_state,
@@ -139,6 +140,18 @@ def player_summary(
         )
     result = summary.summarise(views.build_profile(db, caller, player))
     return ProfileSummaryOut(summary=result.text, note=result.note, model=result.model)
+
+
+@router.get("/players/{player_id}/radar", response_model=RadarOut)
+def player_radar(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> RadarOut:
+    """Percentiles of this player's match statistics among comparable players. See
+    app/services/radar.py."""
+    player = _viewable_player(db, caller, player_id)
+    return RadarOut.model_validate(radar.player_radar(db, player))
 
 
 @router.get("/players/{player_id}/similar", response_model=SimilarPlayersOut)
