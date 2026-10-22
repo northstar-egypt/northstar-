@@ -108,3 +108,74 @@ def test_bad_filters_are_400_with_a_reason(client, auth):
     assert _scatter(client, auth, ageFrom=16, ageTo=12).status_code == 400
     table_tennis = _scatter(client, auth, sport="table_tennis", gender="female").json()
     assert table_tennis["groups"] == [] and table_tennis["gender"] == "female"
+
+
+# --------------------------------------------------------------------------- leaders
+
+
+def _leaders(client, auth, who="federation", **params):
+    return client.get("/explore/leaders", params=params, headers=auth(who))
+
+
+def _board(body, key):
+    return next(b for b in body["boards"] if b["key"] == key)
+
+
+def test_the_leaders_of_a_group_are_its_best_with_a_percentile_among_all_of_it(
+    client, auth, forwards
+):
+    body = _leaders(client, auth, group="forward").json()
+    shots = _board(body, "shots")
+    assert [row["playerId"] for row in shots["leaders"]] == [
+        str(p.id) for p in reversed(forwards[-5:])
+    ]
+    assert shots["leaders"][0]["percentile"] > 90
+    assert 5 <= shots["median"] <= 6
+    assert shots["comparedWith"] == len(forwards)
+    assert "forwards, men and boys of every age" in body["population"]
+
+
+def test_a_statistic_where_everyone_is_equal_has_no_leaders(client, auth, forwards):
+    """Every forward here has 2 tackles a match. Any order among them would be invented."""
+    tackles = _board(_leaders(client, auth, group="forward").json(), "tackles")
+    assert tackles["median"] is None and tackles["leaders"] == []
+    assert "no leaders" in _leaders(client, auth, group="forward").json()["note"]
+
+
+def test_a_coach_gets_the_groups_shape_but_no_names_from_other_clubs(client, auth, forwards):
+    body = _leaders(client, auth, who="coach_b", group="forward").json()
+    assert body["total"] == len(forwards) and body["shown"] == 0
+    assert all(b["leaders"] == [] for b in body["boards"])
+    assert _board(body, "shots")["median"] is not None
+
+
+def test_a_scout_never_sees_a_minor_hidden_from_scouts_among_the_leaders(
+    client, auth, db, forwards
+):
+    from app.models.consent import Consent
+    from app.models.enums import ConsentPurpose
+
+    best = forwards[-1]
+    row = db.execute(
+        select(Consent)
+        .where(Consent.player_id == best.id)
+        .where(Consent.purpose == ConsentPurpose.SCOUTING_VISIBILITY.value)
+    ).scalar_one()
+    row.granted = False
+    db.flush()
+
+    body = _leaders(client, auth, who="scout", group="forward").json()
+    assert str(best.id) not in str(body)
+    shots = _board(body, "shots")
+    # The next best leads, and is still placed among everyone, the hidden player included.
+    assert shots["leaders"][0]["playerId"] == str(forwards[-2].id)
+    assert shots["comparedWith"] == len(forwards)
+
+
+def test_each_board_says_where_the_focus_player_stands(client, auth, forwards):
+    worst = forwards[0]
+    body = _leaders(client, auth, focus=str(worst.id)).json()
+    assert body["group"] == "forward" and body["focus"] == str(worst.id)
+    shots = _board(body, "shots")
+    assert shots["focus"]["rank"] == len(forwards)
+    assert shots["focus"]["percentile"] < 10

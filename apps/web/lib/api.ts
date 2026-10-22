@@ -22,6 +22,7 @@
  */
 
 import type {
+  Leaders,
   Scatter,
   ScatterQuery,
   Comparison,
@@ -430,6 +431,15 @@ export async function getScatter(query: ScatterQuery): Promise<Scatter> {
     if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
   }
   return request<Scatter>(`/explore/scatter?${params.toString()}`);
+}
+
+/** For each statistic, a group's median and its best players the viewer may open. */
+export async function getLeaders(query: Omit<ScatterQuery, "x" | "y">): Promise<Leaders> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  }
+  return request<Leaders>(`/explore/leaders?${params.toString()}`);
 }
 
 /* ------------------------------------------------------------------ oversight */

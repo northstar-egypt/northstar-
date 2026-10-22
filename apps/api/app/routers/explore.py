@@ -1,4 +1,5 @@
-"""The scatter explorer: comparable players on two statistics (app/services/explore.py)."""
+"""The explorer: comparable players on two statistics, and a group's leaders
+(app/services/explore.py)."""
 
 from __future__ import annotations
 
@@ -10,11 +11,22 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import current_user
 from app.models.player import Player
-from app.schemas.views import ScatterOut
+from app.schemas.views import LeadersOut, ScatterOut
 from app.services import explore
 from app.services.access import Caller, may_view, visible_players
 
 router = APIRouter(tags=["explore"])
+
+
+def _focus(db: Session, caller: Caller, focus: uuid.UUID | None) -> Player | None:
+    """The focus player, or None for one the caller may not open, exactly as for an unknown
+    id, so the response does not say whether that player exists."""
+    if focus is None:
+        return None
+    found = db.execute(
+        visible_players(caller).where(Player.id == focus).limit(1)
+    ).scalar_one_or_none()
+    return found if found is not None and may_view(db, caller, found)[0] else None
 
 
 @router.get("/explore/scatter", response_model=ScatterOut)
@@ -36,13 +48,7 @@ def scatter(
     those are not given. A focus the caller may not open is ignored exactly as an unknown id
     is, so the response does not say whether that player exists.
     """
-    focus_player = None
-    if focus is not None:
-        found = db.execute(
-            visible_players(caller).where(Player.id == focus).limit(1)
-        ).scalar_one_or_none()
-        if found is not None and may_view(db, caller, found)[0]:
-            focus_player = found
+    focus_player = _focus(db, caller, focus)
     try:
         body = explore.scatter(
             db, caller, sport=sport, gender=gender, group=group, age_from=age_from,
@@ -51,3 +57,28 @@ def scatter(
     except explore.ExploreError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from None
     return ScatterOut.model_validate(body)
+
+
+@router.get("/explore/leaders", response_model=LeadersOut)
+def leaders(
+    sport: str | None = None,
+    gender: str | None = None,
+    group: str | None = None,
+    age_from: int | None = Query(default=None, alias="ageFrom", ge=0, le=60),
+    age_to: int | None = Query(default=None, alias="ageTo", ge=0, le=60),
+    focus: uuid.UUID | None = None,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> LeadersOut:
+    """For each statistic, the group's median and its best players the caller may open.
+
+    `focus` works as for the scatter, and each board also says where that player stands.
+    """
+    try:
+        body = explore.leaders(
+            db, caller, sport=sport, gender=gender, group=group, age_from=age_from,
+            age_to=age_to, focus=_focus(db, caller, focus),
+        )
+    except explore.ExploreError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from None
+    return LeadersOut.model_validate(body)

@@ -460,3 +460,43 @@ export interface ScatterQuery {
   y?: string;
   focus?: string;
 }
+
+/** One leader on a board. `percentile` is among the whole group, higher is better. */
+export interface Leader {
+  playerId: string;
+  fullName: string;
+  position: string | null;
+  ageLabel: string;
+  value: number;
+  percentile: number;
+  /** Only on a board's `focus`: their place among the players the viewer may open. */
+  rank: number | null;
+}
+
+/** GET /explore/leaders. See apps/api/app/services/explore.py. Echoes the filters it used. */
+export interface Leaders {
+  sport: string;
+  gender: "male" | "female";
+  group: string | null;
+  ageFrom: number | null;
+  ageTo: number | null;
+  stats: Scatter["stats"];
+  genders: ("male" | "female")[];
+  groups: string[];
+  boards: {
+    key: string;
+    label: string;
+    unit: string;
+    higherIsBetter: boolean;
+    comparedWith: number;
+    /** Null when too few players have it or all are equal; `leaders` is then empty. */
+    median: number | null;
+    leaders: Leader[];
+    focus: Leader | null;
+  }[];
+  total: number;
+  shown: number;
+  population: string;
+  focus: string | null;
+  note: string;
+}

@@ -651,3 +651,9 @@ def test_the_explorer_plots_comparable_players_and_opens_from_a_profile(sign_in,
 
     page.locator("label", has=page.get_by_text("Up", exact=True)).locator("select").select_option("assists")
     page.locator("svg[role=img][aria-label*='Assists']").wait_for(timeout=20000)
+
+    # The same group's leaders: one board per statistic, each with its median.
+    page.get_by_role("tab", name="Leaders").click()
+    page.get_by_text("you may open, of").wait_for(timeout=20000)
+    body = text_of(page)
+    assert "median " in body and "goals (per 90)" in body
