@@ -179,3 +179,52 @@ def test_each_board_says_where_the_focus_player_stands(client, auth, forwards):
     shots = _board(body, "shots")
     assert shots["focus"]["rank"] == len(forwards)
     assert shots["focus"]["percentile"] < 10
+
+
+# --------------------------------------------------------------------------- own age
+
+
+def test_a_focus_player_opens_on_their_own_age(client, auth, world, db, forwards, only):
+    """Ten 15-year-old forwards are enough on their own, so a 19-year-old is left out."""
+    adult = _add_player(db, world["orgs"]["a"], "Scatter Adult", age=19.5, position="ST", shots=20)
+    db.flush()
+    only([adult])
+    body = _scatter(client, auth, focus=str(forwards[0].id)).json()
+    assert (body["ageFrom"], body["ageTo"]) == (15, 15)
+    assert "aged 15:" in body["population"]
+    assert str(adult.id) not in {p["playerId"] for p in body["points"]}
+    leaders = _leaders(client, auth, focus=str(forwards[0].id)).json()
+    assert (leaders["ageFrom"], leaders["ageTo"]) == (15, 15)
+
+
+def test_too_few_of_their_own_age_widens_a_year_either_side(client, auth, world, db, only):
+    org = world["orgs"]["a"]
+    at_12 = [_add_player(db, org, f"Scatter Twelve {i}", age=12.5, position="CM", shots=i) for i in range(3)]
+    at_13 = [_add_player(db, org, f"Scatter Thirteen {i}", age=13.5, position="CM", shots=i) for i in range(3)]
+    at_11 = [_add_player(db, org, f"Scatter Eleven {i}", age=11.5, position="CM", shots=i) for i in range(3)]
+    db.flush()
+    only(at_11, at_12, at_13)
+    body = _scatter(client, auth, focus=str(at_12[0].id)).json()
+    assert (body["ageFrom"], body["ageTo"]) == (11, 13)
+    assert body["total"] == 9
+
+
+def test_an_adult_is_compared_with_adults(client, auth, world, db, forwards, only):
+    adults = [
+        _add_player(db, world["orgs"]["a"], f"Scatter Senior {i}", age=24 + i, position="ST", shots=i)
+        for i in range(3)
+    ]
+    db.flush()
+    only(adults)
+    body = _scatter(client, auth, focus=str(adults[0].id)).json()
+    assert (body["ageFrom"], body["ageTo"]) == (18, None)
+    assert body["total"] == len(adults)
+
+
+def test_own_age_off_keeps_every_age(client, auth, world, db, forwards, only):
+    adult = _add_player(db, world["orgs"]["a"], "Scatter Adult", age=19.5, position="ST", shots=20)
+    db.flush()
+    only([adult])
+    body = _scatter(client, auth, focus=str(forwards[0].id), ownAge="false").json()
+    assert body["ageFrom"] is None and body["ageTo"] is None
+    assert body["total"] == len(forwards) + 1

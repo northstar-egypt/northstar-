@@ -46,6 +46,7 @@ DEFAULT_AXES = {
     "table_tennis": ("point_share", "unforced_errors"),
 }
 LEADERS = 5
+ADULT_AGE = radar.ADULT_AGE
 
 
 class ExploreError(ValueError):
@@ -130,6 +131,7 @@ def _resolve(
     age_from: int | None,
     age_to: int | None,
     focus: Player | None,
+    own_age: bool,
     today: date,
 ) -> _Group:
     every = similar._profiles(db)
@@ -165,20 +167,38 @@ def _resolve(
         for p in db.execute(select(Player).where(Player.id.in_(list(candidates)))).scalars()
     } if candidates else {}
 
-    def fits(pid: str) -> bool:
+    def fits(pid: str, low: int | None, high: int | None) -> bool:
         player = players.get(pid)
         if player is None:
             return False
         if group is not None and radar._role(sport, player.position) != group:
             return False
         age = age_years(player.date_of_birth, today)
-        if age_from is not None and (age is None or int(age) < age_from):
+        if low is not None and (age is None or int(age) < low):
             return False
-        if age_to is not None and (age is None or int(age) > age_to):
+        if high is not None and (age is None or int(age) > high):
             return False
         return True
 
-    members = [pid for pid in candidates if fits(pid)]
+    # Opened from a player with no ages asked for: their own age, as the radar compares them.
+    # A 15-year-old is compared with 15-year-olds, widened a year either side at a time when
+    # that is too few, then with every age under 18; an adult with adults. The ages used are
+    # echoed back and named in the population, so the screen shows what was chosen.
+    if own_age and focus_profile is not None and age_from is None and age_to is None:
+        age = age_years(focus.date_of_birth, today)
+        if age is not None and age >= ADULT_AGE:
+            age_from = ADULT_AGE
+        elif age is not None:
+            me = int(age)
+            for spread in (0, 1, 2, None):
+                if spread is None:
+                    age_from, age_to = None, ADULT_AGE - 1
+                    break
+                age_from, age_to = max(0, me - spread), min(me + spread, ADULT_AGE - 1)
+                if sum(fits(pid, age_from, age_to) for pid in candidates) >= MIN_COHORT:
+                    break
+
+    members = [pid for pid in candidates if fits(pid, age_from, age_to)]
 
     # Named only to a caller who may open them. The rest are counted, not identified.
     visible_ids = {
@@ -219,12 +239,13 @@ def scatter(
     x: str | None = None,
     y: str | None = None,
     focus: Player | None = None,
+    own_age: bool = True,
     today: date | None = None,
 ) -> dict:
     today = today or date.today()
     g = _resolve(
         db, caller, sport=sport, gender=gender, group=group, age_from=age_from,
-        age_to=age_to, focus=focus, today=today,
+        age_to=age_to, focus=focus, own_age=own_age, today=today,
     )
 
     keys = [s[0] for s in g.stats]
@@ -301,6 +322,7 @@ def leaders(
     age_from: int | None = None,
     age_to: int | None = None,
     focus: Player | None = None,
+    own_age: bool = True,
     today: date | None = None,
 ) -> dict:
     """For each statistic: the group's median and its best players the caller may open.
@@ -313,7 +335,7 @@ def leaders(
     today = today or date.today()
     g = _resolve(
         db, caller, sport=sport, gender=gender, group=group, age_from=age_from,
-        age_to=age_to, focus=focus, today=today,
+        age_to=age_to, focus=focus, own_age=own_age, today=today,
     )
 
     boards = []

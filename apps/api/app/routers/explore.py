@@ -39,20 +39,23 @@ def scatter(
     x: str | None = None,
     y: str | None = None,
     focus: uuid.UUID | None = None,
+    own_age: bool = Query(default=True, alias="ownAge"),
     db: Session = Depends(get_db),
     caller: Caller = Depends(current_user),
 ) -> ScatterOut:
     """Every comparable player on two statistics, with the group's medians.
 
     `focus` is a player to mark, and to take the sport, gender and position group from when
-    those are not given. A focus the caller may not open is ignored exactly as an unknown id
+    those are not given. With no ages given, it also sets the ages to the focus player's own
+    band, widened as the radar widens; `ownAge=false` turns that off, which the screen sends
+    once the viewer has the filters in hand. A focus the caller may not open is ignored exactly as an unknown id
     is, so the response does not say whether that player exists.
     """
     focus_player = _focus(db, caller, focus)
     try:
         body = explore.scatter(
             db, caller, sport=sport, gender=gender, group=group, age_from=age_from,
-            age_to=age_to, x=x, y=y, focus=focus_player,
+            age_to=age_to, x=x, y=y, focus=focus_player, own_age=own_age,
         )
     except explore.ExploreError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from None
@@ -67,6 +70,7 @@ def leaders(
     age_from: int | None = Query(default=None, alias="ageFrom", ge=0, le=60),
     age_to: int | None = Query(default=None, alias="ageTo", ge=0, le=60),
     focus: uuid.UUID | None = None,
+    own_age: bool = Query(default=True, alias="ownAge"),
     db: Session = Depends(get_db),
     caller: Caller = Depends(current_user),
 ) -> LeadersOut:
@@ -77,7 +81,7 @@ def leaders(
     try:
         body = explore.leaders(
             db, caller, sport=sport, gender=gender, group=group, age_from=age_from,
-            age_to=age_to, focus=_focus(db, caller, focus),
+            age_to=age_to, focus=_focus(db, caller, focus), own_age=own_age,
         )
     except explore.ExploreError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from None
