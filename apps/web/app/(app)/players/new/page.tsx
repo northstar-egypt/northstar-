@@ -252,7 +252,7 @@ export default function NewPlayerPage() {
               ) : null}
             </div>
             <span className="text-xs text-slate-500">
-              An array because diaspora players are dual national.
+              Add a second nationality for a player with two, as many diaspora players have.
             </span>
           </div>
 

@@ -91,7 +91,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {rows ? (
           <>
             <Stat label="Squad size" value={rows.length} />
@@ -171,6 +171,35 @@ export default function DashboardPage() {
         ) : visible.length === 0 ? (
           <Empty>Nothing here. That is a good state, not a bug.</Empty>
         ) : (
+          <>
+          {/* Phones: one card per player, so the flags are on screen without swiping a table
+              sideways. The table below is for wider screens. */}
+          <ul className="flex flex-col divide-y divide-slate-800 sm:hidden">
+            {visible.map((r) => (
+              <li key={r.player.id} className="flex flex-col gap-1.5 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <Link
+                    href={`/players/${r.player.id}`}
+                    className="font-semibold text-slate-100 hover:text-sky-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
+                  >
+                    {r.player.fullName}
+                  </Link>
+                  <Sparkline values={r.heightTrend} />
+                </div>
+                <p className="text-xs text-slate-400 tabular-nums">
+                  {[r.player.position, r.ageLabel, r.heightCm ? `${r.heightCm} cm` : "no height yet"]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  {" · "}
+                  <span className={cx(isStale(r.daysSinceLastLog) && "font-semibold text-amber-400")}>
+                    measured {daysLabel(r.daysSinceLastLog)}
+                  </span>
+                </p>
+                <RowChips row={r} />
+              </li>
+            ))}
+          </ul>
+          <div className="hidden sm:block">
           <Table>
             <thead>
               <tr>
@@ -213,26 +242,36 @@ export default function DashboardPage() {
                     <Sparkline values={r.heightTrend} />
                   </Td>
                   <Td>
-                    <div className="flex flex-wrap gap-1">
-                      {r.heightReadingsNeeded > 0 ? (
-                        <Chip tone="warn">
-                          {r.heightReadingsNeeded} more height{" "}
-                          {r.heightReadingsNeeded === 1 ? "reading" : "readings"} needed
-                        </Chip>
-                      ) : null}
-                      {r.flags.map((f) => (
-                        <Chip key={f.type} tone={f.type === "consent" ? "warn" : "brand"}>
-                          {f.label}
-                        </Chip>
-                      ))}
-                    </div>
+                    <RowChips row={r} />
                   </Td>
                 </tr>
               ))}
             </tbody>
           </Table>
+          </div>
+          </>
         )}
       </Card>
+    </div>
+  );
+}
+
+/** The marks a squad row carries, the same in the phone list and the table. */
+function RowChips({ row }: { row: SquadRow }) {
+  if (row.heightReadingsNeeded === 0 && row.flags.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {row.heightReadingsNeeded > 0 ? (
+        <Chip tone="warn">
+          {row.heightReadingsNeeded} more height{" "}
+          {row.heightReadingsNeeded === 1 ? "reading" : "readings"} needed
+        </Chip>
+      ) : null}
+      {row.flags.map((f) => (
+        <Chip key={f.type} tone={f.type === "consent" ? "warn" : "brand"}>
+          {f.label}
+        </Chip>
+      ))}
     </div>
   );
 }

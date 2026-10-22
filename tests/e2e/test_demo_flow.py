@@ -546,3 +546,46 @@ def test_a_coach_imports_players_from_a_spreadsheet(sign_in, page, identities, t
     assert f"E2E Import Ready {tag}" in squad
     assert f"E2E Import Tall {tag}" in squad
     assert f"E2E Import NoGuardian {tag}" not in squad
+
+
+# A common phone width. The scope says the app is mobile-first for coach logging.
+PHONE = {"width": 390, "height": 844}
+
+
+def _page_overflow(page) -> int:
+    """How far the page itself scrolls sideways, in pixels. A table may scroll inside its own
+    box; the page must not."""
+    return page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
+
+
+def test_the_coach_screens_fit_a_phone(browser, identities):
+    """At phone width nothing makes the page scroll sideways, and on the squad screen every
+    player's marks are on screen as cards rather than in a table column off to the right."""
+    context = browser.new_context(viewport=PHONE, has_touch=True)
+    page = context.new_page()
+    try:
+        page.goto(f"{WEB_URL}/login", wait_until="networkidle")
+        page.get_by_role("button", name="Coach").click()
+        page.wait_for_url("**/dashboard", timeout=20000)
+        page.wait_for_timeout(SETTLE_MS)
+
+        assert _page_overflow(page) <= 1
+        # The phone list is showing, the wide table is not.
+        cards = page.locator(r"main ul.sm\:hidden > li")
+        assert cards.count() > 0
+        assert not page.locator("main table").first.is_visible()
+        # Every card's link and marks sit inside the screen.
+        for box in cards.evaluate_all("els => els.map(e => e.getBoundingClientRect().right)"):
+            assert box <= PHONE["width"] + 1
+
+        player = next(
+            h
+            for h in cards.locator("a").evaluate_all("els => els.map(e => e.getAttribute('href'))")
+            if re.search(r"/players/[0-9a-f-]{36}$", h)
+        )
+        for path in (player, "/players/new", "/players/import", "/compare"):
+            page.goto(f"{WEB_URL}{path}", wait_until="networkidle")
+            page.wait_for_timeout(SETTLE_MS)
+            assert _page_overflow(page) <= 1, f"{path} scrolls sideways on a phone"
+    finally:
+        context.close()

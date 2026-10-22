@@ -605,8 +605,17 @@ function OpponentCell({ opponent }: { opponent: Opponent | null | undefined }) {
  * names a sport, a metric or a rule: a football season and a table tennis match go through
  * the same code, and a new sport's module renders here without a change to this file.
  */
+// Rows shown before "Show all": enough for the recent picture, short enough for a phone.
+const RECENT_ROWS = 8;
+
 function PerformanceCard({ section }: { section: PerformanceSection }) {
   const hasOpponents = section.entries.some((e) => e.opponent);
+  const [showAll, setShowAll] = useState(false);
+  // A row that fails validation is never hidden behind the button: it is what a reviewer needs.
+  const shown = showAll
+    ? section.entries
+    : section.entries.filter((e, i) => i < RECENT_ROWS || e.problems);
+  const hidden = section.entries.length - shown.length;
   return (
     <Card>
       <SectionTitle action={<Chip tone="brand">{section.schemaRef}</Chip>}>
@@ -650,7 +659,7 @@ function PerformanceCard({ section }: { section: PerformanceSection }) {
           </tr>
         </thead>
         <tbody>
-          {section.entries.map((e) => (
+          {shown.map((e) => (
             <tr key={e.id} className={e.problems ? "bg-amber-500/10" : undefined}>
               <Td className="whitespace-nowrap">
                 {shortDate(e.periodStart)}
@@ -676,6 +685,11 @@ function PerformanceCard({ section }: { section: PerformanceSection }) {
           ))}
         </tbody>
       </Table>
+      {hidden > 0 ? (
+        <Button variant="ghost" className="mt-2" onClick={() => setShowAll(true)}>
+          Show all {section.entries.length} records
+        </Button>
+      ) : null}
 
       {section.excludedFromSummary > 0 ? (
         <p className="mt-2 text-xs text-slate-500">
