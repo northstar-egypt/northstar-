@@ -194,8 +194,15 @@ def test_a_player_does_not_see_flags_about_themselves(client, auth, world):
 # ---------------------------------------------------------------------------
 
 
+def _academy_a(world) -> dict:
+    """A search narrowed to the test's own academy. The first page of an open search holds
+    50 players, and a local database with the seeded data has hundreds, so the fixture's
+    minor can fall off it there while CI's empty database passes."""
+    return {"query": "", "organizationId": str(world["orgs"]["a"].id)}
+
+
 def test_withheld_results_carry_no_identifying_fields(client, auth, world):
-    body = client.post("/search", json={"query": ""}, headers=auth("scout")).json()
+    body = client.post("/search", json=_academy_a(world), headers=auth("scout")).json()
     withheld = [row for row in body["results"] if row["withheld"]]
     assert withheld, "expected at least one minor without scouting consent"
     for row in withheld:
@@ -215,7 +222,7 @@ def test_a_blocked_minor_is_reported_not_hidden(client, auth, world):
     is the one to invert, and the change is a filter in the search router.
     """
     blocked_id = str(world["players"]["minor_no_a"].id)
-    body = client.post("/search", json={"query": ""}, headers=auth("scout")).json()
+    body = client.post("/search", json=_academy_a(world), headers=auth("scout")).json()
     ids = {row["player"]["id"]: row for row in body["results"]}
     assert blocked_id in ids
     assert ids[blocked_id]["withheld"] is True
