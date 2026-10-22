@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import concepts
 from app.config import get_settings
 from app.routers import (
+    assistant,
     auth,
     comparison,
     explore,
@@ -54,6 +55,7 @@ app.include_router(players.router)
 app.include_router(search.router)
 app.include_router(comparison.router)
 app.include_router(explore.router)
+app.include_router(assistant.router)
 app.include_router(oversight.router)
 app.include_router(integrity.router)
 app.include_router(sports.router)

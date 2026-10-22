@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # shows no summary. An empty OLLAMA_URL turns the summary off entirely.
     ollama_url: str | None = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"
+    # The assistant only reads questions into a fixed form (app/services/assistant.py), which
+    # the 3B model does as well as the 7B and about ten times faster: it fits in a 4 GB GPU.
+    # Measured by apps/api/eval/run_assistant_eval.py; numbers in ml/README.md, "Assistant".
+    ollama_assistant_model: str = "qwen2.5:3b"
 
     # Sessions: a signed token in an HttpOnly cookie. See app/security.py.
     jwt_secret: str = DEVELOPMENT_JWT_SECRET

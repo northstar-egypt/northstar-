@@ -39,9 +39,21 @@ const LIST_LENGTH = 15;
 
 export default function ExplorePage() {
   const params = useSearchParams();
-  const [query, setQuery] = useState<ScatterQuery>(() => ({
-    focus: params.get("focus") ?? undefined,
-  }));
+  // A link can set any filter (the assistant's "Open in Explore" does); unset ones are left to
+  // the API's defaults.
+  const [query, setQuery] = useState<ScatterQuery>(() => {
+    const age = (key: string) => (params.get(key) === null ? undefined : Number(params.get(key)));
+    return {
+      focus: params.get("focus") ?? undefined,
+      sport: params.get("sport") ?? undefined,
+      gender: params.get("gender") ?? undefined,
+      group: params.get("group") ?? undefined,
+      ageFrom: age("ageFrom"),
+      ageTo: age("ageTo"),
+      x: params.get("x") ?? undefined,
+      y: params.get("y") ?? undefined,
+    };
+  });
   const [data, setData] = useState<Scatter | null>(null);
   const [view, setView] = useState<"plot" | "leaders">(() =>
     params.get("view") === "leaders" ? "leaders" : "plot",

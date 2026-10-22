@@ -112,12 +112,14 @@ which account the API answers as, so the data changes with it.
 | Postgres  | localhost:5432                   | user/pass/db from `.env`                |
 | Ollama    | http://localhost:11434           | optional, enable with the `llm` profile |
 
-Ollama writes the short summary at the top of the player profile. It is heavy, so it is
-behind a compose profile and off by default. Start it and pull the model once (about 4.7 GB):
+Ollama writes the short summary at the top of the player profile, and reads the questions
+typed into the assistant (the Ask screen). It is heavy, so it is behind a compose profile and
+off by default. Start it and pull the two models once (about 4.7 GB and 1.9 GB):
 
 ```bash
 docker compose -f docker/docker-compose.yml --profile llm up -d
 docker exec northstar-ollama ollama pull qwen2.5:7b
+docker exec northstar-ollama ollama pull qwen2.5:3b
 ```
 
 Without it the profile works as before and says, in small print, that the model is not
