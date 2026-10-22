@@ -515,7 +515,10 @@ def test_a_coach_imports_players_from_a_spreadsheet(sign_in, page, identities, t
     from datetime import date, timedelta
 
     tag = uuid.uuid4().hex[:6]
-    dob = (date.today() - timedelta(days=14 * 365)).isoformat()
+    # A birth date of its own per run. With a fixed one, a second run on the same day meets the
+    # players the first run created (same date of birth, names that match once the digits in
+    # the tag are ignored), and the import rightly asks to confirm a possible duplicate.
+    dob = (date.today() - timedelta(days=14 * 365 + int(tag, 16) % 300)).isoformat()
     today = date.today().isoformat()
     header = "full_name,date_of_birth,sport,position,consent_signed,guardian_name,measured_on,height_cm"
     rows = [
