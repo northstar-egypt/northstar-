@@ -403,3 +403,19 @@ export interface PlayerImport {
   counts: Record<string, number>;
   saved: boolean;
 }
+
+/** GET /players/{id}/radar. See apps/api/app/services/radar.py. */
+export interface PlayerRadar {
+  axes: {
+    key: string;
+    label: string;
+    value: number;
+    unit: string;
+    /** 1 to 99, higher is better; null when there are too few comparable players. */
+    percentile: number | null;
+    comparedWith: number;
+  }[];
+  /** Who the percentiles are among, in words; null when there is no radar. */
+  population: string | null;
+  note: string;
+}

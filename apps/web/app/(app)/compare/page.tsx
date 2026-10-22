@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { OverlaidGrowth } from "@/components/charts";
+import { OverlaidGrowth, RADAR_COLOURS, Radar } from "@/components/charts";
 import {
   Avatar,
   Banner,
@@ -27,9 +27,9 @@ import {
   Th,
 } from "@/components/ui";
 import { useSearchParams } from "next/navigation";
-import { getComparison } from "@/lib/api";
+import { getComparison, getRadar } from "@/lib/api";
 import { cx } from "@/lib/format";
-import type { Comparison } from "@/lib/types";
+import type { Comparison, PlayerRadar } from "@/lib/types";
 
 export default function ComparePage() {
   const [basis, setBasis] = useState<"age" | "maturity">("age");
@@ -141,6 +141,14 @@ export default function ComparePage() {
             )}
           </Card>
 
+          <CompareRadar
+            players={data.players.map((p) => ({
+              id: p.player.id,
+              name: p.player.fullName,
+              sport: p.player.primarySport,
+            }))}
+          />
+
           <Card>
             <SectionTitle>Side by side</SectionTitle>
             <Table>
@@ -228,5 +236,90 @@ export default function ComparePage() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * The players' percentile radars on one chart (apps/api/app/services/radar.py). Each player is
+ * placed among their own comparable players, and the card names each group, because two
+ * players of different ages are not compared with the same population.
+ */
+function CompareRadar({ players }: { players: { id: string; name: string; sport: string }[] }) {
+  const [radars, setRadars] = useState<(PlayerRadar | null)[] | null>(null);
+  const key = players.map((p) => p.id).join(",");
+
+  useEffect(() => {
+    let alive = true;
+    setRadars(null);
+    Promise.all(players.map((p) => getRadar(p.id).catch(() => null))).then(
+      (r) => alive && setRadars(r),
+    );
+    return () => {
+      alive = false;
+    };
+    // `key` stands for the list of ids.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  const sports = new Set(players.map((p) => p.sport));
+  return (
+    <Card>
+      <SectionTitle>Match statistics, overlaid</SectionTitle>
+      {sports.size > 1 ? (
+        <p className="text-sm text-slate-500">
+          These players play different sports, so their statistics cannot share a radar.
+        </p>
+      ) : !radars ? (
+        <Skeleton className="h-64" />
+      ) : (
+        (() => {
+          const usable = players
+            .map((p, i) => ({ player: p, radar: radars[i], colour: RADAR_COLOURS[i] }))
+            .filter((x) => x.radar && x.radar.axes.length > 0);
+          if (usable.length < 2) {
+            return (
+              <p className="text-sm text-slate-500">
+                Fewer than two of these players have enough match statistics on record for a
+                radar.
+              </p>
+            );
+          }
+          // Axes every shown player has, in the order the first one lists them.
+          const axes = usable[0].radar!.axes
+            .filter((a) => usable.every((u) => u.radar!.axes.some((b) => b.key === a.key)))
+            .map((a) => ({ key: a.key, label: a.label }));
+          return (
+            <div className="grid items-center gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <Radar
+                axes={axes}
+                series={usable.map((u) => ({
+                  name: u.player.name,
+                  values: Object.fromEntries(u.radar!.axes.map((a) => [a.key, a.percentile])),
+                }))}
+              />
+              <ul className="flex flex-col gap-2 text-xs text-slate-400">
+                {usable.map((u) => (
+                  <li key={u.player.id} className="flex items-start gap-2">
+                    <span
+                      className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ background: u.colour }}
+                      aria-hidden
+                    />
+                    <span>
+                      <span className="font-semibold text-slate-200">{u.player.name}</span>, among{" "}
+                      {u.radar!.population}.
+                    </span>
+                  </li>
+                ))}
+                <li className="text-slate-500">
+                  Each player is placed among their own comparable players; higher is better on
+                  every axis.
+                </li>
+              </ul>
+            </div>
+          );
+        })()
+      )}
+    </Card>
   );
 }

@@ -15,7 +15,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { GrowthChart, PercentileBar, ShareRange } from "@/components/charts";
+import { GrowthChart, PercentileBar, Radar, ShareRange } from "@/components/charts";
 import {
   Avatar,
   Banner,
@@ -31,13 +31,21 @@ import {
   Th,
   inputClass,
 } from "@/components/ui";
-import { getProfile, getSimilar, getSummary, withdrawConsent, writeRefusal } from "@/lib/api";
+import {
+  getProfile,
+  getRadar,
+  getSimilar,
+  getSummary,
+  withdrawConsent,
+  writeRefusal,
+} from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { num, ordinal, shortDate } from "@/lib/format";
 import type {
   Opponent,
   PerformanceSection,
   PlayerProfile,
+  PlayerRadar,
   ProfileSummary,
   Rating,
   SimilarPlayers,
@@ -248,6 +256,8 @@ export default function PlayerProfilePage() {
 
       {/* strength against other players, for sports that have a rating */}
       {data.rating ? <RatingCard rating={data.rating} /> : null}
+
+      <RadarCard playerId={playerId} />
 
       {/* performance, laid out by the sport module */}
       {data.performance.length === 0 ? (
@@ -462,6 +472,69 @@ function SummaryCard({ playerId }: { playerId: string }) {
       <SectionTitle>Summary</SectionTitle>
       <p className="text-sm leading-relaxed text-slate-300">{summary.summary}</p>
       <p className="mt-2 text-xs text-slate-500">{summary.note}</p>
+    </Card>
+  );
+}
+
+/**
+ * Percentiles of the player's match statistics among comparable players
+ * (apps/api/app/services/radar.py), as a radar and as a list with the actual values. Its own
+ * request, so the profile never waits for it.
+ */
+function RadarCard({ playerId }: { playerId: string }) {
+  const [radar, setRadar] = useState<PlayerRadar | "loading" | "failed">("loading");
+
+  useEffect(() => {
+    let alive = true;
+    setRadar("loading");
+    getRadar(playerId)
+      .then((r) => alive && setRadar(r ?? "failed"))
+      .catch(() => alive && setRadar("failed"));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (radar === "failed") return null;
+  return (
+    <Card>
+      <SectionTitle>Match statistics against comparable players</SectionTitle>
+      {radar === "loading" ? (
+        <Skeleton className="h-64" />
+      ) : radar.axes.length === 0 ? (
+        <p className="text-sm text-slate-500">{radar.note}</p>
+      ) : (
+        <div className="grid items-center gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <Radar
+            axes={radar.axes.map((a) => ({ key: a.key, label: a.label }))}
+            series={[
+              {
+                name: "This player",
+                values: Object.fromEntries(radar.axes.map((a) => [a.key, a.percentile])),
+              },
+            ]}
+          />
+          <div>
+            {radar.population ? (
+              <p className="mb-2 text-xs text-slate-400">Among {radar.population}.</p>
+            ) : null}
+            <ul className="flex flex-col gap-1 text-sm">
+              {radar.axes.map((a) => (
+                <li key={a.key} className="flex items-baseline justify-between gap-3">
+                  <span className="text-slate-300">{a.label}</span>
+                  <span className="tabular-nums text-slate-400">
+                    {a.value} {a.unit}
+                    <span className="ml-2 inline-block w-14 text-right font-semibold text-slate-100">
+                      {a.percentile == null ? "n/a" : ordinal(a.percentile)}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-slate-500">{radar.note}</p>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
