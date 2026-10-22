@@ -497,3 +497,47 @@ class ScatterOut(CamelModel):
     population: str
     focus: uuid.UUID | None = None
     note: str
+
+
+class LeaderOut(CamelModel):
+    player_id: uuid.UUID
+    full_name: str
+    position: str | None = None
+    age_label: str
+    value: float
+    # Among the whole group, higher is better, as on the profile's radar.
+    percentile: int
+    # Only on a board's `focus`: their place among the players the caller may open.
+    rank: int | None = None
+
+
+class LeaderBoardOut(CamelModel):
+    key: str
+    label: str
+    unit: str
+    higher_is_better: bool = True
+    compared_with: int = 0
+    # Null when fewer than cohort.MIN_COHORT players have this statistic, or all are equal;
+    # `leaders` is then empty too.
+    median: float | None = None
+    leaders: list[LeaderOut] = []
+    focus: LeaderOut | None = None
+
+
+class LeadersOut(CamelModel):
+    """GET /explore/leaders (app/services/explore.py). Echoes the filters it actually used."""
+
+    sport: str
+    gender: str
+    group: str | None = None
+    age_from: int | None = None
+    age_to: int | None = None
+    stats: list[ScatterStatOut] = []
+    genders: list[str] = []
+    groups: list[str] = []
+    boards: list[LeaderBoardOut] = []
+    total: int = 0
+    shown: int = 0
+    population: str
+    focus: uuid.UUID | None = None
+    note: str
