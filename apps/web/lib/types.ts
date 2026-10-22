@@ -419,3 +419,44 @@ export interface PlayerRadar {
   population: string | null;
   note: string;
 }
+
+/** GET /explore/scatter. See apps/api/app/services/explore.py. Echoes the filters it used. */
+export interface Scatter {
+  sport: string;
+  gender: "male" | "female";
+  /** Football position group; null for every position, and always null in table tennis. */
+  group: string | null;
+  ageFrom: number | null;
+  ageTo: number | null;
+  x: string;
+  y: string;
+  stats: { key: string; label: string; unit: string; higherIsBetter: boolean }[];
+  genders: ("male" | "female")[];
+  groups: string[];
+  /** Only players the viewer may open; `total` counts the whole group. */
+  points: {
+    playerId: string;
+    fullName: string;
+    position: string | null;
+    ageLabel: string;
+    x: number;
+    y: number;
+  }[];
+  /** Null when the group is too small for median lines to mean anything. */
+  medians: { x: number; y: number } | null;
+  total: number;
+  population: string;
+  focus: string | null;
+  note: string;
+}
+
+export interface ScatterQuery {
+  sport?: string;
+  gender?: string;
+  group?: string;
+  ageFrom?: number;
+  ageTo?: number;
+  x?: string;
+  y?: string;
+  focus?: string;
+}

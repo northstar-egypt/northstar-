@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.routers import (
     auth,
     comparison,
+    explore,
     dev,
     health,
     integrity,
@@ -52,6 +53,7 @@ app.include_router(auth.router)
 app.include_router(players.router)
 app.include_router(search.router)
 app.include_router(comparison.router)
+app.include_router(explore.router)
 app.include_router(oversight.router)
 app.include_router(integrity.router)
 app.include_router(sports.router)

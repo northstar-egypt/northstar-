@@ -22,6 +22,8 @@
  */
 
 import type {
+  Scatter,
+  ScatterQuery,
   Comparison,
   IntegrityFlag,
   OversightSummary,
@@ -417,6 +419,17 @@ export async function getComparison(
 ): Promise<Comparison> {
   const players = playerIds.map(encodeURIComponent).join(",");
   return request<Comparison>(`/compare?players=${players}&basis=${basis}`);
+}
+
+/* ------------------------------------------------------------------ explorer */
+
+/** Comparable players on two statistics. Unset filters are left to the API's defaults. */
+export async function getScatter(query: ScatterQuery): Promise<Scatter> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  }
+  return request<Scatter>(`/explore/scatter?${params.toString()}`);
 }
 
 /* ------------------------------------------------------------------ oversight */

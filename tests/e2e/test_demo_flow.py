@@ -620,3 +620,34 @@ def test_the_radar_shows_on_the_profile_and_overlays_on_compare(sign_in, page, i
     page.wait_for_timeout(SETTLE_MS)
     body = text_of(page)
     assert body.count(", among ") >= 2
+
+
+def test_the_explorer_plots_comparable_players_and_opens_from_a_profile(sign_in, page, identities):
+    """From a profile's radar to the scatter explorer: the player is marked among comparable
+    players, the group is named, and changing a statistic redraws the plot."""
+    sign_in("Scout", "/search")
+    scout = identities["scout"]["email"]
+    found = api("/search", scout, body={"query": "", "sport": "football", "limit": 200})
+    pid = next(
+        (
+            r["player"]["id"]
+            for r in found["results"]
+            if not r["withheld"] and api(f"/players/{r['player']['id']}/radar", scout)["axes"]
+        ),
+        None,
+    )
+    if pid is None:
+        pytest.skip("the local data has no footballer with enough match time")
+
+    page.goto(f"{WEB_URL}/players/{pid}", wait_until="load")
+    page.get_by_text("See them among all comparable players").click()
+    page.wait_for_url(f"**/explore?focus={pid}", timeout=20000)
+    page.get_by_text(" shown of ").wait_for(timeout=20000)
+    plot = page.locator("svg[role=img][aria-label*='players by']")
+    assert plot.count() == 1
+    # The focus player is marked amber and named on the plot.
+    assert plot.locator("circle[fill='#f59e0b']").count() >= 1
+    assert "with enough on record" in text_of(page)
+
+    page.locator("label", has=page.get_by_text("Up", exact=True)).locator("select").select_option("assists")
+    page.locator("svg[role=img][aria-label*='Assists']").wait_for(timeout=20000)
