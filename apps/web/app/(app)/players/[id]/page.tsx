@@ -39,7 +39,7 @@ import {
   withdrawConsent,
   writeRefusal,
 } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { canAccess, useAuth } from "@/lib/auth";
 import { num, ordinal, shortDate } from "@/lib/format";
 import type {
   Opponent,
@@ -482,6 +482,7 @@ function SummaryCard({ playerId }: { playerId: string }) {
  * request, so the profile never waits for it.
  */
 function RadarCard({ playerId }: { playerId: string }) {
+  const { user } = useAuth();
   const [radar, setRadar] = useState<PlayerRadar | "loading" | "failed">("loading");
 
   useEffect(() => {
@@ -532,6 +533,14 @@ function RadarCard({ playerId }: { playerId: string }) {
               ))}
             </ul>
             <p className="mt-2 text-xs text-slate-500">{radar.note}</p>
+            {canAccess(user?.role, "/explore") ? (
+              <Link
+                href={`/explore?focus=${encodeURIComponent(playerId)}`}
+                className="mt-2 inline-block text-sm text-sky-300 hover:underline"
+              >
+                See them among all comparable players
+              </Link>
+            ) : null}
           </div>
         </div>
       )}

@@ -514,3 +514,133 @@ export function Radar({
     </svg>
   );
 }
+
+/* ------------------------------------------------------------------ scatter */
+
+export interface ScatterDot {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  href: string;
+}
+
+/** Round tick values covering [low, high], about `count` of them. */
+function niceTicks(low: number, high: number, count = 5): number[] {
+  if (high <= low) high = low + 1;
+  const raw = (high - low) / count;
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * magnitude).find((s) => s >= raw) ?? raw;
+  // Whole steps from at or below `low` to at or above `high`, so no point falls off the plot.
+  const first = Math.floor(low / step);
+  const last = Math.ceil(high / step);
+  const ticks: number[] = [];
+  for (let i = first; i <= last; i++) ticks.push(Number((i * step).toFixed(6)));
+  return ticks;
+}
+
+/**
+ * Players on two statistics. Dashed lines are the group's medians, drawn only when the API
+ * sends them (enough players for a median to mean something). Each point links to the
+ * player's profile; marked points (the focus player, a name search) are drawn amber and named.
+ */
+export function ScatterPlot({
+  dots,
+  xLabel,
+  yLabel,
+  medians,
+  marked,
+  width = 640,
+  height = 420,
+}: {
+  dots: ScatterDot[];
+  xLabel: string;
+  yLabel: string;
+  medians: { x: number; y: number } | null;
+  marked: Set<string>;
+  width?: number;
+  height?: number;
+}) {
+  const pad = { left: 52, right: 16, top: 16, bottom: 44 };
+  const xs = dots.map((d) => d.x).concat(medians ? [medians.x] : []);
+  const ys = dots.map((d) => d.y).concat(medians ? [medians.y] : []);
+  const xTicks = niceTicks(Math.min(0, ...xs), Math.max(...xs, 0.01));
+  const yTicks = niceTicks(Math.min(0, ...ys), Math.max(...ys, 0.01));
+  const [x0, x1] = [xTicks[0], xTicks[xTicks.length - 1]];
+  const [y0, y1] = [yTicks[0], yTicks[yTicks.length - 1]];
+  const px = (v: number) => pad.left + ((v - x0) / (x1 - x0 || 1)) * (width - pad.left - pad.right);
+  const py = (v: number) => height - pad.bottom - ((v - y0) / (y1 - y0 || 1)) * (height - pad.top - pad.bottom);
+  // Marked points last, so they sit on top of the crowd.
+  const ordered = [...dots].sort((a, b) => Number(marked.has(a.id)) - Number(marked.has(b.id)));
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="w-full"
+      role="img"
+      aria-label={`${dots.length} players by ${xLabel} and ${yLabel}`}
+    >
+      {xTicks.map((t) => (
+        <g key={`x${t}`}>
+          <line x1={px(t)} x2={px(t)} y1={pad.top} y2={height - pad.bottom} stroke="#1e293b" />
+          <text x={px(t)} y={height - pad.bottom + 14} fill="#64748b" fontSize="10" textAnchor="middle">
+            {t}
+          </text>
+        </g>
+      ))}
+      {yTicks.map((t) => (
+        <g key={`y${t}`}>
+          <line x1={pad.left} x2={width - pad.right} y1={py(t)} y2={py(t)} stroke="#1e293b" />
+          <text x={pad.left - 6} y={py(t)} fill="#64748b" fontSize="10" textAnchor="end" dominantBaseline="middle">
+            {t}
+          </text>
+        </g>
+      ))}
+      <text x={(pad.left + width - pad.right) / 2} y={height - 8} fill="#94a3b8" fontSize="11" textAnchor="middle">
+        {xLabel}
+      </text>
+      <text
+        transform={`translate(12 ${(pad.top + height - pad.bottom) / 2}) rotate(-90)`}
+        fill="#94a3b8"
+        fontSize="11"
+        textAnchor="middle"
+      >
+        {yLabel}
+      </text>
+      {medians ? (
+        <g stroke="#64748b" strokeDasharray="4 4">
+          <line x1={px(medians.x)} x2={px(medians.x)} y1={pad.top} y2={height - pad.bottom} />
+          <line x1={pad.left} x2={width - pad.right} y1={py(medians.y)} y2={py(medians.y)} />
+        </g>
+      ) : null}
+      {ordered.map((d) => {
+        const on = marked.has(d.id);
+        return (
+          <a key={d.id} href={d.href} aria-label={`${d.name}: ${d.x}, ${d.y}`}>
+            <circle
+              cx={px(d.x)}
+              cy={py(d.y)}
+              r={on ? 6 : 4}
+              fill={on ? "#f59e0b" : "#38bdf8"}
+              fillOpacity={on ? 1 : 0.6}
+              stroke={on ? "#fde68a" : "none"}
+            >
+              <title>{`${d.name}\n${xLabel}: ${d.x}\n${yLabel}: ${d.y}`}</title>
+            </circle>
+            {on ? (
+              <text
+                x={px(d.x) + (px(d.x) > width - 140 ? -9 : 9)}
+                y={py(d.y) - 8}
+                fill="#fde68a"
+                fontSize="11"
+                textAnchor={px(d.x) > width - 140 ? "end" : "start"}
+              >
+                {d.name}
+              </text>
+            ) : null}
+          </a>
+        );
+      })}
+    </svg>
+  );
+}

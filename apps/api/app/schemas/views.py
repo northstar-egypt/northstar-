@@ -448,3 +448,52 @@ class FlagDecisionRequest(CamelModel):
 
     decision: str
     reason: str = Field(min_length=3, max_length=2000)
+
+
+# ---------------------------------------------------------------------------
+# Scatter explorer
+# ---------------------------------------------------------------------------
+
+
+class ScatterStatOut(CamelModel):
+    key: str
+    label: str
+    unit: str
+    higher_is_better: bool = True
+
+
+class ScatterPointOut(CamelModel):
+    player_id: uuid.UUID
+    full_name: str
+    position: str | None = None
+    age_label: str
+    x: float
+    y: float
+
+
+class ScatterMediansOut(CamelModel):
+    x: float
+    y: float
+
+
+class ScatterOut(CamelModel):
+    """GET /explore/scatter (app/services/explore.py). Echoes the filters it actually used."""
+
+    sport: str
+    gender: str
+    group: str | None = None
+    age_from: int | None = None
+    age_to: int | None = None
+    x: str
+    y: str
+    stats: list[ScatterStatOut] = []
+    genders: list[str] = []
+    groups: list[str] = []
+    # Only players the caller may open. `total` counts the whole group.
+    points: list[ScatterPointOut] = []
+    # Null when the group has fewer than cohort.MIN_COHORT players.
+    medians: ScatterMediansOut | None = None
+    total: int = 0
+    population: str
+    focus: uuid.UUID | None = None
+    note: str

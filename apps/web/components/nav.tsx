@@ -10,6 +10,7 @@ const LINKS: { href: string; label: string }[] = [
   { href: "/dashboard", label: "Squad" },
   { href: "/search", label: "Search" },
   { href: "/compare", label: "Compare" },
+  { href: "/explore", label: "Explore" },
   { href: "/oversight", label: "Oversight" },
   { href: "/integrity", label: "Integrity" },
 ];
