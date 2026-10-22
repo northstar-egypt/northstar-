@@ -704,6 +704,70 @@ Read it this way:
   rating in the previous section measures, against opponents of any strength. The rating is
   the better number for level; similarity adds which kind of player.
 
+## Assistant
+
+```bash
+cd apps/api
+python -m eval.run_assistant_eval --split dev  --model qwen2.5:3b    # what the prompt was tuned on
+python -m eval.run_assistant_eval --split test --model qwen2.5:3b    # held out, reported
+```
+
+The Ask screen takes a question in English or Arabic (`apps/api/app/services/assistant.py`).
+A local model **reads** the question into a fixed form: what kind of question it is (best in a
+group, one player, players like one player, a comparison, or none of these), and the sport,
+gender, position group, ages, statistic and player names it mentions. The platform then
+**answers** it with the services the other screens use, as the person asking. The model writes
+no part of the answer, so the only thing to measure is how often it reads the question right.
+
+A reading counts as right when everything that changes the answer is right. Both sides are
+compared after the assistant's own defaults (no sport means football, and football means
+boys and men), and names are compared ignoring case, spacing and order. There are 72 questions
+with known readings (`apps/api/eval/assistant_questions.json`), a quarter of them in Egyptian
+Arabic, in two halves of 36. The prompt was written against `dev`. `test` was written at the
+same time, before any run, and was scored only after the prompt was final.
+
+| | dev | **test (held out)** | seconds per question, median on test |
+| --- | --- | --- | --- |
+| qwen2.5:3b, first prompt | 11 of 36 (31%) | | 1.7 (on dev) |
+| qwen2.5:7b, first prompt | 31 of 36 (86%) | | 18.9 (on dev) |
+| **qwen2.5:3b, final** | 33 of 36 (92%) | **32 of 36 (89%)** | **1.9** |
+| qwen2.5:7b, final | | 33 of 36 (92%) | 14.5 |
+
+Three changes took the 3B model from 31% to 92% on dev:
+
+1. **Consistency rules on its own reading.** A question with no player names cannot be about
+   one player or a comparison, so it becomes "best in a group" when it names a statistic, a
+   position, a sport, a gender or an age, and "none of these" otherwise. Two or more names make
+   a comparison. These rules do not guess at the question; they make the model's reading agree
+   with itself.
+2. **Ages by fixed rule, not by the model.** "Under 16" means 15 and under, "U14" 13 and
+   under, "over 16" 17 and over, "16+" 16 and over, and the Arabic forms (تحت، فوق، سنة, with
+   Arabic digits) likewise. The model's commonest mistake on dev was "under 16" read as "aged
+   15".
+3. **Eight worked examples** in the prompt, written for it: none is a question from either half.
+
+**The 3B model is the default, and the 7B is not, on purpose.** On the held-out half the 7B
+gets one more question right and takes almost eight times as long. The 3B fits wholly in a
+4 GB GPU; the 7B does not and runs half on the CPU. A question box that answers in two seconds
+is used; one that takes fifteen is not. `OLLAMA_ASSISTANT_MODEL` changes it.
+
+What it still gets wrong, on the held-out half (all four are visible on the screen, under "How
+this was read", and every answer links to the screen where the filters can be set by hand):
+
+- a statistic close to the one meant: "set up the most goals" read as key passes instead of
+  assists; "busiest passers" as key passes instead of passes attempted;
+- "most creative players aged 15" also narrowed to midfielders, which the question did not say;
+- an Arabic name shortened ("فارس إسلام فؤاد" read as "إسماعيل فؤاد"), which then matches the
+  wrong player or none. The screen says which name it looked for.
+
+One mistake the scoring hid: it counted a football question read as "girls" as right, since
+football registers boys and men only, but the screen answered it with an error. Trying the
+screen found it ("مين أحسن هداف تحت ١٦ سنة"). The assistant now drops a gender read into a
+sport that registers one, so the screen does what the scoring assumed.
+
+Not measured: whether people phrase questions the way these 72 do. They were written by one
+person who knew the system, so the real rate on a scout's own words is likely lower.
+
 ## Relative age audit
 
 Children born early in the selection year are older, bigger and more mature than team-mates

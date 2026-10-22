@@ -56,7 +56,7 @@ def open_profile(page, player_id: str) -> None:
     page.wait_for_timeout(SETTLE_MS)
 
 
-def api(path: str, identity: str | None = None, *, body: dict | None = None):
+def api(path: str, identity: str | None = None, *, body: dict | None = None, timeout: float = 10):
     """Call the API, signed in as `identity` (an email) when one is given."""
     request = urllib.request.Request(
         f"{API_URL}{path}",
@@ -65,7 +65,7 @@ def api(path: str, identity: str | None = None, *, body: dict | None = None):
         method="POST" if body is not None else "GET",
     )
     opener = _session(identity) if identity else urllib.request.build_opener()
-    with opener.open(request, timeout=10) as response:
+    with opener.open(request, timeout=timeout) as response:
         return json.load(response)
 
 
@@ -657,3 +657,30 @@ def test_the_explorer_plots_comparable_players_and_opens_from_a_profile(sign_in,
     page.get_by_text("you may open, of").wait_for(timeout=20000)
     body = text_of(page)
     assert "median " in body and "goals (per 90)" in body
+
+
+def test_the_assistant_answers_from_the_records_and_shows_its_reading(sign_in, page, identities):
+    """A question in Arabic: the reading is printed, the answer lists players with links, and
+    "Open in Explore" opens the same group. Skips when the local model is not running."""
+    scout = identities["scout"]["email"]
+    try:
+        # Long, because the first question loads the model, which takes most of a minute.
+        api("/assistant", scout, body={"question": "warm up"}, timeout=240)
+    except Exception as exc:  # noqa: BLE001
+        if "503" in str(exc):
+            pytest.skip("the local language model is not running (docker compose --profile llm)")
+        raise
+
+    sign_in("Scout", "/search")
+    page.goto(f"{WEB_URL}/ask", wait_until="load")
+    page.get_by_label("Your question").fill("مين أحسن هداف تحت ١٦ سنة")
+    page.get_by_role("button", name="Ask", exact=True).click()
+    page.get_by_text("How this was read:").wait_for(timeout=120000)
+    page.get_by_text("Open in Explore").wait_for(timeout=20000)
+    body = text_of(page)
+    assert "aged 15 and under" in body and "goals" in body
+    assert page.locator("main table a[href^='/players/']").count() >= 1
+
+    page.get_by_text("Open in Explore").click()
+    page.wait_for_url("**/explore?**ageTo=15**", timeout=20000)
+    page.get_by_text("you may open, of").wait_for(timeout=20000)

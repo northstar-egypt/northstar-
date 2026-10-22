@@ -22,6 +22,7 @@
  */
 
 import type {
+  AssistantAnswer,
   Leaders,
   Scatter,
   ScatterQuery,
@@ -440,6 +441,16 @@ export async function getLeaders(query: Omit<ScatterQuery, "x" | "y">): Promise<
     if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
   }
   return request<Leaders>(`/explore/leaders?${params.toString()}`);
+}
+
+/* ------------------------------------------------------------------ assistant */
+
+/** A question in plain words. A 503 means the local model is not running; its message says so. */
+export async function askAssistant(question: string): Promise<AssistantAnswer> {
+  return request<AssistantAnswer>("/assistant", {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  });
 }
 
 /* ------------------------------------------------------------------ oversight */

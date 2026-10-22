@@ -502,3 +502,28 @@ export interface Leaders {
   focus: string | null;
   note: string;
 }
+
+/** POST /assistant. See apps/api/app/services/assistant.py. No number in it is the model's. */
+export interface AssistantAnswer {
+  question: string;
+  reading: {
+    intent: "leaders" | "player" | "similar" | "compare" | "unsupported";
+    sport: string | null;
+    gender: string | null;
+    positionGroup: string | null;
+    ageFrom: number | null;
+    ageTo: number | null;
+    statistic: string | null;
+    players: string[];
+  };
+  /** The reading in words, for "How this was read". */
+  chips: string[];
+  answer: string;
+  columns: string[];
+  /** `playerId` is set when the first cell is a player the viewer may open. */
+  rows: { playerId: string | null; cells: string[] }[];
+  /** The screen that shows the same thing, where the filters can be set by hand. */
+  link: { label: string; href: string } | null;
+  note: string;
+  model: string;
+}
