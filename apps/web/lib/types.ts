@@ -459,6 +459,8 @@ export interface ScatterQuery {
   x?: string;
   y?: string;
   focus?: string;
+  /** With a focus and no ages: use the focus player's own age band (the API's default). */
+  ownAge?: boolean;
 }
 
 /** One leader on a board. `percentile` is among the whole group, higher is better. */

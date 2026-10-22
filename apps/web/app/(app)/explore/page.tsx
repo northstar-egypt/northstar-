@@ -84,6 +84,7 @@ export default function ExplorePage() {
       ageFrom: data.ageFrom ?? undefined,
       ageTo: data.ageTo ?? undefined,
       focus: data.focus ?? undefined,
+      ownAge: false,
     })
       .then((l) => alive && setLeaders(l))
       .catch((err) => alive && setError(err.message));
@@ -105,6 +106,9 @@ export default function ExplorePage() {
       x: data?.x,
       y: data?.y,
       focus: data?.focus ?? undefined,
+      // The first view of a player's link opens on their own ages; from here the viewer's
+      // filters are what count, including clearing the ages to "any".
+      ownAge: false,
       ...patch,
     });
   };
