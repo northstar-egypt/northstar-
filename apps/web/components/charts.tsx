@@ -735,3 +735,68 @@ export function Pitch({
     </svg>
   );
 }
+
+/* ------------------------------------------------------------------ table tennis table */
+
+/**
+ * A table tennis table seen from above, 2.74 by 1.525 metres to scale, the player's own end on
+ * the left and the opponent's on the right. Markers and `onPick` use the same 0 to 100 scale as
+ * the pitch: x from the player's own end to the opponent's, y across the table.
+ */
+export function TennisTable({
+  markers,
+  onPick,
+}: {
+  markers: PitchMarker[];
+  onPick?: (x: number, y: number) => void;
+}) {
+  const W = 274;
+  const H = 152.5;
+  const pad = 14;
+  const line = { stroke: "#e2e8f0", strokeWidth: 1.2, fill: "none" };
+
+  const pick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!onPick) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const sx = ((e.clientX - rect.left) / rect.width) * (W + 2 * pad) - pad;
+    const sy = ((e.clientY - rect.top) / rect.height) * (H + 2 * pad) - pad;
+    const round = (v: number) => Math.round(Math.min(100, Math.max(0, v)) * 10) / 10;
+    onPick(round((sx / W) * 100), round((sy / H) * 100));
+  };
+
+  return (
+    <svg
+      viewBox={`${-pad} ${-pad} ${W + 2 * pad} ${H + 2 * pad + 10}`}
+      className={onPick ? "w-full cursor-crosshair touch-none select-none" : "w-full"}
+      role="img"
+      aria-label={`Table with ${markers.length} marked points`}
+      onClick={pick}
+    >
+      <rect x={0} y={0} width={W} height={H} fill="#1e3a5f" />
+      <rect x={0} y={0} width={W} height={H} {...line} />
+      {/* The centre line, for doubles, and the net. */}
+      <line x1={0} y1={H / 2} x2={W} y2={H / 2} stroke="#e2e8f0" strokeWidth={0.6} strokeOpacity={0.6} />
+      <line x1={W / 2} y1={-6} x2={W / 2} y2={H + 6} stroke="#f8fafc" strokeWidth={2.5} />
+      <text x={W / 4} y={H + pad + 4} fill="#94a3b8" fontSize="9" textAnchor="middle">
+        own side
+      </text>
+      <text x={(3 * W) / 4} y={H + pad + 4} fill="#94a3b8" fontSize="9" textAnchor="middle">
+        opponent&apos;s side
+      </text>
+      {markers.map((mk) => (
+        <circle
+          key={mk.id}
+          cx={(mk.x / 100) * W}
+          cy={(mk.y / 100) * H}
+          r={mk.selected ? 4.5 : 3.2}
+          fill={mk.colour}
+          fillOpacity={0.85}
+          stroke={mk.selected ? "#f8fafc" : "#0f172a"}
+          strokeWidth={mk.selected ? 1.5 : 0.6}
+        >
+          <title>{mk.label}</title>
+        </circle>
+      ))}
+    </svg>
+  );
+}

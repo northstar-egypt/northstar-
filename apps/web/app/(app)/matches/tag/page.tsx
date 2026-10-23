@@ -4,24 +4,27 @@
  * Tag a match from video. Coaches only.
  *
  * The coach opens a recording from their own computer or phone; it plays here and is never
- * uploaded. They pick a player, click where on the pitch something happened (the video pauses),
- * then the type and the outcome, by button or by key. Each tag is saved at once with the time in
- * the video, so it can be found and checked again from the list.
+ * uploaded. They pick a player, click where it happened (the video pauses): on the pitch in
+ * football, on the table in table tennis, where the deciding ball landed. Then the type and the
+ * outcome, by button or by key. Each tag is saved at once with the time in the video, so it can
+ * be found and checked again from the list.
  *
  * The event types and outcomes come from the sport module (GET /sports, `events`), so this
- * screen knows nothing about football. Beside the list, each player's tags are added up into
+ * screen knows no sport's rules; it only knows which surface to draw. Beside the list, each player's tags are added up into
  * match totals and set next to what was logged for that date: two records of one match that
  * disagree are worth a look.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pitch, type PitchMarker } from "@/components/charts";
+import { Pitch, TennisTable, type PitchMarker } from "@/components/charts";
 import { Banner, Button, Card, Field, SectionTitle, inputClass } from "@/components/ui";
 import { getMatchTags, getSports, getSquad, tagEvent, untagEvent } from "@/lib/api";
 import { cx } from "@/lib/format";
-import type { EventType, MatchTags, SquadRow } from "@/lib/types";
+import type { EventType, MatchTags, SportModule, SquadRow } from "@/lib/types";
 
 const TYPE_COLOURS = ["#f59e0b", "#38bdf8", "#34d399", "#f472b6", "#a78bfa"];
+// Where a type's meaning has an obvious colour, it gets it.
+const FIXED_COLOURS: Record<string, string> = { point_won: "#34d399", point_lost: "#f87171" };
 
 function clock(seconds: number | null): string {
   if (seconds == null) return "--:--";
@@ -29,9 +32,19 @@ function clock(seconds: number | null): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+// What each sport is tagged on. A new sport with event types needs a surface here.
+const SURFACES: Record<string, { title: string; pick: string }> = {
+  football: { title: "Where on the pitch (attacking to the right)", pick: "Click the pitch where it happened." },
+  table_tennis: {
+    title: "Where the deciding ball landed (the player's side on the left)",
+    pick: "Click the table where the deciding ball landed.",
+  },
+};
+
 export default function TagMatchPage() {
-  const [types, setTypes] = useState<EventType[] | null>(null);
-  const [squad, setSquad] = useState<SquadRow[]>([]);
+  const [modules, setModules] = useState<SportModule[]>([]);
+  const [sport, setSport] = useState("football");
+  const [allPlayers, setAllPlayers] = useState<SquadRow[]>([]);
   // Today where the coach is. toISOString would give the UTC date, which in Cairo is still
   // yesterday for the first hours after midnight.
   const [matchDate, setMatchDate] = useState(() => {
@@ -50,12 +63,21 @@ export default function TagMatchPage() {
 
   useEffect(() => {
     getSports()
-      .then((all) => setTypes(all.find((s) => s.sport === "football")?.events ?? []))
+      .then((all) => setModules(all.filter((s) => s.events.length > 0 && SURFACES[s.sport])))
       .catch((e) => setError(e.message));
     getSquad()
-      .then((rows) => setSquad(rows.filter((r) => r.player.primarySport === "football")))
+      .then(setAllPlayers)
       .catch((e) => setError(e.message));
   }, []);
+
+  // Sports this club has players in and that can be tagged. A table tennis academy opens on
+  // table tennis.
+  const sports = modules.filter((m) => allPlayers.some((r) => r.player.primarySport === m.sport));
+  useEffect(() => {
+    if (sports.length > 0 && !sports.some((m) => m.sport === sport)) setSport(sports[0].sport);
+  }, [sports, sport]);
+  const types: EventType[] | null = modules.length ? modules.find((m) => m.sport === sport)?.events ?? [] : null;
+  const squad = allPlayers.filter((r) => r.player.primarySport === sport);
 
   const refresh = useCallback(() => {
     if (!matchDate) return;
@@ -72,7 +94,7 @@ export default function TagMatchPage() {
 
   const colourOf = useMemo(() => {
     const map: Record<string, string> = {};
-    (types ?? []).forEach((t, i) => (map[t.key] = TYPE_COLOURS[i % TYPE_COLOURS.length]));
+    (types ?? []).forEach((t, i) => (map[t.key] = FIXED_COLOURS[t.key] ?? TYPE_COLOURS[i % TYPE_COLOURS.length]));
     return map;
   }, [types]);
 
@@ -136,7 +158,8 @@ export default function TagMatchPage() {
 
   const markers: PitchMarker[] = [
     ...(tags?.events ?? [])
-      .filter((e) => e.x != null && e.y != null)
+      // Only this sport's events: a club tagging both sports on one date sees each on its own surface.
+      .filter((e) => e.x != null && e.y != null && colourOf[e.eventType])
       .map((e) => ({
         id: e.id,
         x: e.x as number,
@@ -146,6 +169,12 @@ export default function TagMatchPage() {
       })),
     ...(point ? [{ id: "new", x: point.x, y: point.y, colour: "#f8fafc", label: "new tag", selected: true }] : []),
   ];
+
+  const onPick = (x: number, y: number) => {
+    videoRef.current?.pause();
+    setPoint({ x, y });
+    setKind(null);
+  };
 
   const players = tags?.players ?? [];
   const totals = Array.from(new Set(players.flatMap((p) => Object.keys(p.tagged))));
@@ -166,7 +195,7 @@ export default function TagMatchPage() {
       {error ? <Banner tone="warn">{error}</Banner> : null}
 
       <Card>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Field label="Match date">
             <input className={inputClass} type="date" value={matchDate} onChange={(e) => setMatchDate(e.target.value)} />
           </Field>
@@ -191,7 +220,27 @@ export default function TagMatchPage() {
               }}
             />
           </Field>
-          <Field label="Player" hint="Football players. Table tennis has no taggable events yet.">
+          {sports.length > 1 ? (
+            <Field label="Sport">
+              <select
+                className={inputClass}
+                value={sport}
+                onChange={(e) => {
+                  setSport(e.target.value);
+                  setPlayerId("");
+                  setPoint(null);
+                  setKind(null);
+                }}
+              >
+                {sports.map((m) => (
+                  <option key={m.sport} value={m.sport}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
+          <Field label="Player">
             <select className={inputClass} value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
               <option value="">Choose a player</option>
               {squad.map((r) => (
@@ -220,20 +269,17 @@ export default function TagMatchPage() {
         </Card>
 
         <Card>
-          <SectionTitle>Where on the pitch (attacking to the right)</SectionTitle>
-          <Pitch
-            markers={markers}
-            onPick={(x, y) => {
-              videoRef.current?.pause();
-              setPoint({ x, y });
-              setKind(null);
-            }}
-          />
+          <SectionTitle>{SURFACES[sport]?.title}</SectionTitle>
+          {sport === "table_tennis" ? (
+            <TennisTable markers={markers} onPick={onPick} />
+          ) : (
+            <Pitch markers={markers} onPick={onPick} />
+          )}
           <div className="mt-3 min-h-[5.5rem]">
             {!playerId ? (
               <p className="text-sm text-slate-500">Choose the player first.</p>
             ) : !point ? (
-              <p className="text-sm text-slate-500">Click the pitch where it happened.</p>
+              <p className="text-sm text-slate-500">{SURFACES[sport]?.pick}</p>
             ) : !kind ? (
               <div className="flex flex-wrap gap-2">
                 {(types ?? []).map((t) => (
