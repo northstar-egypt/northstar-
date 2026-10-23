@@ -23,6 +23,9 @@
 
 import type {
   AssistantAnswer,
+  MatchEvent,
+  MatchTags,
+  PlayerEvents,
   Leaders,
   Scatter,
   ScatterQuery,
@@ -451,6 +454,44 @@ export async function askAssistant(question: string): Promise<AssistantAnswer> {
     method: "POST",
     body: JSON.stringify({ question }),
   });
+}
+
+/* ------------------------------------------------------------------ match events */
+
+export interface EventInput {
+  playerId: string;
+  matchDate: string;
+  matchLabel: string | null;
+  eventType: string;
+  outcome: string;
+  x: number | null;
+  y: number | null;
+  videoSeconds: number | null;
+}
+
+/** Save one event tagged from video. A 422 carries every reason in its message. */
+export async function tagEvent(input: EventInput): Promise<MatchEvent> {
+  return request<MatchEvent>("/events", { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function untagEvent(eventId: string): Promise<void> {
+  await request<void>(`/events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
+}
+
+export async function getMatchTags(matchDate: string, matchLabel: string): Promise<MatchTags> {
+  const params = new URLSearchParams({ matchDate });
+  if (matchLabel.trim()) params.set("matchLabel", matchLabel.trim());
+  return request<MatchTags>(`/events?${params.toString()}`);
+}
+
+export async function getPlayerEvents(playerId: string, type?: string): Promise<PlayerEvents | null> {
+  const query = type ? `?type=${encodeURIComponent(type)}` : "";
+  try {
+    return await request<PlayerEvents>(`/players/${encodeURIComponent(playerId)}/events${query}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 /* ------------------------------------------------------------------ oversight */

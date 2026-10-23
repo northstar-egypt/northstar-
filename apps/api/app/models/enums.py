@@ -74,6 +74,8 @@ class PerformanceSource(StrEnum):
     COACH_LOGGED = "coach_logged"
     SELF_SUBMITTED = "self_submitted"
     IMPORT = "import"
+    # A match event tagged by a coach from video (models/match_event.py).
+    COACH_TAGGED = "coach_tagged"
 
 
 class UserRole(StrEnum):

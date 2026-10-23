@@ -14,6 +14,7 @@ from __future__ import annotations
 import http.cookiejar
 import json
 import re
+import urllib.parse
 import urllib.request
 import uuid
 
@@ -684,3 +685,44 @@ def test_the_assistant_answers_from_the_records_and_shows_its_reading(sign_in, p
     page.get_by_text("Open in Explore").click()
     page.wait_for_url("**/explore?**ageTo=15**", timeout=20000)
     page.get_by_text("you may open, of").wait_for(timeout=20000)
+
+
+def test_a_coach_tags_a_match_and_the_shot_shows_on_the_profile(sign_in, page, identities):
+    """Tag a goal and a pass by clicking the pitch and pressing keys (no video: the tags then
+    simply have no video time), check the list and the tagged totals, remove one, and see the
+    shot on the player's shot map."""
+    label = f"vs E2E {uuid.uuid4().hex[:6]}"
+    sign_in("Coach", "/dashboard")
+    page.get_by_role("link", name="Tag a match").click()
+    page.wait_for_url("**/matches/tag", timeout=15000)
+    page.get_by_placeholder("vs ...").fill(label)
+    select = page.locator("label", has=page.get_by_text("Player", exact=True)).locator("select")
+    page.wait_for_function("document.querySelectorAll('select option').length > 1", timeout=20000)
+    player_id = select.locator("option").nth(1).get_attribute("value")
+    select.select_option(player_id)
+
+    pitch = page.locator("svg[aria-label^='Pitch']")
+    box = pitch.bounding_box()
+    pitch.click(position={"x": box["width"] * 0.9, "y": box["height"] * 0.5})
+    page.keyboard.press("s")
+    page.keyboard.press("1")  # goal
+    page.get_by_text("Tags (1)").wait_for(timeout=15000)
+    pitch.click(position={"x": box["width"] * 0.5, "y": box["height"] * 0.5})
+    page.keyboard.press("p")
+    page.keyboard.press("2")  # incomplete
+    page.get_by_text("Tags (2)").wait_for(timeout=15000)
+
+    from datetime import date
+
+    query = urllib.parse.urlencode({"matchDate": date.today().isoformat(), "matchLabel": label})
+    tags = api(f"/events?{query}", identities["coach"]["email"])
+    row = next(p for p in tags["players"] if p["playerId"] == player_id)
+    assert row["tagged"]["goals"] == 1 and row["tagged"]["passes_attempted"] == 1
+    assert "passes_completed" not in row["tagged"]
+
+    page.get_by_role("button", name=re.compile("^Remove the Pass")).click()
+    page.get_by_text("Tags (1)").wait_for(timeout=15000)
+
+    page.goto(f"{WEB_URL}/players/{player_id}", wait_until="load")
+    page.get_by_text("Shot map", exact=True).wait_for(timeout=20000)
+    assert page.locator("svg[aria-label^='Pitch'] circle[fill='#34d399']").count() >= 1

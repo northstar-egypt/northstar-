@@ -15,7 +15,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { GrowthChart, PercentileBar, Radar, ShareRange } from "@/components/charts";
+import { GrowthChart, PercentileBar, Pitch, Radar, ShareRange } from "@/components/charts";
 import {
   Avatar,
   Banner,
@@ -32,6 +32,7 @@ import {
   inputClass,
 } from "@/components/ui";
 import {
+  getPlayerEvents,
   getProfile,
   getRadar,
   getSimilar,
@@ -44,6 +45,7 @@ import { num, ordinal, shortDate } from "@/lib/format";
 import type {
   Opponent,
   PerformanceSection,
+  PlayerEvents,
   PlayerProfile,
   PlayerRadar,
   ProfileSummary,
@@ -258,6 +260,8 @@ export default function PlayerProfilePage() {
       {data.rating ? <RatingCard rating={data.rating} /> : null}
 
       <RadarCard playerId={playerId} />
+
+      {data.player.primarySport === "football" ? <ShotMapCard playerId={playerId} /> : null}
 
       {/* performance, laid out by the sport module */}
       {data.performance.length === 0 ? (
@@ -544,6 +548,75 @@ function RadarCard({ playerId }: { playerId: string }) {
           </div>
         </div>
       )}
+    </Card>
+  );
+}
+
+const SHOT_OUTCOMES: { key: string; label: string; colour: string }[] = [
+  { key: "goal", label: "Goal", colour: "#34d399" },
+  { key: "on_target", label: "Saved", colour: "#38bdf8" },
+  { key: "off_target", label: "Off target", colour: "#94a3b8" },
+  { key: "blocked", label: "Blocked", colour: "#f59e0b" },
+];
+
+/**
+ * Where the player's shots came from, as coaches tagged them from match video
+ * (apps/api/app/services/events.py). Shown only when there are tagged shots: an empty map says
+ * nothing about the player, only that nobody has tagged their matches.
+ */
+function ShotMapCard({ playerId }: { playerId: string }) {
+  const [shots, setShots] = useState<PlayerEvents | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getPlayerEvents(playerId, "shot")
+      .then((s) => alive && setShots(s))
+      .catch(() => alive && setShots(null));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (!shots || shots.events.length === 0) return null;
+  const colour = Object.fromEntries(SHOT_OUTCOMES.map((o) => [o.key, o.colour]));
+  const placed = shots.events.filter((e) => e.x != null && e.y != null);
+  return (
+    <Card>
+      <SectionTitle>Shot map</SectionTitle>
+      <div className="grid items-center gap-6 sm:grid-cols-[minmax(0,16rem)_minmax(0,14rem)]">
+        {/* Half a pitch is taller than it is wide, so it is kept small. */}
+        <Pitch
+          half
+          markers={placed.map((e) => ({
+            id: e.id,
+            x: e.x as number,
+            y: e.y as number,
+            colour: colour[e.outcome] ?? "#94a3b8",
+            label: `${shortDate(e.matchDate)}${e.matchLabel ? `, ${e.matchLabel}` : ""}: ${e.outcome.replace("_", " ")}`,
+          }))}
+        />
+        <ul className="flex flex-col gap-1 text-sm">
+          {SHOT_OUTCOMES.map((o) => (
+            <li key={o.key} className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-slate-300">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: o.colour }} />
+                {o.label}
+              </span>
+              <span className="tabular-nums text-slate-100">{shots.counts[`shot.${o.key}`] ?? 0}</span>
+            </li>
+          ))}
+          <li className="mt-1 flex justify-between border-t border-slate-800 pt-1 text-slate-400">
+            <span>Shots</span>
+            <span className="tabular-nums">{shots.events.length}</span>
+          </li>
+        </ul>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">
+        {shots.note}
+        {placed.length < shots.events.length
+          ? ` ${shots.events.length - placed.length} were tagged without a place on the pitch.`
+          : ""}
+      </p>
     </Card>
   );
 }

@@ -196,6 +196,28 @@ The sport modules that define and validate these payloads live in `packages/shar
 one file per sport, so the frontend, backend, pipelines and ML code all read one source of
 truth. See `packages/shared/README.md` for what a module contains.
 
+## MatchEvent
+
+One thing a player did in a match (a shot, a pass, a tackle), tagged by a coach from a
+recording of the match. The video stays on the coach's device; only the tag is stored. Event
+types and outcomes come from the sport module (`events`), so this table holds only what every
+sport's events share. See decision 0005.
+
+| Field           | Type          | Notes                                                          |
+| --------------- | ------------- | -------------------------------------------------------------- |
+| id              | UUID PK       |                                                                |
+| player_id       | UUID FK       | To Player.                                                     |
+| organization_id | UUID FK, null | The club whose coach tagged it; its coaches may remove it.     |
+| sport           | enum          | Whose module validates `event_type` and `outcome`.             |
+| match_date      | date          |                                                                |
+| match_label     | text, null    | The coach's short name for the match, e.g. "vs Zamalek U15".   |
+| event_type      | text          | From the sport module, e.g. `shot`.                            |
+| outcome         | text          | One of that type's outcomes, e.g. `goal`.                      |
+| x, y            | float, null   | Where on the pitch, 0 to 100: x from own goal line to the opponent's, y from left touchline to right, as the team attacks. |
+| video_seconds   | float, null   | Time in the coach's video, so the tag can be checked again.    |
+| source          | enum          | `coach_tagged`.                                                |
+| tagged_by       | UUID FK, null | To User.                                                       |
+
 ## User
 
 An account that logs into the platform. Distinct from Player: a player may or may not have a

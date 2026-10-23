@@ -85,6 +85,9 @@ export default function DashboardPage() {
           <Link href="/players/import">
             <Button variant="ghost">Import from spreadsheet</Button>
           </Link>
+          <Link href="/matches/tag">
+            <Button variant="ghost">Tag a match</Button>
+          </Link>
           <Link href="/players/new">
             <Button variant="primary">Add player</Button>
           </Link>

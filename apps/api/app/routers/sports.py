@@ -16,6 +16,19 @@ from app.services.access import Caller
 router = APIRouter(tags=["sports"])
 
 
+class EventOutcomeOut(CamelModel):
+    key: str
+    label: str
+
+
+class EventTypeOut(CamelModel):
+    key: str
+    label: str
+    # The keyboard key the tagging screen binds to it.
+    shortcut: str
+    outcomes: list[EventOutcomeOut]
+
+
 class SportOut(CamelModel):
     sport: str
     label: str
@@ -23,6 +36,8 @@ class SportOut(CamelModel):
     roles: list[str]
     uses_tier: bool
     genders: list[str]
+    # What a coach can tag from match video. Empty for a sport with none yet.
+    events: list[EventTypeOut] = []
 
 
 @router.get("/sports", response_model=list[SportOut])
@@ -40,6 +55,15 @@ def list_sports(caller: Caller = Depends(current_user)) -> list[SportOut]:
             roles=module.roles,
             uses_tier=module.uses_tier,
             genders=module.genders,
+            events=[
+                EventTypeOut(
+                    key=kind.key,
+                    label=kind.label,
+                    shortcut=kind.shortcut,
+                    outcomes=[EventOutcomeOut(key=o.key, label=o.label) for o in kind.outcomes.values()],
+                )
+                for kind in module.events.values()
+            ],
         )
         for module in sports.registry().values()
     ]
