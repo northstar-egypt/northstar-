@@ -142,7 +142,7 @@ def test_the_sport_modules_say_what_can_be_tagged(client, auth):
     body = {s["sport"]: s for s in client.get("/sports", headers=auth("coach_a")).json()}
     shot = next(e for e in body["football"]["events"] if e["key"] == "shot")
     assert shot["shortcut"] == "s" and [o["key"] for o in shot["outcomes"]][0] == "goal"
-    assert body["table_tennis"]["events"] == []
+    assert {e["key"] for e in body["table_tennis"]["events"]} == {"point_won", "point_lost"}
 
 
 def test_a_module_whose_counts_name_no_match_total_does_not_load(tmp_path):
@@ -156,3 +156,33 @@ def test_a_module_whose_counts_name_no_match_total_does_not_load(tmp_path):
     bad.write_text(json.dumps(raw), encoding="utf-8")
     with pytest.raises(sports.ModuleError, match="xg"):
         sports.load_module(bad)
+
+
+def test_a_table_tennis_point_is_tagged_with_the_modules_own_types(client, auth, db, world):
+    """The same table and endpoints, another sport's event types: the engine knows no sport."""
+    from app.models.performance_entry import PerformanceEntry
+
+    player = world["players"]["adult_a"]
+    player.primary_sport = "table_tennis"
+    player.position = "attacker"
+    db.add(PerformanceEntry(
+        id=uuid.uuid4(), player_id=player.id, sport="table_tennis", period_type="match",
+        period_start=MATCH, schema_ref="table_tennis.match.v1", source="coach_logged",
+        is_validated=True,
+        metrics={"best_of": 5, "sets_won": 3, "sets_lost": 1, "points_won": 44,
+                 "points_lost": 35, "service_winners": 3, "unforced_errors": 6},
+    ))
+    db.flush()
+    assert _tag(client, auth, player, eventType="shot", outcome="goal").status_code == 422
+    won = _tag(client, auth, player, eventType="point_won", outcome="service_winner", x=80.0, y=30.0)
+    assert won.status_code == 201, won.text
+    _tag(client, auth, player, eventType="point_lost", outcome="unforced_error", x=50.0, y=50.0)
+
+    body = client.get(
+        "/events", params={"matchDate": MATCH.isoformat(), "matchLabel": "vs Test FC"},
+        headers=auth("coach_a"),
+    ).json()
+    row = next(p for p in body["players"] if p["playerId"] == str(player.id))
+    assert row["tagged"] == {"points_won": 1, "service_winners": 1, "points_lost": 1,
+                             "unforced_errors": 1}
+    assert row["logged"]["points_won"] == 44

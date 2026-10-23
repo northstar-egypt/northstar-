@@ -1,4 +1,5 @@
-"""Synthetic tagged match events, so the shot map and the tagging screen have something to show.
+"""Synthetic tagged match events, so the shot map, the points breakdown and the tagging screen
+have something to show.
 
 Real tags come from coaches watching match video (apps/web/app/(app)/matches/tag, decision
 0005). The seeded database has match records but no video, so this module makes the events a
@@ -20,9 +21,10 @@ matched, because every assist is also a key pass, so its key passes come out hig
 that fail their sport module (the planted impossible rows) are skipped, and so is a second
 match record on a date a player already has one for.
 
-Where on the pitch is drawn from the kind of event and the player's position group: shots from
-inside the attacking third, goals closer and more central; passes and tackles in the zones the
-player's role covers. These are plausible, not measured.
+Football: where on the pitch is drawn from the kind of event and the player's position group:
+shots from inside the attacking third, goals closer and more central; passes and tackles in the
+zones the player's role covers. Table tennis: one event per point, won or lost and how, placed
+where the deciding ball landed on the table (`TABLE_ZONE`). These are plausible, not measured.
 
     python -m data.pipelines.synthetic.tagged_events --database-url postgresql+psycopg://...
 """
@@ -112,6 +114,55 @@ def events_for(entry_id: str, metrics: dict, position: str | None) -> list[dict]
     return events
 
 
+def table_tennis_points(metrics: dict, rng: random.Random) -> list[tuple[str, str]]:
+    """(event type, outcome) pairs, one per point, that add up to the record's totals."""
+    get = lambda key: max(0, int(metrics.get(key) or 0))  # noqa: E731
+    won, lost = get("points_won"), get("points_lost")
+    service, unforced = min(get("service_winners"), won), min(get("unforced_errors"), lost)
+    pairs = [("point_won", "service_winner")] * service
+    for _ in range(won - service):
+        pairs.append(("point_won", "winner" if rng.random() < 0.6 else "opponent_error"))
+    pairs += [("point_lost", "unforced_error")] * unforced
+    for _ in range(lost - unforced):
+        pairs.append(("point_lost", "opponent_winner" if rng.random() < 0.6 else "forced_error"))
+    return pairs
+
+
+# Where the deciding ball landed on the table (x from the player's own end, 0, to the
+# opponent's, 100): a winner on the opponent's half, an error at the net or long, the
+# opponent's winner on the player's own half.
+TABLE_ZONE = {
+    "winner": (55, 97), "service_winner": (60, 97), "opponent_error": (3, 48),
+    "unforced_error": (46, 99), "forced_error": (46, 99), "opponent_winner": (3, 45),
+}
+
+
+def table_tennis_events_for(entry_id: str, metrics: dict, position: str | None = None) -> list[dict]:
+    """The points a coach would have tagged from one table tennis match record."""
+    sets = int(metrics.get("sets_won") or 0) + int(metrics.get("sets_lost") or 0)
+    if sets <= 0:
+        return []
+    rng = random.Random(f"tagged-events:{entry_id}")
+    pairs = table_tennis_points(metrics, rng)
+    rng.shuffle(pairs)
+    # About eight minutes a set; points spread through the match in order.
+    seconds = sorted(rng.uniform(0, sets * 480) for _ in pairs)
+    events = []
+    for (event_type, outcome), at in zip(pairs, seconds):
+        low, high = TABLE_ZONE[outcome]
+        events.append({
+            "event_type": event_type,
+            "outcome": outcome,
+            "x": _clamp(rng.uniform(low, high)),
+            "y": _clamp(rng.uniform(5, 95)),
+            "video_seconds": round(at, 1),
+        })
+    return events
+
+
+SPORTS = {"football": "football.match.v1", "table_tennis": "table_tennis.match.v1"}
+
+
 def seed(database_url: str, matches_per_player: int = MATCHES_PER_PLAYER) -> int:
     """Add synthetic events once. Returns how many were written (0 when already present)."""
     from sqlalchemy import create_engine, func, select
@@ -125,54 +176,67 @@ def seed(database_url: str, matches_per_player: int = MATCHES_PER_PLAYER) -> int
 
     engine = create_engine(database_url, future=True)
     with Session(engine) as db:
-        # Seeded events have no tagger; a coach's own tags always do. So a hand-tagged
-        # database still gets the seeded ones, once.
-        already = db.execute(
-            select(func.count()).select_from(MatchEvent)
-            .where(MatchEvent.tagged_by.is_(None)).where(MatchEvent.source == SOURCE)
-        ).scalar_one()
-        if already:
-            return 0
-
         clubs = dict(db.execute(select(Organization.id, Organization.name)).all())
-        rows = db.execute(
-            select(PerformanceEntry, Player.position)
-            .join(Player, Player.id == PerformanceEntry.player_id)
-            .where(PerformanceEntry.schema_ref == "football.match.v1")
-            .where(Player.status != "merged")
-            .order_by(PerformanceEntry.player_id, PerformanceEntry.period_start.desc())
-        ).all()
-
         modules = sports.registry()
-        taken: dict = {}
-        dates: set = set()
         written = 0
-        for entry, position in rows:
-            if taken.get(entry.player_id, 0) >= matches_per_player:
+        for sport, schema_ref in SPORTS.items():
+            # Seeded events have no tagger; a coach's own tags always do. So a hand-tagged
+            # database still gets the seeded ones, once per sport: a database seeded before a
+            # sport had event types gets that sport's on the next boot.
+            already = db.execute(
+                select(func.count()).select_from(MatchEvent)
+                .where(MatchEvent.tagged_by.is_(None)).where(MatchEvent.source == SOURCE)
+                .where(MatchEvent.sport == sport)
+            ).scalar_one()
+            if already:
                 continue
-            if sports.validate(entry.metrics, entry.schema_ref, modules):
-                continue
-            # A few players have two match records on one date. Tagged totals are set beside
-            # the logged ones by date, so only one of them is tagged.
-            if (entry.player_id, entry.period_start) in dates:
-                continue
-            dates.add((entry.player_id, entry.period_start))
-            taken[entry.player_id] = taken.get(entry.player_id, 0) + 1
-            label = f"vs {clubs[entry.opponent_org_id]}" if entry.opponent_org_id in clubs else None
-            for event in events_for(str(entry.id), entry.metrics, position):
-                db.add(MatchEvent(
-                    player_id=entry.player_id,
-                    organization_id=entry.organization_id,
-                    sport="football",
-                    match_date=entry.period_start,
-                    match_label=label,
-                    source=SOURCE,
-                    tagged_by=None,
-                    **event,
-                ))
-                written += 1
+            rows = db.execute(
+                select(PerformanceEntry, Player.position)
+                .join(Player, Player.id == PerformanceEntry.player_id)
+                .where(PerformanceEntry.schema_ref == schema_ref)
+                .where(Player.status != "merged")
+                .order_by(PerformanceEntry.player_id, PerformanceEntry.period_start.desc())
+            ).all()
+            written += _seed_rows(db, sport, rows, clubs, modules, matches_per_player)
         db.commit()
         return written
+
+
+def _seed_rows(db, sport: str, rows, clubs: dict, modules: dict, matches_per_player: int) -> int:
+    from app import sports
+    from app.models.match_event import MatchEvent
+
+    make = {"football": events_for, "table_tennis": table_tennis_events_for}[sport]
+    taken: dict = {}
+    dates: set = set()
+    written = 0
+    for entry, position in rows:
+        if taken.get(entry.player_id, 0) >= matches_per_player:
+            continue
+        if sports.validate(entry.metrics, entry.schema_ref, modules):
+            continue
+        # A few players have two match records on one date. Tagged totals are set beside the
+        # logged ones by date, so only one of them is tagged.
+        if (entry.player_id, entry.period_start) in dates:
+            continue
+        dates.add((entry.player_id, entry.period_start))
+        taken[entry.player_id] = taken.get(entry.player_id, 0) + 1
+        # A club opponent is named; a table tennis opponent is a person, possibly another club's
+        # child, so the label never names them.
+        label = f"vs {clubs[entry.opponent_org_id]}" if entry.opponent_org_id in clubs else None
+        for event in make(str(entry.id), entry.metrics, position):
+            db.add(MatchEvent(
+                player_id=entry.player_id,
+                organization_id=entry.organization_id,
+                sport=sport,
+                match_date=entry.period_start,
+                match_label=label,
+                source=SOURCE,
+                tagged_by=None,
+                **event,
+            ))
+            written += 1
+    return written
 
 
 def main() -> None:

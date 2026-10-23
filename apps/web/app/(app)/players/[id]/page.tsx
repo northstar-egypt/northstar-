@@ -15,7 +15,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { GrowthChart, PercentileBar, Pitch, Radar, ShareRange } from "@/components/charts";
+import { GrowthChart, PercentileBar, Pitch, Radar, ShareRange, TennisTable } from "@/components/charts";
 import {
   Avatar,
   Banner,
@@ -262,6 +262,7 @@ export default function PlayerProfilePage() {
       <RadarCard playerId={playerId} />
 
       {data.player.primarySport === "football" ? <ShotMapCard playerId={playerId} /> : null}
+      {data.player.primarySport === "table_tennis" ? <PointsCard playerId={playerId} /> : null}
 
       {/* performance, laid out by the sport module */}
       {data.performance.length === 0 ? (
@@ -617,6 +618,94 @@ function ShotMapCard({ playerId }: { playerId: string }) {
           ? ` ${shots.events.length - placed.length} were tagged without a place on the pitch.`
           : ""}
       </p>
+    </Card>
+  );
+}
+
+const POINT_OUTCOMES: { type: string; key: string; label: string; colour: string }[] = [
+  { type: "point_won", key: "winner", label: "Winners", colour: "#34d399" },
+  { type: "point_won", key: "service_winner", label: "Service winners", colour: "#6ee7b7" },
+  { type: "point_won", key: "opponent_error", label: "Opponent's errors", colour: "#a7f3d0" },
+  { type: "point_lost", key: "unforced_error", label: "Unforced errors", colour: "#f87171" },
+  { type: "point_lost", key: "forced_error", label: "Forced errors", colour: "#fca5a5" },
+  { type: "point_lost", key: "opponent_winner", label: "Opponent's winners", colour: "#fecaca" },
+];
+
+/**
+ * How a table tennis player wins and loses points, from points coaches tagged on match video
+ * (apps/api/app/services/events.py). Shares, not counts, so a player with more tagged matches
+ * does not look different for that alone. The table shows where their winners landed and where
+ * their unforced errors went. Shown only when points have been tagged.
+ */
+function PointsCard({ playerId }: { playerId: string }) {
+  const [points, setPoints] = useState<PlayerEvents | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getPlayerEvents(playerId)
+      .then((p) => alive && setPoints(p))
+      .catch(() => alive && setPoints(null));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (!points || points.events.length === 0) return null;
+  const total = (type: string) =>
+    POINT_OUTCOMES.filter((o) => o.type === type).reduce((n, o) => n + (points.counts[`${o.type}.${o.key}`] ?? 0), 0);
+  const won = total("point_won");
+  const lost = total("point_lost");
+  const shown = points.events.filter(
+    (e) => e.x != null && e.y != null && (e.outcome === "winner" || e.outcome === "unforced_error"),
+  );
+
+  return (
+    <Card>
+      <SectionTitle>How points are won and lost</SectionTitle>
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="flex flex-col gap-3">
+          {(["point_won", "point_lost"] as const).map((type) => {
+            const of = type === "point_won" ? won : lost;
+            return (
+              <div key={type}>
+                <p className="mb-1 text-xs text-slate-400">
+                  {type === "point_won" ? `Points won: ${won}` : `Points lost: ${lost}`}
+                </p>
+                <ul className="flex flex-col gap-1 text-sm">
+                  {POINT_OUTCOMES.filter((o) => o.type === type).map((o) => {
+                    const n = points.counts[`${o.type}.${o.key}`] ?? 0;
+                    const share = of ? n / of : 0;
+                    return (
+                      <li key={o.key} className="grid grid-cols-[9rem_1fr_3rem] items-center gap-2">
+                        <span className="text-slate-300">{o.label}</span>
+                        <span className="h-2 rounded bg-slate-800">
+                          <span className="block h-2 rounded" style={{ width: `${share * 100}%`, background: o.colour }} />
+                        </span>
+                        <span className="text-right tabular-nums text-slate-100">{Math.round(share * 100)}%</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+        <div>
+          <TennisTable
+            markers={shown.map((e) => ({
+              id: e.id,
+              x: e.x as number,
+              y: e.y as number,
+              colour: e.outcome === "winner" ? "#34d399" : "#f87171",
+              label: `${shortDate(e.matchDate)}: ${e.outcome === "winner" ? "winner" : "unforced error"}`,
+            }))}
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Where their winners landed (green) and their unforced errors went (red).
+          </p>
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">{points.note}</p>
     </Card>
   );
 }

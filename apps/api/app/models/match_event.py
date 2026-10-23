@@ -49,9 +49,10 @@ class MatchEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # From the sport module, for example "shot", and one of that type's outcomes, "goal".
     event_type: Mapped[str] = mapped_column(Text)
     outcome: Mapped[str] = mapped_column(Text)
-    # Where on the pitch, 0 to 100 on both axes: x from the player's own goal line (0) to the
-    # opponent's (100), y from the left touchline (0) to the right (100), as the team attacks.
-    # Null when the coach did not place it.
+    # Where it happened, 0 to 100 on both axes, on the sport's playing surface: x from the
+    # player's own end (0) to the opponent's (100), y from left (0) to right (100) as they face
+    # the opponent. In football that is the pitch, goal line to goal line; in table tennis the
+    # table, where the ball landed. Null when the coach did not place it.
     x: Mapped[float | None] = mapped_column(Float)
     y: Mapped[float | None] = mapped_column(Float)
     # Seconds into the coach's video, so the tag can be found and checked again.
