@@ -32,7 +32,7 @@ from datetime import date, timedelta
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app import concepts, names, sports
+from app import ages, concepts, names, sports
 from app.models.enums import FootballTier, Sport
 from app.models.measurement import Measurement
 from app.models.player import Player
@@ -136,20 +136,19 @@ def parse_query(
 
     remaining = text.strip()
 
-    # "under 17", "u17", "under-16"
-    match = re.search(r"\b(?:under[- ]?|u)(\d{1,2})\b", remaining, re.IGNORECASE)
+    # "under 17", "u17", "14 to 16", "16+", "15 year olds", "تحت ١٦" (app/ages.py, shared with
+    # the assistant so a phrase means the same on both). Whole years, both ends included:
+    # "under 16" is 15 and under, which is what `max_age` means below.
+    match = ages.find(remaining)
     if match:
-        filters["max_age"] = float(match.group(1))
-        chips.append({"label": f"age: under {match.group(1)}", "understood": True})
-        remaining = remaining[: match.start()] + " " + remaining[match.end() :]
-
-    # "aged 14 to 16", "14-16"
-    match = re.search(r"\b(\d{1,2})\s*(?:-|to)\s*(\d{1,2})\b", remaining)
-    if match:
-        low, high = sorted((float(match.group(1)), float(match.group(2))))
-        filters["min_age"], filters["max_age"] = low, high
-        chips.append({"label": f"age: {int(low)} to {int(high)}", "understood": True})
-        remaining = remaining[: match.start()] + " " + remaining[match.end() :]
+        if match.age_from is not None:
+            filters["min_age"] = float(match.age_from)
+        if match.age_to is not None:
+            filters["max_age"] = float(match.age_to)
+        chips.append(
+            {"label": f"age: {ages.words(match.age_from, match.age_to)}", "understood": True}
+        )
+        remaining = remaining[: match.start] + " " + remaining[match.end :]
 
     # "over 180cm", "taller than 175"
     match = re.search(

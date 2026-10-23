@@ -46,9 +46,9 @@ def test_the_sport_style_and_gender_are_read_from_plain_words(query, expected):
 def test_football_searches_read_as_they_did_before():
     """"defender" is a football position and a table tennis style. Unless the scout names table
     tennis, it stays the football position it always was."""
-    assert parse_query("defender under 17")[0] == {"max_age": 17.0, "position": "CB"}
+    assert parse_query("defender under 17")[0] == {"max_age": 16.0, "position": "CB"}
     assert parse_query("football striker u17")[0] == {
-        "max_age": 17.0,
+        "max_age": 16.0,
         "sport": "football",
         "position": "ST",
     }

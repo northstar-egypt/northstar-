@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -40,7 +39,7 @@ from urllib.parse import urlencode
 
 from sqlalchemy.orm import Session
 
-from app import names, sports
+from app import ages, names, sports
 from app.config import get_settings
 from app.models.player import Player
 from app.services import explore, radar, similar
@@ -150,37 +149,13 @@ class Reading:
     players: list[str] = field(default_factory=list)
 
 
-_ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
-_N = r"(\d{1,2})"
-# Ages are read by rule, not by the model: the model's commonest mistake on the development
-# questions was "under 16" read as "aged 15". Each rule gives (from, to) in whole years, and
-# the first that matches wins, so the ranges go before the single ages they contain.
-_AGE_RULES: list[tuple[re.Pattern, object]] = [
-    (re.compile(rf"\bbetween\s*{_N}\s*(?:and|&)\s*{_N}", re.I), lambda a, b: (int(a), int(b))),
-    (re.compile(rf"(?:بين|من)\s*{_N}\s*(?:و|ل|الى|إلى)\s*{_N}"), lambda a, b: (int(a), int(b))),
-    (re.compile(rf"\b{_N}\s*(?:to|-|–)\s*{_N}\b", re.I), lambda a, b: (int(a), int(b))),
-    (re.compile(rf"\b{_N}\s*(?:and|or)\s*(?:under|younger|below)\b", re.I), lambda n: (None, int(n))),
-    (re.compile(rf"\b{_N}\s*(?:\+|(?:and|or)\s*(?:over|older|above|up)\b)", re.I), lambda n: (int(n), None)),
-    (re.compile(rf"\b(?:under|below|younger\s+than)\s*{_N}", re.I), lambda n: (None, int(n) - 1)),
-    (re.compile(rf"\bu-?{_N}s?\b", re.I), lambda n: (None, int(n) - 1)),
-    (re.compile(rf"(?:تحت|أقل من|اقل من)\s*{_N}"), lambda n: (None, int(n) - 1)),
-    (re.compile(rf"\b(?:over|older\s+than|above)\s*{_N}", re.I), lambda n: (int(n) + 1, None)),
-    # In Egyptian Arabic "فوق ١٨" is said for "eighteen and up".
-    (re.compile(rf"(?:فوق|أكبر من|اكبر من)\s*{_N}"), lambda n: (int(n), None)),
-    (re.compile(rf"\b(?:aged|age)\s*{_N}\b", re.I), lambda n: (int(n), int(n))),
-    (re.compile(rf"\b{_N}[\s-]*(?:years?|yrs?)[\s-]*olds?\b", re.I), lambda n: (int(n), int(n))),
-    (re.compile(rf"\b{_N}\s*(?:سنة|سنين|سنه)"), lambda n: (int(n), int(n))),
-    (re.compile(r"\b(?:adults?|seniors?|grown[\s-]?ups?)\b|كبار", re.I), lambda: (18, None)),
-]
-
-
 def ages_in(question: str) -> tuple[int | None, int | None] | None:
-    """The age range a question names, by rule, or None when it names none."""
-    text = question.translate(_ARABIC_DIGITS)
-    for pattern, make in _AGE_RULES:
-        if match := pattern.search(text):
-            return make(*match.groups())
-    return None
+    """The age range a question names, by rule (app/ages.py), or None when it names none.
+
+    Read by rule, not by the model: the model's commonest mistake on the development
+    questions was "under 16" read as "aged 15"."""
+    match = ages.find(question)
+    return None if match is None else (match.age_from, match.age_to)
 
 
 class OllamaUnavailable(Exception):
