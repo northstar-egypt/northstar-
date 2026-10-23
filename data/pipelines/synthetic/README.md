@@ -169,6 +169,7 @@ Each planted player carries exactly one label, so the answer key is unambiguous.
 | `dataset.py` | Orchestration, in dependency order. |
 | `writer.py` | Database insert and JSON export. |
 | `orm.py` | Imports the API's SQLAlchemy models. |
+| `tagged_events.py` | Not part of a generator run. Synthetic match events (shots, passes, tackles) made from the match records already in a database, so the profile's shot map has something to show; added once by the seed container (step 4 of `docker/seed.py`), to a new or an existing database. Each record's events add up to its logged totals. It draws from its own `random.Random` per record, seeded by the record's id, not from `rng.py`, so it is reproducible without the generator's seed, and it never touches the export the ML evaluations read. |
 
 ## Notes for reviewers
 

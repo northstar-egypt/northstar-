@@ -1,10 +1,11 @@
 """Bring an empty database up to something worth looking at.
 
-Runs once when the stack starts, then exits. Three steps:
+Runs once when the stack starts, then exits. Four steps:
 
   1. `alembic upgrade head`, so the schema matches the models.
   2. Generate the synthetic dataset and load it, **only if the database has no players**.
   3. Run the detectors and write their findings to the flag table.
+  4. Add synthetic tagged match events from the match records, once (for the shot map).
 
 Why step 2 is conditional
 -------------------------
@@ -90,6 +91,15 @@ def main() -> int:
     log("running the detectors and writing flags")
     run(
         [sys.executable, "-m", "ml.write_flags", "--database-url", DATABASE_URL],
+        cwd=REPO,
+    )
+
+    # 4. Tagged match events, made from the match records so the shot map has something to
+    #    show (data/pipelines/synthetic/tagged_events.py). Added once, and to a database that
+    #    already had players too, which step 2 never touches.
+    log("adding synthetic tagged match events, once")
+    run(
+        [sys.executable, "-m", "data.pipelines.synthetic.tagged_events", "--database-url", DATABASE_URL],
         cwd=REPO,
     )
 
