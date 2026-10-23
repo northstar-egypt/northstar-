@@ -343,3 +343,67 @@ def test_me_reports_the_resolved_caller(client, auth, world):
 def test_me_reports_the_linked_player_for_a_player_account(client, auth, world):
     body = client.get("/me", headers=auth("player_self")).json()
     assert body["linkedPlayerId"] == str(world["players"]["adult_a"].id)
+
+
+@pytest.mark.parametrize(
+    "query, filters, label",
+    [
+        ("under 16", {"max_age": 15.0}, "age: under 16"),
+        ("U-17 strikers", {"max_age": 16.0}, "age: under 17"),
+        ("16 and under", {"max_age": 16.0}, "age: under 17"),
+        ("16+", {"min_age": 16.0}, "age: 16 and over"),
+        ("over 16", {"min_age": 17.0}, "age: 17 and over"),
+        ("15 year olds", {"min_age": 15.0, "max_age": 15.0}, "age: 15"),
+        ("between 14 and 16", {"min_age": 14.0, "max_age": 16.0}, "age: 14 to 16"),
+        ("تحت ١٦", {"max_age": 15.0}, "age: under 16"),
+    ],
+)
+def test_age_phrases_mean_the_same_as_on_the_assistant(query, filters, label):
+    """Search and the assistant read ages with the same rules (app/ages.py)."""
+    from app.services.search import parse_query
+
+    parsed, chips, _ = parse_query(query)
+    assert {k: v for k, v in parsed.items() if k.endswith("_age")} == filters
+    assert label in [chip["label"] for chip in chips]
+
+
+def test_a_height_is_not_read_as_an_age():
+    from app.services.search import parse_query
+
+    parsed, chips, _ = parse_query("over 180cm")
+    assert parsed == {"min_height_cm": 180.0}
+
+
+def test_under_16_leaves_out_a_player_who_is_16(client, auth, db, world):
+    """The bug this fixes: "under 16" used to include every 16-year-old."""
+    import uuid
+    from datetime import date, timedelta
+
+    from app.models.player import Player
+    from app.models.player_organization import PlayerOrganization
+
+    today = date.today()
+    made = {}
+    for label, years in (("Fifteen", 15.5), ("Sixteen", 16.5)):
+        player = Player(
+            id=uuid.uuid4(), full_name=f"Agecheck {label}", sex="male", nationality=["EG"],
+            date_of_birth=today - timedelta(days=int(years * 365.25)), is_egypt_eligible=True,
+            primary_sport="football", position="ST", is_minor=True, status="active",
+        )
+        db.add(player)
+        db.flush()
+        db.add(PlayerOrganization(
+            id=uuid.uuid4(), player_id=player.id, organization_id=world["orgs"]["a"].id,
+            role="player", start_date=today - timedelta(days=30), end_date=None,
+        ))
+        made[label] = str(player.id)
+    db.flush()
+
+    body = client.post(
+        "/search",
+        json={"query": "under 16", "organizationId": str(world["orgs"]["a"].id), "limit": 200},
+        headers=auth("federation"),
+    ).json()
+    ids = {row["player"]["id"] for row in body["results"]}
+    assert made["Fifteen"] in ids
+    assert made["Sixteen"] not in ids
