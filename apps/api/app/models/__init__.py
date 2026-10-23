@@ -12,6 +12,7 @@ from app.db import Base  # noqa: F401  (re-exported so Alembic env can import me
 from app.models.audit_log import AuditLog
 from app.models.consent import Consent
 from app.models.flag import Flag, FlagEvent
+from app.models.match_event import MatchEvent
 from app.models.measurement import Measurement
 from app.models.organization import Organization
 from app.models.performance_entry import PerformanceEntry
@@ -25,6 +26,7 @@ __all__ = [
     "Consent",
     "Flag",
     "FlagEvent",
+    "MatchEvent",
     "Measurement",
     "Organization",
     "PerformanceEntry",

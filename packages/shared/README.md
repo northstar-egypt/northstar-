@@ -72,6 +72,29 @@ more than one sport:
 `denominator` field lists, optional `scale`, for example 90 for per-90 rates) or a share of
 records (`shareWhere: {"gt": [a, b]}`, for example matches won).
 
+**`events`** (optional) are what a coach can tag from match video (decision 0005, table
+`match_event`). `matchPeriod` names the period whose totals the events count toward. Each type
+has a `label`, a one-character keyboard `key` for the tagging screen, and `outcomes`, each with
+a `label` and `counts`: the match totals one such event adds 1 to. The loader refuses a module
+whose `counts` name a field that is not a total of `matchPeriod`. From football:
+
+```jsonc
+"events": {
+  "matchPeriod": "football.match.v1",
+  "types": {
+    "shot": {
+      "label": "Shot", "key": "s",
+      "outcomes": {
+        "goal": { "label": "Goal", "counts": ["shots", "shots_on_target", "goals"] },
+        "off_target": { "label": "Off target", "counts": ["shots"] }
+      }
+    }
+  }
+}
+```
+
+A sport without `events` cannot be tagged yet, and its tagging screen says so.
+
 ### Validation, and what it is not
 
 `validate()` reports everything wrong with a record, including missing and unknown fields.

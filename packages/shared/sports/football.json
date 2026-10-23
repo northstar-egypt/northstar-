@@ -92,5 +92,35 @@
         { "key": "shot_conversion", "label": "Shot conversion", "numerator": ["goals"], "denominator": ["shots"], "format": "percent", "search": { "better": "higher", "minBasis": 1 } }
       ]
     }
+  },
+  "events": {
+    "matchPeriod": "football.match.v1",
+    "types": {
+      "shot": {
+        "label": "Shot", "key": "s",
+        "outcomes": {
+          "goal": { "label": "Goal", "counts": ["shots", "shots_on_target", "goals"] },
+          "on_target": { "label": "Saved", "counts": ["shots", "shots_on_target"] },
+          "off_target": { "label": "Off target", "counts": ["shots"] },
+          "blocked": { "label": "Blocked", "counts": ["shots"] }
+        }
+      },
+      "pass": {
+        "label": "Pass", "key": "p",
+        "outcomes": {
+          "complete": { "label": "Complete", "counts": ["passes_attempted", "passes_completed"] },
+          "incomplete": { "label": "Incomplete", "counts": ["passes_attempted"] },
+          "key_pass": { "label": "Key pass", "counts": ["passes_attempted", "passes_completed", "key_passes"] },
+          "assist": { "label": "Assist", "counts": ["passes_attempted", "passes_completed", "key_passes", "assists"] }
+        }
+      },
+      "tackle": {
+        "label": "Tackle", "key": "t",
+        "outcomes": {
+          "won": { "label": "Won", "counts": ["tackles"] },
+          "lost": { "label": "Lost", "counts": [] }
+        }
+      }
+    }
   }
 }

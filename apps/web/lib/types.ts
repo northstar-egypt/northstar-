@@ -254,6 +254,16 @@ export interface SportModule {
   usesTier: boolean;
   /** Which genders the sport registers. Football: male only. Table tennis: both, kept apart. */
   genders: ("male" | "female")[];
+  /** What a coach can tag from match video. Empty for a sport with none yet. */
+  events: EventType[];
+}
+
+export interface EventType {
+  key: string;
+  label: string;
+  /** The keyboard key the tagging screen binds to this type. */
+  shortcut: string;
+  outcomes: { key: string; label: string }[];
 }
 
 /**
@@ -526,4 +536,44 @@ export interface AssistantAnswer {
   link: { label: string; href: string } | null;
   note: string;
   model: string;
+}
+
+/** One event tagged from match video. See apps/api/app/services/events.py. */
+export interface MatchEvent {
+  id: string;
+  playerId: string;
+  /** Only on a match's list, where several players' tags are shown together. */
+  playerName: string | null;
+  matchDate: string;
+  matchLabel: string | null;
+  eventType: string;
+  outcome: string;
+  /** 0 to 100: own goal line to the opponent's, as the team attacks. Null when not placed. */
+  x: number | null;
+  /** 0 to 100: left touchline to right. */
+  y: number | null;
+  videoSeconds: number | null;
+}
+
+/** GET /events: one match's tags for the coach's club. */
+export interface MatchTags {
+  matchDate: string;
+  matchLabel: string | null;
+  events: MatchEvent[];
+  /** Totals the tags add up to, beside what was logged for that date (null: nothing logged). */
+  players: {
+    playerId: string;
+    playerName: string;
+    tagged: Record<string, number>;
+    logged: Record<string, number | null> | null;
+  }[];
+}
+
+/** GET /players/{id}/events. */
+export interface PlayerEvents {
+  events: MatchEvent[];
+  matches: number;
+  /** "<type>.<outcome>" to how many. */
+  counts: Record<string, number>;
+  note: string;
 }

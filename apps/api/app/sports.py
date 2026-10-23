@@ -94,6 +94,24 @@ class Period:
 
 
 @dataclass(frozen=True)
+class EventOutcome:
+    key: str
+    label: str
+    # Match totals (properties of the module's match period) one such event adds 1 to, so
+    # tagged events can be set beside the totals the coach logged for the same match.
+    counts: list[str]
+
+
+@dataclass(frozen=True)
+class EventType:
+    key: str
+    label: str
+    # The keyboard key the tagging screen binds to this type.
+    shortcut: str
+    outcomes: dict[str, EventOutcome]
+
+
+@dataclass(frozen=True)
 class SportModule:
     sport: str
     label: str
@@ -107,6 +125,11 @@ class SportModule:
     # (percentiles, growth curves, forecasts), so a sport open to both keeps them apart.
     genders: list[str] = field(default_factory=lambda: ["male", "female"])
     periods: dict[str, Period] = field(default_factory=dict)
+    # What a coach can tag from match video (models/match_event.py). Empty for a sport with no
+    # event types yet, whose tagging screen says so.
+    events: dict[str, EventType] = field(default_factory=dict)
+    # The match period whose totals the events' `counts` name.
+    events_period: str | None = None
 
 
 def default_modules_dir() -> Path:
@@ -226,9 +249,41 @@ def load_module(path: Path) -> SportModule:
             role_names=_role_names(path.name, raw["roles"]),
             genders=_genders(path.name, raw.get("genders", ["male", "female"])),
             periods=periods,
+            events=_events(path.name, raw.get("events"), periods),
+            events_period=(raw.get("events") or {}).get("matchPeriod"),
         )
     except KeyError as exc:
         raise ModuleError(f"{path.name}: missing {exc}") from exc
+
+
+def _events(name: str, raw: dict | None, periods: dict[str, Period]) -> dict[str, EventType]:
+    """The module's taggable match events, checked against its own match period."""
+    if not raw:
+        return {}
+    period = periods.get(raw.get("matchPeriod", ""))
+    if period is None:
+        raise ModuleError(f"{name}: events.matchPeriod must name one of the module's periods")
+    totals = set(period.schema["properties"])
+    types: dict[str, EventType] = {}
+    shortcuts: set[str] = set()
+    for key, spec in raw["types"].items():
+        shortcut = spec["key"]
+        if len(shortcut) != 1 or shortcut in shortcuts:
+            raise ModuleError(f"{name}: events.{key}.key must be one character, unique")
+        shortcuts.add(shortcut)
+        outcomes = {}
+        for outcome, detail in spec["outcomes"].items():
+            unknown = set(detail.get("counts", [])) - totals
+            if unknown:
+                raise ModuleError(
+                    f"{name}: events.{key}.{outcome} counts {sorted(unknown)}, which are not "
+                    f"totals of {period.schema_ref}"
+                )
+            outcomes[outcome] = EventOutcome(outcome, detail["label"], list(detail.get("counts", [])))
+        if not outcomes:
+            raise ModuleError(f"{name}: events.{key} has no outcomes")
+        types[key] = EventType(key, spec["label"], shortcut, outcomes)
+    return types
 
 
 def _role_names(name: str, roles: dict) -> dict[str, str]:

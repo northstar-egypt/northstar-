@@ -644,3 +644,94 @@ export function ScatterPlot({
     </svg>
   );
 }
+
+/* ------------------------------------------------------------------ pitch */
+
+export interface PitchMarker {
+  id: string;
+  /** 0 to 100, own goal line to the opponent's. */
+  x: number;
+  /** 0 to 100, left touchline to right, as the team attacks. */
+  y: number;
+  colour: string;
+  /** Read out and shown on hover. */
+  label: string;
+  /** Drawn larger and outlined, for the one being worked on. */
+  selected?: boolean;
+}
+
+/**
+ * A football pitch, attacking to the right, 105 by 68 metres at 5 units a metre, so the boxes
+ * and the circle are true to scale. `half` shows only the attacking half (a shot map).
+ * `onPick` makes it clickable and reports where, on the same 0 to 100 scale the events use.
+ */
+export function Pitch({
+  markers,
+  half = false,
+  onPick,
+}: {
+  markers: PitchMarker[];
+  half?: boolean;
+  onPick?: (x: number, y: number) => void;
+}) {
+  const W = 525;
+  const H = 340;
+  const m = 5; // units per metre
+  const box = { depth: 16.5 * m, top: (H - 40.32 * m) / 2, height: 40.32 * m };
+  const six = { depth: 5.5 * m, top: (H - 18.32 * m) / 2, height: 18.32 * m };
+  const goal = { top: (H - 7.32 * m) / 2, height: 7.32 * m };
+  const left = half ? W / 2 : 0;
+  const line = { stroke: "#334155", strokeWidth: 2, fill: "none" };
+
+  const pick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!onPick) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const width = half ? W / 2 : W;
+    const sx = left + ((e.clientX - rect.left) / rect.width) * width;
+    const sy = ((e.clientY - rect.top) / rect.height) * H;
+    const round = (v: number) => Math.round(Math.min(100, Math.max(0, v)) * 10) / 10;
+    onPick(round((sx / W) * 100), round((sy / H) * 100));
+  };
+
+  return (
+    <svg
+      viewBox={`${left} 0 ${half ? W / 2 : W} ${H}`}
+      className={onPick ? "w-full cursor-crosshair touch-none select-none" : "w-full"}
+      role="img"
+      aria-label={`Pitch with ${markers.length} marked events`}
+      onClick={pick}
+    >
+      <rect x={0} y={0} width={W} height={H} fill="#0b1f17" />
+      <rect x={2} y={2} width={W - 4} height={H - 4} {...line} />
+      <line x1={W / 2} y1={2} x2={W / 2} y2={H - 2} {...line} />
+      <circle cx={W / 2} cy={H / 2} r={9.15 * m} {...line} />
+      <circle cx={W / 2} cy={H / 2} r={2} fill="#334155" />
+      {[0, 1].map((side) => {
+        // Distance d metres-in-units from this side's goal line.
+        const at = (d: number) => (side === 0 ? 2 + d : W - 2 - d);
+        return (
+          <g key={side}>
+            <rect x={side === 0 ? 2 : W - 2 - box.depth} y={box.top} width={box.depth} height={box.height} {...line} />
+            <rect x={side === 0 ? 2 : W - 2 - six.depth} y={six.top} width={six.depth} height={six.height} {...line} />
+            <circle cx={at(11 * m)} cy={H / 2} r={2} fill="#334155" />
+            <line x1={at(0)} y1={goal.top} x2={at(0)} y2={goal.top + goal.height} stroke="#94a3b8" strokeWidth={4} />
+          </g>
+        );
+      })}
+      {markers.map((mk) => (
+        <circle
+          key={mk.id}
+          cx={(mk.x / 100) * W}
+          cy={(mk.y / 100) * H}
+          r={mk.selected ? 8 : 6}
+          fill={mk.colour}
+          fillOpacity={0.85}
+          stroke={mk.selected ? "#f8fafc" : "#0f172a"}
+          strokeWidth={mk.selected ? 2.5 : 1}
+        >
+          <title>{mk.label}</title>
+        </circle>
+      ))}
+    </svg>
+  );
+}

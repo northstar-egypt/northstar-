@@ -158,6 +158,7 @@ export function homeFor(role: UserRole, linkedPlayerId?: string | null): string 
 export const ROUTE_ROLES: Record<string, UserRole[]> = {
   "/dashboard": ["coach"],
   "/players/new": ["coach"],
+  "/matches": ["coach"],
   "/search": ["scout", "federation"],
   "/compare": ["coach", "scout", "federation"],
   "/explore": ["coach", "scout", "federation"],

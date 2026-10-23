@@ -17,6 +17,7 @@ from app.routers import (
     comparison,
     explore,
     dev,
+    events,
     health,
     integrity,
     oversight,
@@ -56,6 +57,7 @@ app.include_router(search.router)
 app.include_router(comparison.router)
 app.include_router(explore.router)
 app.include_router(assistant.router)
+app.include_router(events.router)
 app.include_router(oversight.router)
 app.include_router(integrity.router)
 app.include_router(sports.router)
