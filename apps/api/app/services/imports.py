@@ -106,8 +106,14 @@ def _looks_like_formula(cell: str) -> bool:
     return cell[0] == "-" and len(cell) > 1 and not (cell[1].isdigit() or cell[1] == ".")
 
 
-def _read(text: str) -> tuple[list[str], list[tuple[int, dict[str, str]]]]:
-    """The file's problems, and its rows as (line, {column: cell})."""
+def _read(
+    text: str,
+    columns: dict[str, str] = COLUMNS,
+    required: tuple[str, ...] = REQUIRED,
+    noun: str = "players",
+) -> tuple[list[str], list[tuple[int, dict[str, str]]]]:
+    """The file's problems, and its rows as (line, {column: cell}). Shared with the results
+    import (services/results_import.py), which passes its own columns."""
     if len(text) > MAX_CHARS:
         return [f"The file is larger than {MAX_CHARS // 1000} KB. Split it into smaller files."], []
     text = text.lstrip("﻿")
@@ -123,12 +129,12 @@ def _read(text: str) -> tuple[list[str], list[tuple[int, dict[str, str]]]]:
         return [f"The first line could not be read as column names ({exc})."], []
     keys = [_key(h) for h in header]
     problems = []
-    unknown = [h for h, k in zip(header, keys) if k and k not in COLUMNS]
+    unknown = [h for h, k in zip(header, keys) if k and k not in columns]
     if unknown:
         problems.append(
             "Unknown column(s): " + ", ".join(unknown) + ". Use the template's column names."
         )
-    missing = [c for c in REQUIRED if c not in keys]
+    missing = [c for c in required if c not in keys]
     if missing:
         problems.append("Missing required column(s): " + ", ".join(missing) + ".")
     if len(set(k for k in keys if k)) != len([k for k in keys if k]):
@@ -143,7 +149,7 @@ def _read(text: str) -> tuple[list[str], list[tuple[int, dict[str, str]]]]:
                 continue  # a blank line
             line = reader.line_num
             if len(rows) >= MAX_ROWS:
-                return [f"More than {MAX_ROWS} players in one file. Split it."], []
+                return [f"More than {MAX_ROWS} {noun} in one file. Split it."], []
             cells = {k: (record[i].strip() if i < len(record) else "") for i, k in enumerate(keys) if k}
             if len(record) > len(keys):
                 cells["__extra__"] = "yes"
@@ -151,7 +157,7 @@ def _read(text: str) -> tuple[list[str], list[tuple[int, dict[str, str]]]]:
     except csv.Error as exc:
         return [f"The file could not be read as CSV ({exc})."], []
     if not rows:
-        return ["The file has column names but no players."], []
+        return [f"The file has column names but no {noun}."], []
     return [], rows
 
 
