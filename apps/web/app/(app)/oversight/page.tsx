@@ -17,7 +17,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { RatioBars, StackedAges } from "@/components/charts";
 import {
-  Banner,
   Button,
   Card,
   Chip,
@@ -56,6 +55,8 @@ export default function OversightPage() {
   const academies = [...data.academies].sort(
     (a, b) => b.medianStalenessDays - a.medianStalenessDays,
   );
+  // Governorate code to name, from the same response.
+  const regionName = Object.fromEntries(data.byRegion.map((r) => [r.code, r.region]));
 
   return (
     <div className="flex flex-col gap-5">
@@ -107,13 +108,14 @@ export default function OversightPage() {
             }))}
           />
           <p className="mt-3 text-xs text-slate-500">
-            Players tracked per million people. Amber marks the governorates where the platform
-            has barely reached. Where the gaps are matters more than where the totals are.
+            Players tracked per million people, by where their club is: all 27 governorates, so
+            the ones the platform has not reached show as the gaps they are (
+            {data.byRegion.filter((r) => r.players === 0).length} with no tracked players). Amber
+            marks thin coverage, and &ldquo;none&rdquo; a governorate with no tracked players at all. Populations are 2023 estimates.
+            {data.playersWithoutGovernorate > 0
+              ? ` ${data.playersWithoutGovernorate} players are at clubs with no governorate set and are not counted here.`
+              : ""}
           </p>
-          <Banner tone="info">
-            This panel needs a region field on Organization, which the schema does not have. It is
-            drawn from synthetic values. Raised in docs/wireframes/README.md.
-          </Banner>
         </Card>
 
         <Card>
@@ -149,7 +151,7 @@ export default function OversightPage() {
             {academies.map((a) => (
               <tr key={a.organization.id} className="hover:bg-slate-900/40">
                 <Td className="font-semibold text-slate-100">{a.organization.name}</Td>
-                <Td>{a.organization.region ?? "unknown"}</Td>
+                <Td>{regionName[a.organization.region ?? ""] ?? "not set"}</Td>
                 <Td className="tabular-nums">{a.playerCount}</Td>
                 <Td
                   className={cx(

@@ -13,6 +13,7 @@ from .reference import (
     FOREIGN_CLUB_NAMES,
     NATIONAL_TEAM_SUFFIXES,
 )
+from .regions import region_for
 from .rng import Rng
 
 
@@ -62,6 +63,8 @@ def generate_organizations(rng: Rng, config: GeneratorConfig) -> list[Organizati
                 type=enums.OrganizationType.CLUB.value,
                 sport=sport,
                 country=country,
+                # From the name, never from rng: see regions.py.
+                region=region_for(name, enums.OrganizationType.CLUB.value, country),
                 parent_org_id=parent_for(sport, country),
                 external_ids={"source": "synthetic"},
             )
@@ -74,13 +77,15 @@ def generate_organizations(rng: Rng, config: GeneratorConfig) -> list[Organizati
             if rng.chance(config.population.table_tennis_fraction)
             else enums.Sport.FOOTBALL.value
         )
+        academy = academy_names[i % len(academy_names)]
         orgs.append(
             Organization(
                 id=rng.uuid(),
-                name=academy_names[i % len(academy_names)],
+                name=academy,
                 type=enums.OrganizationType.ACADEMY.value,
                 sport=sport,
                 country=EGYPT,
+                region=region_for(academy, enums.OrganizationType.ACADEMY.value, EGYPT),
                 parent_org_id=parent_for(sport, EGYPT),
                 external_ids={"source": "synthetic"},
             )

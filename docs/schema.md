@@ -95,6 +95,7 @@ to a club and a club can sit under a federation.
 | type            | enum          | `club` / `academy` / `national_team` / `federation`.         |
 | sport           | enum, null    | Null for multi-sport bodies.                                 |
 | country         | text          | ISO 3166-1 alpha-2 code (`EG`).                              |
+| region          | text, null    | Egyptian governorate, an ISO 3166-2:EG code (`EG-ALX`); the 27 codes, names and populations are in `apps/api/app/regions.py`. Null abroad and for national bodies. Drives coverage by governorate on the oversight screen. |
 | parent_org_id   | UUID FK, null | Self-reference for hierarchy.                                |
 | external_ids    | JSONB         | Source ids.                                                  |
 

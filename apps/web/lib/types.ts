@@ -365,7 +365,10 @@ export interface OversightSummary {
   academiesReporting: number;
   stalePct: number;
   openFlags: number;
-  byRegion: { region: string; players: number; populationM: number }[];
+  /** All 27 governorates, empty ones included, by players per million. */
+  byRegion: { code: string; region: string; regionAr: string; players: number; populationM: number }[];
+  /** Players at an Egyptian club with no governorate set. */
+  playersWithoutGovernorate: number;
   byAgeTier: { age: number; pro: number; youth: number; diaspora: number }[];
   academies: CoverageRow[];
   diaspora: { total: number; uncappedUnder21: number; newThisMonth: number };

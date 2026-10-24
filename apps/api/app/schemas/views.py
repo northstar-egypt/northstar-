@@ -354,8 +354,12 @@ class CoverageRowOut(CamelModel):
 
 
 class RegionRowOut(CamelModel):
+    # ISO 3166-2:EG code (app/regions.py), and the governorate's name in English and Arabic.
+    code: str
     region: str
+    region_ar: str
     players: int
+    # Millions, from app/regions.py (an estimate; see its source note).
     population_m: float
 
 
@@ -378,9 +382,10 @@ class OversightSummaryOut(CamelModel):
     academies_reporting: int = 0
     stale_pct: float = 0.0
     open_flags: int = 0
-    # Always empty. Coverage by governorate needs a region field on Organization that the
-    # schema does not have. See OrganizationOut.region.
+    # All 27 governorates, empty ones included, by players per million (services/views.py).
     by_region: list[RegionRowOut] = []
+    # Players at an Egyptian club with no governorate set, so they are not silently dropped.
+    players_without_governorate: int = 0
     by_age_tier: list[AgeTierRowOut] = []
     academies: list[CoverageRowOut] = []
     diaspora: DiasporaSummaryOut

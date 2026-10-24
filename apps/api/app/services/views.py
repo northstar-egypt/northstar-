@@ -22,7 +22,7 @@ from datetime import date, timedelta
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
-from app import sports
+from app import regions, sports
 from app.models.enums import ConsentPurpose, PlayerStatus
 from app.models.measurement import Measurement
 from app.models.organization import Organization
@@ -579,6 +579,7 @@ def build_oversight(db: Session, caller: Caller, sport: str) -> dict:
             bucket[tier] += 1
 
     academies = _academy_coverage(db, sport, today)
+    by_region, unplaced = _coverage_by_governorate(db, sport)
 
     diaspora_total = db.execute(
         select(func.count())
@@ -602,9 +603,8 @@ def build_oversight(db: Session, caller: Caller, sport: str) -> dict:
         "academies_reporting": len([row for row in academies if row["player_count"] > 0]),
         "stale_pct": round(100 * stale_players / logged_players, 1) if logged_players else 0.0,
         "open_flags": flags.open_flag_count(db),
-        # Always empty. Coverage by governorate needs a region field on Organization that
-        # the schema does not have. Raised in docs/wireframes/README.md.
-        "by_region": [],
+        "by_region": by_region,
+        "players_without_governorate": unplaced,
         "by_age_tier": [
             {"age": age, **counts} for age, counts in sorted(by_age.items())
         ],
@@ -623,6 +623,41 @@ def build_oversight(db: Session, caller: Caller, sport: str) -> dict:
             ).scalar_one(),
         },
     }
+
+
+def _coverage_by_governorate(db: Session, sport: str) -> tuple[list[dict], int]:
+    """Players of this sport at a club in each governorate, all 27, empty ones included.
+
+    A player counts where they play now (an affiliation with no end date). A governorate with
+    no tracked players is listed with 0: that is the gap the federation is looking for, and
+    leaving it out would hide it. Ordered by players per million, highest first. Also returns
+    how many players are at an Egyptian club with no governorate set, so they are not
+    silently missing from the panel.
+    """
+    current = (
+        select(Organization.region, func.count(func.distinct(PlayerOrganization.player_id)))
+        .join(PlayerOrganization, PlayerOrganization.organization_id == Organization.id)
+        .join(Player, Player.id == PlayerOrganization.player_id)
+        .where(PlayerOrganization.end_date.is_(None))
+        .where(Player.primary_sport == sport)
+        .where(Player.status != PlayerStatus.MERGED)
+        .where(Organization.country == "EG")
+        .group_by(Organization.region)
+    )
+    counts = dict(db.execute(current).all())
+    unplaced = counts.pop(None, 0)
+    rows = [
+        {
+            "code": g.code,
+            "region": g.name,
+            "region_ar": g.name_ar,
+            "players": counts.get(g.code, 0),
+            "population_m": round(g.population / 1_000_000, 2),
+        }
+        for g in regions.GOVERNORATES.values()
+    ]
+    rows.sort(key=lambda r: (-r["players"] / r["population_m"], r["region"]))
+    return rows, unplaced
 
 
 def _academy_coverage(db: Session, sport: str, today: date) -> list[dict]:

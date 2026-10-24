@@ -290,7 +290,8 @@ export function RatioBars({
 }: {
   rows: { label: string; value: number; per: number }[];
 }) {
-  const max = Math.max(...rows.map((r) => r.value / r.per));
+  // At least 1, so a sport with no players anywhere draws empty bars rather than dividing by 0.
+  const max = Math.max(1, ...rows.map((r) => r.value / r.per));
   return (
     <ul className="flex flex-col gap-2">
       {rows.map((r) => {
@@ -301,13 +302,16 @@ export function RatioBars({
           <li key={r.label} className="grid grid-cols-[6rem_1fr_5rem] items-center gap-3 text-xs">
             <span className="truncate text-slate-400">{r.label}</span>
             <div className="h-3 w-full rounded-sm bg-slate-800">
-              <div
-                className={thin ? "h-full rounded-sm bg-amber-500/80" : "h-full rounded-sm bg-sky-500/80"}
-                style={{ width: `${Math.max(1.5, share)}%` }}
-              />
+              {/* No bar at all for none: a sliver would suggest coverage that is not there. */}
+              {r.value > 0 ? (
+                <div
+                  className={thin ? "h-full rounded-sm bg-amber-500/80" : "h-full rounded-sm bg-sky-500/80"}
+                  style={{ width: `${Math.max(1.5, share)}%` }}
+                />
+              ) : null}
             </div>
-            <span className="text-right tabular-nums text-slate-400">
-              {ratio.toFixed(0)} per M
+            <span className={r.value > 0 ? "text-right tabular-nums text-slate-400" : "text-right text-amber-400"}>
+              {r.value > 0 ? `${ratio < 10 ? ratio.toFixed(1) : ratio.toFixed(0)} per M` : "none"}
             </span>
           </li>
         );

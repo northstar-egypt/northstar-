@@ -61,6 +61,8 @@ the application one.
    is the clearest expression of the national mission in the whole product, and the schema
    stores an ISO country code and nothing finer. Adding a region field is a small change now and
    an awkward one once there is data. See `07-federation-oversight.html`.
+   **Done 2026-10-24:** `Organization.region` holds the governorate (migration 0005,
+   `apps/api/app/regions.py`), and the oversight panel draws all 27 governorates from it.
 
 Both are changes to the data contract, so per the repository conventions they go through a pull
 request that flags the affected workstreams rather than being made quietly.

@@ -312,9 +312,28 @@ def test_oversight_returns_aggregates_and_no_player_rows(client, auth, world):
         assert str(player.id) not in serialised
 
 
-def test_oversight_region_breakdown_is_empty_because_the_schema_has_no_region(client, auth):
-    body = client.get("/oversight", headers=auth("federation")).json()
-    assert body["byRegion"] == []
+def test_oversight_lists_every_governorate_and_counts_a_clubs_players_in_its_own(
+    client, auth, db, world
+):
+    """All 27 governorates, empty ones included. Measured as a change, because the local
+    database also holds the seeded clubs."""
+    def coverage():
+        body = client.get("/oversight", headers=auth("federation")).json()
+        return {r["code"]: r["players"] for r in body["byRegion"]}, body
+
+    before, body = coverage()
+    assert len(before) == 27 and len(set(before)) == 27
+    assert all(r["populationM"] > 0 and r["regionAr"] for r in body["byRegion"])
+    unplaced_before = body["playersWithoutGovernorate"]
+
+    academy = world["orgs"]["a"]
+    academy.region = "EG-WAD"  # New Valley
+    db.flush()
+    after, body = coverage()
+    # Academy A's three current footballers now count in New Valley, and only there.
+    assert after["EG-WAD"] - before["EG-WAD"] == 3
+    assert sum(after.values()) - sum(before.values()) == 3
+    assert body["playersWithoutGovernorate"] == unplaced_before - 3
 
 
 def test_oversight_rejects_an_unknown_sport(client, auth):

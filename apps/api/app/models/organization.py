@@ -31,6 +31,9 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     sport: Mapped[str | None] = mapped_column(Text)
     # ISO country code.
     country: Mapped[str] = mapped_column(Text)
+    # Egyptian governorate, an ISO 3166-2:EG code from app/regions.py ("EG-ALX"). Null for an
+    # organization abroad, and for a national body. Drives coverage by governorate.
+    region: Mapped[str | None] = mapped_column(Text)
     parent_org_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("organization.id", ondelete="SET NULL")
     )
