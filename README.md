@@ -127,14 +127,24 @@ running. On a laptop CPU a summary takes one to two minutes the first time a pro
 opened, then it is cached.
 
 With an NVIDIA card that Docker can reach, add `-f docker/docker-compose.gpu.yml` to the
-command above to put as much of the model on the GPU as fits. On a 4 GB GTX 1650 Ti only 12 of
-its 29 layers fit, and a summary went from 93 to about 75 seconds: reading the prompt got about
-7 times faster, but writing stayed about as slow, held back by the half left on the CPU. A card
-with more memory should gain more; that is untested. The summary
-is checked before it is shown: every number in it must come is checked before it is shown: every number in it must come
-from a fact sheet built from what the page already displays, and a set of mistakes the model
-was caught making is refused, or the summary is withheld. See
-`apps/api/app/services/summary.py`.
+command above. It gives the GPU to the Ask screen's small model and keeps the summary's 7B
+model on the CPU, so both stay loaded. On a 4 GB GTX 1650 Ti the two do not fit on the card
+together, and when Ollama swapped them, the Ask screen failed for about a minute after a
+profile was opened. Split this way, Ask answered in 2 to 3 seconds while summaries were being
+written. The cost is the summary: about 80 seconds on the CPU for a real profile (75 to 84
+measured), against a 49-second median with the model split across GPU and CPU. It is its own
+request and cached, so the profile does not wait for it. When the API starts it loads both
+models, the Ask model first so it reaches the GPU first.
+
+The 7B on the CPU needs about 5 GB of the Docker VM's memory. Docker Desktop on Windows gives
+its VM half of the machine's memory by default, about 8 GB on a 16 GB laptop, which leaves
+little room for the database and the apps. If summaries stop appearing or Ollama unloads a
+model, give the VM more in `%UserProfile%\.wslconfig` (`[wsl2]` then `memory=12GB`) and restart
+Docker Desktop.
+
+The summary is checked before it is shown: every number in it must come from a fact sheet
+built from what the page already displays, and a set of mistakes the model was caught making
+is refused, or the summary is withheld. See `apps/api/app/services/summary.py`.
 
 ### About the data
 

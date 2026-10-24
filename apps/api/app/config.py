@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     # the 3B model does as well as the 7B and about ten times faster: it fits in a 4 GB GPU.
     # Measured by apps/api/eval/run_assistant_eval.py; numbers in ml/README.md, "Assistant".
     ollama_assistant_model: str = "qwen2.5:3b"
+    # How many of the summary model's layers Ollama may put on the GPU; unset lets it choose.
+    # The GPU compose file sets 0: on a 4 GB card the 7B summary model and the 3B assistant
+    # model do not both fit, and Ollama swapping them made the Ask screen fail for about a
+    # minute after a profile was opened. With the summary on the CPU, the assistant keeps
+    # the GPU and both stay loaded: Ask answers in 2 to 3 seconds throughout, and a summary
+    # takes about 80 seconds instead of about 50. Measured in the PR that added this.
+    ollama_summary_num_gpu: int | None = None
 
     # Sessions: a signed token in an HttpOnly cookie. See app/security.py.
     jwt_secret: str = DEVELOPMENT_JWT_SECRET

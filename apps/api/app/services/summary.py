@@ -54,9 +54,11 @@ from app.services.flags import FLAG_LABELS
 log = logging.getLogger(__name__)
 
 # On a laptop CPU the evaluation measured a median of 64 seconds for the 7B model, with a
-# slowest of 120, and the first call also loads the model. The profile does not wait for it:
-# the summary is its own request, and the result is cached.
-_TIMEOUT_SECONDS = 180
+# slowest of 120, and the first call also loads the model. With the model kept off a 4 GB GPU
+# (config.ollama_summary_num_gpu) a real profile took 75 to 84 seconds alone, and one written
+# while the Ask screen was busy passed 180. The profile does not wait for it: the summary is
+# its own request, and the result is cached. So the limit is generous.
+_TIMEOUT_SECONDS = 300
 _CACHE_SIZE = 512
 
 _MONTHS = (
@@ -324,13 +326,19 @@ class OllamaUnavailable(Exception):
     """Ollama is not running, or the model is not pulled. Says which in its message."""
 
 
-def ask_ollama(lines: list[str], *, model: str, url: str) -> str:
+def ask_ollama(lines: list[str], *, model: str, url: str, num_gpu: int | None = None) -> str:
     """One chat call to Ollama. Standard library only, so the API gains no dependency."""
     body = json.dumps(
         {
             "model": model,
             "stream": False,
-            "options": {"temperature": 0, "seed": 0, "num_predict": 220},
+            "options": {
+                "temperature": 0, "seed": 0, "num_predict": 220,
+                # See config.ollama_summary_num_gpu: 0 keeps this model off the GPU.
+                **({"num_gpu": num_gpu} if num_gpu is not None else {}),
+            },
+            # Loading the model takes most of a minute; keep it loaded through a session.
+            "keep_alive": "1h",
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": "Facts:\n" + "\n".join(f"- {line}" for line in lines)},
@@ -381,6 +389,33 @@ _pending: dict[str, Future] = {}
 _lock = threading.Lock()
 
 
+def warm_model() -> None:
+    """Load the summary model now, so the first profile after a restart does not time out.
+
+    On the CPU (config.ollama_summary_num_gpu = 0) loading the 7B model and reading the first
+    prompt took past the 180 second limit, so the first summary after a restart failed. Called
+    in the background at start-up, after the assistant's model (assistant.warm_up). Never
+    raises.
+    """
+    settings = get_settings()
+    if not settings.ollama_url:
+        return
+    body = json.dumps({
+        "model": settings.ollama_model, "prompt": "", "stream": False, "keep_alive": "1h",
+        **({"options": {"num_gpu": settings.ollama_summary_num_gpu}}
+           if settings.ollama_summary_num_gpu is not None else {}),
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        f"{settings.ollama_url.rstrip('/')}/api/generate", data=body,
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=600):
+            pass
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        log.info("summary model not warmed: %s", exc)
+
+
 def summarise(profile: dict) -> Summary:
     """The summary for a profile, or no summary and the reason."""
     settings = get_settings()
@@ -404,7 +439,7 @@ def summarise(profile: dict) -> Summary:
 
     future = _pending[key]
     try:
-        result, keep = _write(lines, model=model, url=url)
+        result, keep = _write(lines, model=model, url=url, num_gpu=settings.ollama_summary_num_gpu)
     except BaseException as exc:
         with _lock:
             _pending.pop(key, None)
@@ -420,10 +455,12 @@ def summarise(profile: dict) -> Summary:
     return result
 
 
-def _write(lines: list[str], *, model: str, url: str) -> tuple[Summary, bool]:
+def _write(
+    lines: list[str], *, model: str, url: str, num_gpu: int | None = None
+) -> tuple[Summary, bool]:
     """Ask the model and check the reply. The flag says whether the result may be cached."""
     try:
-        text = ask_ollama(lines, model=model, url=url)
+        text = ask_ollama(lines, model=model, url=url, num_gpu=num_gpu)
     except OllamaUnavailable as exc:
         # Not cached: the next request should try again once Ollama is up.
         return Summary(None, str(exc)), False
