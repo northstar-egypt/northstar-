@@ -13,6 +13,7 @@
  * eleven of them.
  */
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { RatioBars, StackedAges } from "@/components/charts";
 import {
@@ -70,6 +71,9 @@ export default function OversightPage() {
           <Chip title="Table tennis oversight uses the same screen with different metrics.">
             table tennis
           </Chip>
+          <Link href="/results/import">
+            <Button variant="ghost">Import table tennis results</Button>
+          </Link>
           <Button
             variant="ghost"
             title="A national export of minors' data is the highest risk action in the product. Not built."

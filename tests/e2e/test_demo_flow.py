@@ -762,3 +762,36 @@ def test_a_coach_tags_table_tennis_points_on_the_table(sign_in, page, identities
     tags = api(f"/events?{query}", identities["coach"]["email"])
     row = next(p for p in tags["players"] if p["playerId"] == player_id)
     assert row["tagged"] == {"points_won": 1, "service_winners": 1, "points_lost": 1, "unforced_errors": 1}
+
+
+def test_federation_imports_table_tennis_results(sign_in, page, identities, tmp_path):
+    """A match between two registered table tennis players, from a CSV of made-up results:
+    preview, import, and the match is on both players' records, naming each other."""
+    import random
+    from datetime import date, timedelta
+
+    fed = identities["federation"]["email"]
+    found = api("/search", fed, body={"query": "table tennis boys", "limit": 200})["results"]
+    players = [r["player"] for r in found if not r["withheld"]][:2]
+    if len(players) < 2:
+        pytest.skip("the local data has fewer than two table tennis boys")
+    a, b = players
+    played = (date.today() - timedelta(days=random.randint(1, 200))).isoformat()
+    # A score unlikely to be on record already, so the row is new.
+    games = f"11-{random.randint(0, 9)}, {random.randint(0, 9)}-11, 11-{random.randint(0, 9)}, 13-11"
+    file = tmp_path / "results.csv"
+    file.write_text(
+        "date,event,player_a,player_b,games,player_a_id,player_b_id\n"
+        f"{played},E2E Test Open,{a['fullName']},{b['fullName']},\"{games}\",{a['id']},{b['id']}\n",
+        encoding="utf-8",
+    )
+
+    sign_in("Federation", "/oversight")
+    page.get_by_role("link", name="Import table tennis results").click()
+    page.wait_for_url("**/results/import", timeout=15000)
+    page.get_by_label("CSV file").set_input_files(str(file))
+    page.get_by_role("button", name="Import 1 match").wait_for(timeout=15000)
+    assert "3-1" in text_of(page)
+    page.get_by_role("button", name="Import 1 match").click()
+    page.get_by_text("3. Imported").wait_for(timeout=15000)
+    assert "2 match records written" in text_of(page)

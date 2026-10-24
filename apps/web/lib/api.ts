@@ -23,6 +23,7 @@
 
 import type {
   AssistantAnswer,
+  ResultsImport,
   MatchEvent,
   MatchTags,
   PlayerEvents,
@@ -336,6 +337,16 @@ export async function importPlayers(csv: string, confirm: number[]): Promise<Pla
     method: "POST",
     body: JSON.stringify({ csv, confirm }),
   });
+}
+
+/** What importing these table tennis results would do, match by match. Saves nothing. */
+export async function previewResults(csv: string): Promise<ResultsImport> {
+  return request<ResultsImport>("/results/import/preview", { method: "POST", body: JSON.stringify({ csv }) });
+}
+
+/** Import the ready matches. The server checks the file again first. */
+export async function importResults(csv: string): Promise<ResultsImport> {
+  return request<ResultsImport>("/results/import", { method: "POST", body: JSON.stringify({ csv }) });
 }
 
 /** POST /players/{id}/measurements. One visit for a player the caller may log for. */

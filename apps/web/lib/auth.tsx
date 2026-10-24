@@ -164,6 +164,7 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   "/explore": ["coach", "scout", "federation"],
   "/ask": ["coach", "scout", "federation"],
   "/oversight": ["federation", "admin"],
+  "/results": ["federation", "admin"],
   "/integrity": ["federation", "admin"],
 };
 

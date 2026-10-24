@@ -577,3 +577,23 @@ export interface PlayerEvents {
   counts: Record<string, number>;
   note: string;
 }
+
+/** POST /results/import/preview and /results/import. See apps/api/app/services/results_import.py. */
+export interface ResultsImport {
+  fileProblems: string[];
+  rows: {
+    line: number;
+    /** "Player A v Player B", as written in the file. */
+    name: string;
+    event: string;
+    /** Preview: ready, duplicate or rejected. After an import, imported instead of ready. */
+    status: "ready" | "imported" | "duplicate" | "rejected";
+    problems: string[];
+    warnings: string[];
+    /** Worked out from the game scores, e.g. "3-1 (42-31 points), best of 5, for <name>". */
+    score: string | null;
+  }[];
+  counts: Record<string, number>;
+  saved: boolean;
+  recordsWritten: number;
+}
