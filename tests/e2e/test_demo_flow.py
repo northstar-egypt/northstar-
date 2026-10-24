@@ -795,3 +795,14 @@ def test_federation_imports_table_tennis_results(sign_in, page, identities, tmp_
     page.get_by_role("button", name="Import 1 match").click()
     page.get_by_text("3. Imported").wait_for(timeout=15000)
     assert "2 match records written" in text_of(page)
+
+
+def test_oversight_shows_coverage_for_every_governorate(sign_in, page):
+    """All 27 governorates, with the ones the platform has not reached marked as such."""
+    sign_in("Federation", "/oversight")
+    page.get_by_text("Coverage by governorate").wait_for(timeout=20000)
+    body = text_of(page)
+    for name in ("cairo", "alexandria", "aswan", "north sinai", "new valley"):
+        assert name in body
+    assert "with no tracked players" in body
+    assert "this panel needs a region field" not in body

@@ -28,8 +28,8 @@ def oversight(
 ) -> OversightSummaryOut:
     """Coverage and integrity aggregates for one sport.
 
-    `byRegion` is always empty. Coverage by governorate needs a region field on
-    Organization, which the schema does not have. Raised in `docs/wireframes/README.md`.
+    `byRegion` lists all 27 governorates, with the players of this sport at a club in each
+    and the population, so a governorate the platform has not reached shows as a gap.
     """
     if not (caller.is_federation or caller.is_admin):
         raise HTTPException(
