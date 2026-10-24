@@ -11,7 +11,6 @@ import pytest
 from sqlalchemy import select
 
 from app.services import assistant
-from tests.test_radar import _add_player, forwards, only  # noqa: F401  (fixtures)
 
 
 @pytest.fixture

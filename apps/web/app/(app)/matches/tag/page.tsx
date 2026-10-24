@@ -72,11 +72,18 @@ export default function TagMatchPage() {
 
   // Sports this club has players in and that can be tagged. A table tennis academy opens on
   // table tennis.
-  const sports = modules.filter((m) => allPlayers.some((r) => r.player.primarySport === m.sport));
+  const sports = useMemo(
+    () => modules.filter((m) => allPlayers.some((r) => r.player.primarySport === m.sport)),
+    [modules, allPlayers],
+  );
   useEffect(() => {
     if (sports.length > 0 && !sports.some((m) => m.sport === sport)) setSport(sports[0].sport);
   }, [sports, sport]);
-  const types: EventType[] | null = modules.length ? modules.find((m) => m.sport === sport)?.events ?? [] : null;
+  // Memoised so the keyboard handler below is not removed and added again on every render.
+  const types: EventType[] | null = useMemo(
+    () => (modules.length ? modules.find((m) => m.sport === sport)?.events ?? [] : null),
+    [modules, sport],
+  );
   const squad = allPlayers.filter((r) => r.player.primarySport === sport);
 
   const refresh = useCallback(() => {

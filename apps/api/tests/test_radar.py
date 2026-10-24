@@ -7,105 +7,14 @@ shown only on statistics that mean something for one.
 
 from __future__ import annotations
 
-import uuid
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
 
 from app.services.cohort import MIN_COHORT
+from tests.conftest import _add_player
 
 TODAY = date.today()
-
-
-def _add_player(db, org, name, *, age, position, shots, n_matches=6, consent=True):
-    from app.models.consent import Consent
-    from app.models.enums import ConsentPurpose
-    from app.models.performance_entry import PerformanceEntry
-    from app.models.player import Player
-    from app.models.player_organization import PlayerOrganization
-
-    player = Player(
-        id=uuid.uuid4(),
-        full_name=name,
-        date_of_birth=TODAY - timedelta(days=int(age * 365.25)),
-        sex="male",
-        nationality=["EG"],
-        is_egypt_eligible=True,
-        primary_sport="football",
-        position=position,
-        is_minor=age < 18,
-        status="active",
-    )
-    db.add(player)
-    db.flush()
-    db.add(
-        PlayerOrganization(
-            id=uuid.uuid4(), player_id=player.id, organization_id=org.id, role="player",
-            start_date=TODAY - timedelta(days=400), end_date=None,
-        )
-    )
-    for purpose in ConsentPurpose:
-        db.add(
-            Consent(
-                id=uuid.uuid4(), player_id=player.id, purpose=purpose.value,
-                granted=consent or purpose != ConsentPurpose.ANALYTICS, granted_by="guardian",
-                guardian_name="Test Guardian", valid_from=TODAY - timedelta(days=365),
-                valid_until=None,
-            )
-        )
-    for i in range(n_matches):
-        db.add(
-            PerformanceEntry(
-                id=uuid.uuid4(), player_id=player.id, sport="football", period_type="match",
-                period_start=TODAY - timedelta(days=7 * (i + 1)),
-                metrics={
-                    "minutes_played": 90, "shots": shots, "shots_on_target": min(1, shots), "goals": 0,
-                    "assists": 0, "key_passes": 1, "tackles": 2, "passes_attempted": 40,
-                    "passes_completed": 32, "distance_km": 10.0, "yellow_cards": 0,
-                    "red_cards": 0,
-                },
-                schema_ref="football.match.v1", source="coach_logged", is_validated=True,
-            )
-        )
-    return player
-
-
-@pytest.fixture
-def only(monkeypatch):
-    """Limit the radar's population to the players a test made.
-
-    The local database also holds the seeded synthetic players, and CI's does not, so a test
-    that counted on the whole database would pass in one and fail in the other. The real
-    profile building still runs, consent filter included; only its result is narrowed.
-    """
-    from app.services import similar
-
-    real = similar._profiles
-    keep: set[str] = set()
-
-    def narrowed(db):
-        return {pid: p for pid, p in real(db).items() if pid in keep}
-
-    monkeypatch.setattr(similar, "_profiles", narrowed)
-
-    def _only(*groups):
-        for group in groups:
-            keep.update(str(p.id) for p in group)
-
-    return _only
-
-
-@pytest.fixture
-def forwards(db, world, only):
-    """Ten 15-year-old forwards with 1 to 10 shots a match, plus one goalkeeper."""
-    org = world["orgs"]["a"]
-    players = [
-        _add_player(db, org, f"Radar Forward {i}", age=15.4, position="ST", shots=i)
-        for i in range(1, MIN_COHORT + 3)
-    ]
-    db.flush()
-    only(players)
-    return players
 
 
 def _radar(client, auth, player, who="federation"):

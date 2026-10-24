@@ -269,14 +269,14 @@ def _arabic_part(part: str, word_start: bool) -> list[tuple]:
 # ---------------------------------------------------------------------------
 
 
-def _arabic_spelled_by(a: tuple, l: tuple) -> bool:
-    """Can the Latin units `l` be a spelling of the Arabic units `a`?"""
+def _arabic_spelled_by(a: tuple, latin_units: tuple) -> bool:
+    """Can the Latin units `latin_units` be a spelling of the Arabic units `a`?"""
 
     @lru_cache(maxsize=None)
     def go(i: int, j: int) -> bool:
-        latin = l[j] if j < len(l) else None
+        latin = latin_units[j] if j < len(latin_units) else None
         if i == len(a):
-            return all(u[0] in ("v", "h?") for u in l[j:])
+            return all(u[0] in ("v", "h?") for u in latin_units[j:])
         kind = a[i][0]
         if kind == "start":
             if j != 0 or latin is None or latin[0] != "v":
@@ -313,7 +313,7 @@ def _arabic_spelled_by(a: tuple, l: tuple) -> bool:
 
     def vowels_in_run(i: int, j: int) -> bool:
         """The Arabic vowel units from i on, all spelled inside the one Latin run at j."""
-        run, pos, k = l[j][1], 0, i
+        run, pos, k = latin_units[j][1], 0, i
         while k < len(a) and a[k][0] in ("long", "opt"):
             if a[k][0] == "long":
                 while pos < len(run) and run[pos] not in a[k][1]:

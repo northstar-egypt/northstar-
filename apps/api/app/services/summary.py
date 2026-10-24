@@ -333,7 +333,7 @@ def ask_ollama(lines: list[str], *, model: str, url: str) -> str:
             "options": {"temperature": 0, "seed": 0, "num_predict": 220},
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": "Facts:\n" + "\n".join(f"- {l}" for l in lines)},
+                {"role": "user", "content": "Facts:\n" + "\n".join(f"- {line}" for line in lines)},
             ],
         }
     ).encode("utf-8")

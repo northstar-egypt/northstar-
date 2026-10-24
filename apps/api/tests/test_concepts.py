@@ -36,7 +36,6 @@ History, so the numbers are read correctly
 
 from __future__ import annotations
 
-import os
 import uuid
 from datetime import timedelta
 
@@ -66,7 +65,7 @@ def _wrong_concepts(reading: concepts.Reading, label: str) -> int:
 def _evaluate(reader, which: str) -> tuple[int, int, int, list[str]]:
     right = wrong = 0
     misses = []
-    pool = {p: l for p, l in PHRASES.items() if half(p) == which}
+    pool = {p: label for p, label in PHRASES.items() if half(p) == which}
     for phrase, label in pool.items():
         reading = concepts.read(concepts.WORD.findall(phrase), reader)
         got = _predicted(reading)

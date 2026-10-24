@@ -179,7 +179,7 @@ On Windows, set `PYTHONIOENCODING=utf-8` first: the generated player names are A
 ### Continuous integration
 
 Every pull request, and every push to `main`, runs `.github/workflows/ci.yml`. It can also be
-started by hand from the Actions tab. There are four checks, so a red one says which part broke:
+started by hand from the Actions tab. There are five checks, so a red one says which part broke:
 
 | Check | What it runs |
 |---|---|
@@ -187,6 +187,7 @@ started by hand from the Actions tab. There are four checks, so a red one says w
 | `generator` | `pytest data/pipelines/synthetic/tests` |
 | `ml` | `pytest ml/tests`: detectors, forecasts, metrics and the fairness audit |
 | `web` | `npm ci` at the root, then `npx tsc --noEmit` and `npm run build` in `apps/web` |
+| `lint` | `ruff check .` from the root (rules in `ruff.toml`), then `npm run lint -- --max-warnings 0` in `apps/web` (ESLint with Next.js's rules, `eslint.config.mjs`). Bugs, not style: unused imports and variables, undefined names, likely-bug patterns, React hook dependencies. No formatter is enforced. |
 
 Each Python job writes a small table to the run's summary page: tests passed, failed and
 skipped, and why each skipped test skipped. `.github/scripts/pytest_report.py` builds it from
@@ -196,8 +197,6 @@ What CI does **not** check yet:
 
 - **The Firefox end-to-end tests** (`tests/e2e`). They need the whole stack running; that is a
   separate task. Run them locally before a change to a screen.
-- **Lint.** `npm run lint` has never worked (see "Known traps" in `CLAUDE.md`), and there is no
-  Python linter configured.
 - **The published ML numbers.** CI runs the tests in `ml/tests`, not `python -m ml.run_eval`
   or `python -m ml.run_forecast_eval`, so it would not notice a change that moves a number in
   `ml/README.md` while the tests still pass. If you touch the generator, `ml/detectors` or

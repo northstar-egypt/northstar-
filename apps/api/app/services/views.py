@@ -657,11 +657,6 @@ def _academy_coverage(db: Session, sport: str, today: date) -> list[dict]:
         ).all()
         staleness = [(today - last_at).days for _, last_at in last_logs]
 
-        consented = db.execute(
-            select(func.count(func.distinct(PlayerOrganization.player_id)))
-            .select_from(PlayerOrganization)
-            .where(PlayerOrganization.player_id.in_(player_ids))
-        ).scalar_one()
         complete = sum(
             1 for player_id in player_ids if consent_complete(consent_state(db, player_id))
         )

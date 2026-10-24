@@ -22,9 +22,6 @@ import { createPlayer, getSports, writeRefusal, type MeasurementWarning } from "
 import { ageLabel, isMinorFrom } from "@/lib/format";
 import type { SportModule } from "@/lib/types";
 
-/** Rough plausibility ceiling for adolescent growth, used to ask a question, not to reject. */
-const MAX_CM_PER_MONTH = 2.5;
-
 export default function NewPlayerPage() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);

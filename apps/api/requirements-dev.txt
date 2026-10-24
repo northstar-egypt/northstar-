@@ -16,3 +16,4 @@
 
 pytest==8.3.*
 httpx==0.28.*   # required by fastapi.testclient
+ruff==0.17.*    # lint, for the whole repo: `ruff check .` from the root (ruff.toml)

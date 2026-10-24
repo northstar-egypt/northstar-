@@ -280,7 +280,7 @@ def preview(db: Session, text: str, today: date | None = None) -> Preview:
         if payload.measurements is not None:
             for w in writes.plausibility_warnings(db, None, payload.measurements):
                 row.warnings.append(w.get("message") or str(w))
-        for pid, full_name in by_birth.get(payload.date_of_birth, []):
+        for _pid, full_name in by_birth.get(payload.date_of_birth, []):
             if names.matches(payload.full_name, full_name):
                 row.warnings.append(
                     f"May already be on the platform: {full_name}, same date of birth."

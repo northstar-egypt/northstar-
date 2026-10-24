@@ -10,7 +10,7 @@ packages/shared/sports; `apps/api/app/sports.py` loads and validates them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
