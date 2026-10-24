@@ -20,7 +20,6 @@ from .config import GeneratorConfig
 from .orm import Organization, PlayerOrganization, enums
 from .organizations import clubs_for
 from .players import MINOR_AGE, PlayerProfile
-from .reference import EGYPT
 from .rng import Rng
 
 

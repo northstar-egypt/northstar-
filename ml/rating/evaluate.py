@@ -245,8 +245,9 @@ def evaluate(
             ],
         }
 
+        # Called only within this iteration, so it always reads this gender's scores.
         def rho(method: str, who: list[str]) -> float | None:
-            return spearman([scores[method][p] for p in who], [ability[p] for p in who])
+            return spearman([scores[method][p] for p in who], [ability[p] for p in who])  # noqa: B023
 
         # The truth the range should contain: the generator's own chance of winning a point
         # against a player of this gender's average ability.

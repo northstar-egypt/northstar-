@@ -161,6 +161,8 @@ cd apps/api && pytest -q && cd ../..            # API. SKIPS (does not fail) wit
 pytest -q data/pipelines/synthetic/tests        # generator
 pytest -q ml/tests                              # detectors, forecasts, fairness audit
 cd apps/web && npx tsc --noEmit && cd ../..     # web type-check
+ruff check .                                    # Python lint (ruff.toml); CI runs it
+cd apps/web && npm run lint && cd ../..         # web lint (ESLint, Next.js rules); CI runs it
 # tests/e2e drives the real app in Firefox; it needs the full stack. See tests/e2e/README.md.
 
 # The whole app with data
@@ -183,8 +185,6 @@ docker compose -f docker/docker-compose.yml up --build
 
 ### Known traps (do not "fix" these by accident)
 
-- `npm run lint` in `apps/web` has never worked: eslint is not installed and `next lint` no
-  longer exists in Next 16. It needs its own task; leave it alone otherwise.
 - `npm ls` exits non-zero and prints `invalid: "8.4.31" from node_modules/next`. That is the
   deliberate postcss security override in the root `package.json`, not a broken install.
 - `data/pipelines/requirements.txt` pulls in the API's pins with `-r`. Do not copy the pins

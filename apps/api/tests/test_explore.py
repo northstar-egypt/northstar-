@@ -10,7 +10,7 @@ from __future__ import annotations
 from sqlalchemy import select
 
 from app.services.cohort import MIN_COHORT
-from tests.test_radar import _add_player, forwards, only  # noqa: F401  (fixtures)
+from tests.conftest import _add_player
 
 
 def _scatter(client, auth, who="federation", **params):

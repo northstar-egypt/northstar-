@@ -104,7 +104,7 @@ def write_to_database(dataset: Dataset, database_url: str, *, truncate: bool = F
 
     with Session(engine) as session:
         if truncate:
-            for name, rows in reversed(dataset.in_insert_order()):
+            for _name, rows in reversed(dataset.in_insert_order()):
                 if rows:
                     session.execute(
                         Base.metadata.tables[type(rows[0]).__tablename__].delete()

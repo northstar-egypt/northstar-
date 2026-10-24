@@ -296,7 +296,7 @@ def scatter(
         )
     lower = [s[1] for s in g.stats if not s[3] and s[0] in (x, y)]
     if lower:
-        note += f" Lower is better for {', '.join(l.lower() for l in lower)}."
+        note += f" Lower is better for {', '.join(name.lower() for name in lower)}."
     note += g.enough()
 
     return {
@@ -355,7 +355,7 @@ def leaders(
         if len(values) >= MIN_COHORT and values[0] != values[-1]:
             board["median"] = radar._display(key, statistics.median(values))
 
-            def entry(pid: str) -> dict:
+            def entry(pid: str, key: str, values: list[float], higher: bool) -> dict:
                 value = g.profiles[pid].raw[key]
                 percentile = percentile_of(values, value)
                 return {
@@ -366,14 +366,17 @@ def leaders(
 
             ranked = sorted(
                 (pid for pid in have if pid in g.shown),
-                key=lambda pid: g.profiles[pid].raw[key],
+                key=lambda pid, key=key: g.profiles[pid].raw[key],
                 reverse=higher,
             )
-            board["leaders"] = [entry(pid) for pid in ranked[:LEADERS]]
+            board["leaders"] = [entry(pid, key, values, higher) for pid in ranked[:LEADERS]]
             # The focus player's own place, so a coach sees where their player stands even
             # when they are not among the leaders.
             if g.focus in ranked:
-                board["focus"] = {**entry(g.focus), "rank": ranked.index(g.focus) + 1}
+                board["focus"] = {
+                    **entry(g.focus, key, values, higher),
+                    "rank": ranked.index(g.focus) + 1,
+                }
         boards.append(board)
 
     note = (

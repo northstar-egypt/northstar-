@@ -142,7 +142,7 @@ export default function ExplorePage() {
   };
   const listed = useMemo(() => {
     if (!data) return [];
-    const better = stat(data.y)?.higherIsBetter ?? true;
+    const better = data.stats.find((s) => s.key === data.y)?.higherIsBetter ?? true;
     return [...data.points].sort((a, b) => (better ? b.y - a.y : a.y - b.y));
   }, [data]);
 

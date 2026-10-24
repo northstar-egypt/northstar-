@@ -1,6 +1,6 @@
 # CI: the project's test suites on every pull request and every push to main.
 #
-# Four jobs, so a red check names the part that broke: api, generator, ml, web.
+# Five jobs, so a red check names the part that broke: api, generator, ml, web, lint.
 # README.md, under "Continuous integration", says what this checks and what it does not
 # (the Firefox end-to-end tests, lint, the published ML numbers).
 #
@@ -162,3 +162,29 @@ jobs:
         run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
+
+  # Lint finds bugs, not style: ruff's pyflakes, pycodestyle-error and bugbear rules for the
+  # Python (ruff.toml), and Next.js's own ESLint rules for the web app (eslint.config.mjs).
+  # No formatter is enforced.
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install ruff
+        run: pip install "ruff==0.17.*"
+      - name: Python
+        run: ruff check . --output-format github
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Web
+        working-directory: apps/web
+        run: npm run lint -- --max-warnings 0
