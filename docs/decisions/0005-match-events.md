@@ -1,6 +1,7 @@
 # 0005. Match events tagged from video: their own table, types from the sport module
 
-Status: accepted 2026-10-23.
+Status: accepted 2026-10-23. Amended the same day: table tennis has event types too (points,
+see "Table tennis"), and the seeded database has synthetic tagged events.
 Date: 2026-10-23
 
 ## Context
@@ -51,13 +52,27 @@ professional event provider would get, labelled as what it is.
 
 ## Consequences
 
-- One more core table. It holds only what every sport's events share; table tennis has no
-  event types yet and its tagging is future work (points by type: serve, winner, unforced
-  error).
+- One more core table. It holds only what every sport's events share.
 - A match is identified by club, date and label, not by a match table. When fixtures arrive
   (FootyStats), events can point at a match row instead. TODO.
 - Tagged data is approximate by nature, and the screens say so ("a tag is a person's reading
   of the video").
-- The synthetic data has no tagged events yet, so the shot map appears only for players whose
-  matches someone has tagged. Seeding plausible events is a separate task, because it touches
-  the generator and so the published numbers.
+- The seeded database gets synthetic tagged events for each player's last three valid matches,
+  made from the match records already there (`data/pipelines/synthetic/tagged_events.py`,
+  step 4 of `docker/seed.py`), so the generator and the ML numbers are untouched. Each match's
+  events add up to its logged totals.
+
+## Table tennis
+
+Added with no change to the table or the API, which is the point of decision 0001: the table
+tennis module gained an `events` section, and the tagging screen draws a table instead of a
+pitch. One event per point:
+
+- `point_won`: a winner, a service winner, or the opponent's error;
+- `point_lost`: an unforced error, a forced error, or the opponent's winner.
+
+They count toward the match record's points won and lost, service winners and unforced errors.
+Where is where the deciding ball landed on the table, the player's own end at x = 0. The
+profile shows how a player wins and loses points, as shares, with their winners and unforced
+errors on the table. A table tennis opponent is a person, possibly another club's child, so
+seeded table tennis matches carry no "vs" label.

@@ -58,5 +58,26 @@
         { "key": "unforced_errors_per_set", "label": "Unforced errors per set", "numerator": ["unforced_errors"], "denominator": ["sets_won", "sets_lost"], "format": "number", "search": { "better": "lower", "minBasis": 5, "describe": ["makes few unforced errors in table tennis rallies", "rarely misses an easy shot in a table tennis rally", "low count of unforced errors per set", "أخطاؤه السهلة قليلة في تنس الطاولة"], "keywords": ["unforced", "errors", "أخطاء", "أخطاؤه"] } }
       ]
     }
+  },
+  "events": {
+    "matchPeriod": "table_tennis.match.v1",
+    "types": {
+      "point_won": {
+        "label": "Point won", "key": "w",
+        "outcomes": {
+          "winner": { "label": "Winner", "counts": ["points_won"] },
+          "service_winner": { "label": "Service winner", "counts": ["points_won", "service_winners"] },
+          "opponent_error": { "label": "Opponent's error", "counts": ["points_won"] }
+        }
+      },
+      "point_lost": {
+        "label": "Point lost", "key": "l",
+        "outcomes": {
+          "unforced_error": { "label": "Unforced error", "counts": ["points_lost", "unforced_errors"] },
+          "forced_error": { "label": "Forced error", "counts": ["points_lost"] },
+          "opponent_winner": { "label": "Opponent's winner", "counts": ["points_lost"] }
+        }
+      }
+    }
   }
 }

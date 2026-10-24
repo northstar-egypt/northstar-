@@ -728,3 +728,37 @@ def test_a_coach_tags_a_match_and_the_shot_shows_on_the_profile(sign_in, page, i
     page.goto(f"{WEB_URL}/players/{player_id}", wait_until="load")
     page.get_by_text("Shot map", exact=True).wait_for(timeout=20000)
     assert page.locator("svg[aria-label^='Pitch'] circle[fill='#34d399']").count() >= 1
+
+
+def test_a_coach_tags_table_tennis_points_on_the_table(sign_in, page, identities):
+    """The same screen, the table tennis module's own types, drawn on a table: the engine
+    knows no sport. Tag a service winner and an unforced error and check the totals."""
+    label = f"vs E2E TT {uuid.uuid4().hex[:6]}"
+    sign_in("Coach", "/dashboard")
+    page.goto(f"{WEB_URL}/matches/tag", wait_until="load")
+    sport = page.locator("label", has=page.get_by_text("Sport", exact=True)).locator("select")
+    sport.wait_for(timeout=20000)
+    sport.select_option("table_tennis")
+    page.get_by_placeholder("vs ...").fill(label)
+    select = page.locator("label", has=page.get_by_text("Player", exact=True)).locator("select")
+    page.wait_for_function("document.querySelectorAll('select')[1].options.length > 1", timeout=20000)
+    player_id = select.locator("option").nth(1).get_attribute("value")
+    select.select_option(player_id)
+
+    table = page.locator("svg[aria-label^='Table']")
+    box = table.bounding_box()
+    table.click(position={"x": box["width"] * 0.8, "y": box["height"] * 0.4})
+    page.keyboard.press("w")
+    page.keyboard.press("2")  # service winner
+    page.get_by_text("Tags (1)").wait_for(timeout=15000)
+    table.click(position={"x": box["width"] * 0.52, "y": box["height"] * 0.5})
+    page.keyboard.press("l")
+    page.keyboard.press("1")  # unforced error
+    page.get_by_text("Tags (2)").wait_for(timeout=15000)
+
+    from datetime import date
+
+    query = urllib.parse.urlencode({"matchDate": date.today().isoformat(), "matchLabel": label})
+    tags = api(f"/events?{query}", identities["coach"]["email"])
+    row = next(p for p in tags["players"] if p["playerId"] == player_id)
+    assert row["tagged"] == {"points_won": 1, "service_winners": 1, "points_lost": 1, "unforced_errors": 1}

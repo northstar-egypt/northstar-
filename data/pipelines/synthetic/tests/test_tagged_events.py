@@ -60,3 +60,24 @@ def test_ordinary_passes_sit_in_the_roles_zone(position, low, high):
     events = tagged_events.events_for("entry-5", MATCH, position)
     plain = [e for e in events if e["event_type"] == "pass" and e["outcome"] in ("complete", "incomplete")]
     assert plain and all(low <= e["x"] <= high for e in plain)
+
+
+TT_MATCH = {"best_of": 5, "sets_won": 3, "sets_lost": 1, "points_won": 44, "points_lost": 35,
+            "service_winners": 3, "unforced_errors": 6}
+
+
+def test_table_tennis_points_add_up_to_the_logged_totals():
+    from app import sports
+
+    kinds = sports.registry()["table_tennis"].events
+    events = tagged_events.table_tennis_events_for("tt-1", TT_MATCH)
+    assert len(events) == TT_MATCH["points_won"] + TT_MATCH["points_lost"]
+    tally: Counter = Counter()
+    for e in events:
+        for total in kinds[e["event_type"]].outcomes[e["outcome"]].counts:
+            tally[total] += 1
+    for total in ("points_won", "points_lost", "service_winners", "unforced_errors"):
+        assert tally[total] == TT_MATCH[total], total
+    assert all(1 <= e["x"] <= 99 for e in events)
+    assert [e["video_seconds"] for e in events] == sorted(e["video_seconds"] for e in events)
+    assert all(e["x"] >= 55 for e in events if e["outcome"] == "winner")
