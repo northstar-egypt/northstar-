@@ -1,4 +1,4 @@
-# Optional: run the profile summary's model (Ollama) on an NVIDIA GPU.
+# Optional: run Ollama on an NVIDIA GPU.
 #
 # Only for machines with an NVIDIA card and Docker able to reach it (Docker Desktop on WSL2
 # with a current NVIDIA Windows driver, or the NVIDIA Container Toolkit on Linux). Everyone
@@ -7,8 +7,18 @@
 #   docker compose -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml --profile llm up -d ollama
 #
 # Check it took: `docker exec northstar-ollama ollama ps` shows the GPU share in PROCESSOR.
-# A model larger than the card's memory runs partly on the GPU and partly on the CPU.
+#
+# The GPU goes to the Ask screen's model (qwen2.5:3b), and the profile summary's model
+# (qwen2.5:7b) runs on the CPU. On a 4 GB card the two do not fit together, and swapping them
+# made Ask fail for about a minute after a profile was opened. Split this way both stay loaded:
+# Ask answers in 2 to 3 seconds while a summary is being written, and a summary takes about 80
+# seconds instead of about 50 (it is its own, cached request, so the profile does not wait for
+# it). Measured on a GTX 1650 Ti.
+# The summary model needs about 5 GB of the Docker VM's memory; see README.md, Ollama.
 services:
+  api:
+    environment:
+      OLLAMA_SUMMARY_NUM_GPU: "0"
   ollama:
     deploy:
       resources:

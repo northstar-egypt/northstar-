@@ -43,7 +43,7 @@ def model(monkeypatch):
         reply: object = "The player has been measured."
         seen: list[list[str]] = []
 
-        def __call__(self, lines, *, model, url):
+        def __call__(self, lines, *, model, url, num_gpu=None):
             self.seen.append(lines)
             return self.reply(lines) if callable(self.reply) else self.reply
 
@@ -350,7 +350,7 @@ def _two_requests_at_once(monkeypatch, answer):
     first_asked, second_asked, release = threading.Event(), threading.Event(), threading.Event()
     calls = []
 
-    def slow_model(lines, *, model, url):
+    def slow_model(lines, *, model, url, num_gpu=None):
         calls.append(lines)
         (second_asked if first_asked.is_set() else first_asked).set()
         release.wait(5)
@@ -492,3 +492,36 @@ def test_evaluation_with_the_model(db):
     print(f"seconds per summary: median {seconds[len(seconds) // 2]:.1f}, max {seconds[-1]:.1f}")
     for text in examples:
         print("-", text)
+
+
+def test_the_summary_model_is_kept_off_the_gpu_and_loaded_when_configured(monkeypatch):
+    """OLLAMA_SUMMARY_NUM_GPU=0 (the GPU compose file) must reach Ollama, with a long
+    keep-alive, or the summary model swaps with the Ask model again (config.py)."""
+    import io
+    import json
+
+    from app.config import get_settings
+
+    sent = []
+
+    class Response(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def capture(request, timeout):
+        sent.append(json.loads(request.data))
+        return Response(json.dumps({"message": {"content": "ok"}, "done_reason": "stop"}).encode())
+
+    monkeypatch.setattr(summary.urllib.request, "urlopen", capture)
+    summary.ask_ollama(["a fact"], model="m", url="http://ollama", num_gpu=0)
+    assert sent[-1]["options"]["num_gpu"] == 0 and sent[-1]["keep_alive"] == "1h"
+    summary.ask_ollama(["a fact"], model="m", url="http://ollama")
+    assert "num_gpu" not in sent[-1]["options"]
+
+    monkeypatch.setattr(get_settings(), "ollama_url", "http://ollama")
+    monkeypatch.setattr(get_settings(), "ollama_summary_num_gpu", 0)
+    summary.warm_model()
+    assert sent[-1]["options"] == {"num_gpu": 0} and sent[-1]["keep_alive"] == "1h"

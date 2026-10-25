@@ -26,7 +26,8 @@ from app.routers import (
     search,
     sports,
 )
-from app.services import forecast
+from app.services import assistant as assistant_service
+from app.services import forecast, summary
 
 settings = get_settings()
 
@@ -38,6 +39,9 @@ async def lifespan(_: FastAPI):
     # not wait. See app/services/forecast.py and app/concepts.py.
     forecast.warm_up()
     concepts.warm_up()
+    # The two language models, one after the other: the Ask screen's first, so it reaches the
+    # GPU first, then the summary's (services/assistant.py and services/summary.py).
+    assistant_service.warm_up(then=summary.warm_model)
     yield
 
 

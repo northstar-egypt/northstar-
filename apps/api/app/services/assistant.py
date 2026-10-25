@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -217,6 +218,40 @@ def _clean(raw: dict) -> Reading:
     ):
         reading.age_from, reading.age_to = reading.age_to, reading.age_from
     return reading
+
+
+def warm_up(then=None) -> None:
+    """Load the assistant's model into Ollama now, in the background, so the first question is
+    quick and the model takes the GPU before the summary's larger one asks for memory. `then`
+    runs after it, in the same thread: the API passes the summary model's warm-up, so the two
+    load one after the other and in that order.
+
+    Loaded second, after the summary model, it was seen to push that model out of memory when
+    memory was tight (see config.ollama_summary_num_gpu). Never raises: no Ollama simply means
+    no warm-up, and the Ask screen says the model is not running when asked.
+    """
+    settings = get_settings()
+    if not settings.ollama_url:
+        return
+
+    def load() -> None:
+        body = json.dumps({
+            "model": settings.ollama_assistant_model, "prompt": "", "stream": False,
+            "keep_alive": "1h",
+        }).encode("utf-8")
+        request = urllib.request.Request(
+            f"{settings.ollama_url.rstrip('/')}/api/generate", data=body,
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=300):
+                pass
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            log.info("assistant model not warmed: %s", exc)
+        if then is not None:
+            then()
+
+    threading.Thread(target=load, name="model-warm-up", daemon=True).start()
 
 
 def read_question(question: str, *, model: str | None = None, url: str | None = None) -> Reading:
