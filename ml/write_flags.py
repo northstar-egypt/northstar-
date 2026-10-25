@@ -1,6 +1,7 @@
 """Run the detectors and write what they find into the flag table.
 
     python -m ml.write_flags
+    python -m ml.write_flags --from-database
     python -m ml.write_flags --database-url postgresql+psycopg://... --dry-run
 
 This is the batch job that connects `ml/detectors` to the application. Until it runs, the
@@ -16,6 +17,11 @@ do because the generator writes both from one run with the same player ids. Runn
 against a database loaded from a different seed would attach flags to the wrong people, so the
 job checks that the player ids it is about to write actually exist and refuses rather than
 inserting orphans.
+
+`--from-database` reads the database itself instead: it exports it (ml/export_db.py) to a
+temporary folder, runs the detectors on that, and deletes the folder. Use it whenever players
+have been added through the app since the generator ran; the generator's export does not hold
+them, so they are never checked. It is the detector run the demo uses (docs/demo.md).
 
     TODO(ml): a database-backed FeatureSet, so this reads the same rows the API serves instead
     of relying on an export being in step. That is the right shape once there is real ingest,
@@ -88,6 +94,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--database-url", default=DEFAULT_DATABASE_URL)
     parser.add_argument(
+        "--from-database",
+        action="store_true",
+        help="Read the players from the database (exported to a temporary folder), not --data-dir.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Report what would be written and roll back.",
@@ -97,7 +108,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if not args.from_database:
+        return _run(args)
 
+    import tempfile
+
+    from ml.export_db import export
+
+    # Outside the repository, and deleted afterwards: on a machine with real data, the export
+    # is real data (see ml/export_db.py).
+    with tempfile.TemporaryDirectory(prefix="northstar-flags-") as tmp:
+        export(args.database_url, Path(tmp))
+        args.data_dir = Path(tmp)
+        return _run(args)
+
+
+def _run(args: argparse.Namespace) -> int:
     if not (args.data_dir / "players.json").exists():
         print(
             f"No dataset at {args.data_dir}. Generate one first:\n"

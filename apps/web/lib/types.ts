@@ -394,6 +394,7 @@ export interface IntegrityFlag {
   records?: {
     label: string;
     playerId: string;
+    otherPlayerId: string;
     createdAt: string;
     measurementCount: number;
     source: string;

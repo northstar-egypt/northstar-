@@ -65,6 +65,17 @@ def browser():
         firefox.close()
 
 
+def _from_dev_overlay(error) -> bool:
+    """An error thrown by Next.js's development overlay, not by the application.
+
+    The Docker web container runs `next dev`, which injects that overlay. When a test leaves a
+    page while the overlay has a request open, it cancels it and Firefox reports "The
+    operation was aborted" with the overlay's code on the stack. That failed about one test
+    run in four, at random. A production build (`next start`) has no overlay.
+    """
+    return "next-devtools" in (getattr(error, "stack", None) or "")
+
+
 @pytest.fixture
 def page(browser):
     """A fresh context per test, so one test's signed-in state cannot leak into another."""
@@ -73,7 +84,7 @@ def page(browser):
 
     # Anything the page throws is a failure worth seeing, even when the assertions pass.
     errors: list[str] = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.on("pageerror", lambda e: None if _from_dev_overlay(e) else errors.append(str(e)))
     page.errors = errors  # type: ignore[attr-defined]
 
     yield page

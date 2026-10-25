@@ -25,7 +25,7 @@ import hashlib
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.audit_log import AuditLog
@@ -100,11 +100,28 @@ def _summary(flag: Flag) -> dict:
     }
 
 
+def about(player_ids) -> object:
+    """The condition for flags about these players.
+
+    A duplicate case is one flag row for a pair: it is stored against one record and names the
+    other in `related_player_id`. It is about both, so it shows on both records. Otherwise
+    the record the coach just entered, the one that most needs the warning, shows none
+    whenever the pair happened to be stored against the older record.
+    """
+    return or_(
+        Flag.player_id.in_(player_ids),
+        and_(
+            Flag.type == FlagType.DUPLICATE.value,
+            Flag.related_player_id.in_(player_ids),
+        ),
+    )
+
+
 def flags_for_player(db: Session, player_id: uuid.UUID) -> list[dict]:
-    """Live flags against one player, newest first."""
+    """Live flags about one player, newest first."""
     rows = db.execute(
         select(Flag)
-        .where(Flag.player_id == player_id)
+        .where(about([player_id]))
         .where(Flag.status.in_(LIVE_STATUSES))
         .where(shown_flags())
         .order_by(Flag.raised_at.desc())
@@ -125,13 +142,17 @@ def flags_for_players(
         return out
     rows = db.execute(
         select(Flag)
-        .where(Flag.player_id.in_(player_ids))
+        .where(about(player_ids))
         .where(Flag.status.in_(LIVE_STATUSES))
         .where(shown_flags())
         .order_by(Flag.player_id, Flag.raised_at.desc())
     ).scalars()
     for flag in rows:
-        out.setdefault(flag.player_id, []).append(_summary(flag))
+        concerns = {flag.player_id}
+        if flag.type == FlagType.DUPLICATE.value:
+            concerns.add(flag.related_player_id)
+        for player_id in concerns & out.keys():
+            out[player_id].append(_summary(flag))
     return out
 
 
@@ -143,7 +164,7 @@ def flag_reason(db: Session, player_id: uuid.UUID) -> str | None:
     """
     flag = db.execute(
         select(Flag)
-        .where(Flag.player_id == player_id)
+        .where(about([player_id]))
         .where(Flag.status.in_(LIVE_STATUSES))
         .where(shown_flags())
         # Nulls last: a rule-based detector with no calibrated confidence should not outrank a
@@ -166,7 +187,7 @@ def open_flag_count(db: Session, organization_id: uuid.UUID | None = None) -> in
         from app.models.player_organization import PlayerOrganization
 
         stmt = stmt.where(
-            Flag.player_id.in_(
+            about(
                 select(PlayerOrganization.player_id)
                 .where(PlayerOrganization.organization_id == organization_id)
                 .where(PlayerOrganization.end_date.is_(None))
@@ -229,6 +250,7 @@ def _duplicate_records(db: Session, flag: Flag) -> dict | None:
     return {
         "label": a.full_name,
         "playerId": str(a.id),
+        "otherPlayerId": str(b.id),
         "createdAt": a.created_at.date().isoformat() if a.created_at else "",
         "measurementCount": count_a,
         "source": "coach logged",
