@@ -854,6 +854,8 @@ const RECENT_ROWS = 8;
 
 function PerformanceCard({ section }: { section: PerformanceSection }) {
   const hasOpponents = section.entries.some((e) => e.opponent);
+  // Only when some record names one: most coach-logged matches have no event.
+  const hasEvents = section.entries.some((e) => e.event);
   const [showAll, setShowAll] = useState(false);
   // A row that fails validation is never hidden behind the button: it is what a reviewer needs.
   const shown = showAll
@@ -893,6 +895,7 @@ function PerformanceCard({ section }: { section: PerformanceSection }) {
           <tr>
             <Th>Period</Th>
             {hasOpponents ? <Th>Opponent</Th> : null}
+            {hasEvents ? <Th>Event</Th> : null}
             {section.columns.map((c) => (
               <Th key={c.key}>
                 {c.label}
@@ -919,6 +922,7 @@ function PerformanceCard({ section }: { section: PerformanceSection }) {
                   <OpponentCell opponent={e.opponent} />
                 </Td>
               ) : null}
+              {hasEvents ? <Td className="text-slate-300">{e.event ?? "-"}</Td> : null}
               {section.columns.map((c) => (
                 <Td key={c.key} className="tabular-nums">
                   {String(e.metrics[c.key] ?? "-")}

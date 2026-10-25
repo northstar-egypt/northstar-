@@ -152,6 +152,7 @@ window). This is where the JSON sport module lives.
 | period_type      | enum          | `match` / `session` / `tournament` / `season_aggregate`.       |
 | period_start     | date          |                                                                |
 | period_end       | date, null    | Null for a point-in-time event.                                |
+| event            | text, null    | The competition or tournament ("WTT Youth Contender Cairo 2026"). Set by the results import; most coach-logged matches have none. Core, not a metric, because every sport has one and it is not a statistic. |
 | organization_id  | UUID FK, null | The club/academy context, if any.                              |
 | opponent_org_id  | UUID FK, null | For match-type entries.                                        |
 | opponent_player_id | UUID FK, null | The opponent in a one-on-one sport (table tennis), when registered on the platform. Null otherwise, and nothing about an unregistered opponent is stored. See decision 0004. |

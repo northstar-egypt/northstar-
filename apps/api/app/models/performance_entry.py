@@ -42,6 +42,9 @@ class PerformanceEntry(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("organization.id", ondelete="SET NULL")
     )
+    # The competition or tournament ("WTT Youth Contender Cairo 2026"). A core column rather
+    # than a metric: every sport's matches belong to one, and it is not a statistic.
+    event: Mapped[str | None] = mapped_column(Text)
     # For match-type entries.
     opponent_org_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("organization.id", ondelete="SET NULL")

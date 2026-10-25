@@ -25,7 +25,7 @@ import screen (it holds column names only).
 | column | meaning |
 | --- | --- |
 | `date` | YYYY-MM-DD (required) |
-| `event` | The event's name. Shown in the preview and kept in the audit log. |
+| `event` | The event's name. Stored with each match record and shown on the player's profile; at most 200 characters. |
 | `player_a` | One player's name as published (required) |
 | `player_b` | The other player's name (required) |
 | `games` | Game scores from player A's side, e.g. `11-7, 9-11, 11-5, 11-8` (required) |
@@ -67,6 +67,4 @@ local database, never in the repository, not even as a test fixture (CLAUDE.md).
 
 ## Not yet
 
-- The event is not stored with the match: the match record has no field for it, and adding
-  one is a schema change. TODO.
 - Doubles and team events are not imported; one row is one singles match.

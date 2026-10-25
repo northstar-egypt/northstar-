@@ -165,3 +165,26 @@ def test_a_file_with_the_wrong_columns_saves_nothing(client, auth):
     response = _post(client, auth, "/results/import", "when,who,score\n2026-01-01,a,11-3\n")
     assert response.status_code == 422
     assert "Missing required column" in str(response.json()["detail"])
+
+
+def test_the_event_is_kept_on_both_records_and_shown_on_the_profile(client, auth, db, pair):
+    from app.models.performance_entry import PerformanceEntry
+
+    a, b = pair
+    csv = HEADER + f"{PLAYED},Test Youth Open 2026,{a.full_name},{b.full_name},11-3 11-4 11-5\n"
+    assert _post(client, auth, "/results/import", csv).json()["recordsWritten"] == 2
+    events = db.execute(
+        select(PerformanceEntry.event).where(PerformanceEntry.player_id.in_([a.id, b.id]))
+    ).scalars().all()
+    assert events == ["Test Youth Open 2026", "Test Youth Open 2026"]
+
+    profile = client.get(f"/players/{a.id}/profile", headers=auth("federation")).json()
+    entries = [e for s in profile["performance"] for e in s["entries"]]
+    assert [e["event"] for e in entries] == ["Test Youth Open 2026"]
+
+
+def test_an_event_name_too_long_to_be_one_is_refused(client, auth, pair):
+    a, b = pair
+    csv = HEADER + f"{PLAYED},{'x' * 201},{a.full_name},{b.full_name},11-3 11-4\n"
+    row = _post(client, auth, "/results/import/preview", csv).json()["rows"][0]
+    assert row["status"] == "rejected" and "longer than 200" in " ".join(row["problems"])
