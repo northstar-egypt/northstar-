@@ -810,3 +810,33 @@ def test_oversight_shows_coverage_for_every_governorate(sign_in, page):
         assert name in body
     assert "with no tracked players" in body
     assert "this panel needs a region field" not in body
+
+
+def test_a_scout_picks_players_to_compare_and_changes_the_set(sign_in, page):
+    """Tick two search results, compare them, add a third by name on the compare screen, then
+    remove one: the page address follows each change."""
+    sign_in("Scout", "/search")
+    boxes = page.get_by_role("checkbox", name=re.compile("^Pick .* to compare"))
+    boxes.first.wait_for(timeout=20000)
+    if boxes.count() < 3:
+        pytest.skip("the local data has fewer than three players a scout may open")
+    names = [
+        re.match(r"Pick (.*) to compare", boxes.nth(i).get_attribute("aria-label")).group(1)
+        for i in range(3)
+    ]
+    boxes.nth(0).check()
+    boxes.nth(1).check()
+    page.get_by_role("link", name="Compare 2").click()
+    page.wait_for_url("**/compare?players=*", timeout=20000)
+    page.get_by_text("Comparing 2 players").wait_for(timeout=20000)
+
+    # The third, found by name in the compare screen's own search box.
+    page.get_by_label("Add a player").fill(names[2])
+    page.locator("main li button").filter(has_text=names[2]).first.click()
+    page.get_by_text("Comparing 3 players").wait_for(timeout=20000)
+    assert page.url.count(",") == 2
+
+    page.get_by_role("button", name=f"Remove {names[0]} from the comparison").click()
+    page.get_by_text("Comparing 2 players").wait_for(timeout=20000)
+    assert page.get_by_role("button", name=f"Remove {names[0]} from the comparison").count() == 0
+    assert page.url.count(",") == 1
