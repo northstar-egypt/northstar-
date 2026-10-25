@@ -13,7 +13,7 @@
  */
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { GrowthChart, PercentileBar, Pitch, Radar, ShareRange, TennisTable } from "@/components/charts";
 import {
@@ -37,12 +37,14 @@ import {
   getRadar,
   getSimilar,
   getSummary,
+  undoMerge,
   withdrawConsent,
   writeRefusal,
 } from "@/lib/api";
 import { canAccess, useAuth } from "@/lib/auth";
 import { num, ordinal, shortDate } from "@/lib/format";
 import type {
+  MergedRecord,
   Opponent,
   PerformanceSection,
   PlayerEvents,
@@ -77,14 +79,20 @@ export default function PlayerProfilePage() {
   // Bumped after a write, so the whole profile is fetched again and every part of it that
   // depends on consent (percentiles, forecast, flags) shows the new state.
   const [version, setVersion] = useState(0);
+  const router = useRouter();
 
   useEffect(() => {
     let alive = true;
-    getProfile(playerId).then((p) => alive && setData(p ?? "missing"));
+    getProfile(playerId).then((p) => {
+      if (!alive) return;
+      // A second registration merged into another record: show the record kept instead.
+      if (p && "mergedInto" in p) router.replace(`/players/${p.mergedInto}`);
+      else setData(p ?? "missing");
+    });
     return () => {
       alive = false;
     };
-  }, [playerId, version]);
+  }, [playerId, version, router]);
 
   if (data === null) {
     return (
@@ -174,6 +182,10 @@ export default function PlayerProfilePage() {
             A flag is a claim, not a verdict. It is generated from the measurements below.
           </p>
         </Banner>
+      ) : null}
+
+      {data.mergedRecords?.length ? (
+        <MergedRecordsCard records={data.mergedRecords} onUndone={() => setVersion((v) => v + 1)} />
       ) : null}
 
       {/* written summary, loaded after the profile because a local model takes seconds */}
@@ -433,6 +445,98 @@ function WithdrawConsent({
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Second registrations of this player, merged into this record from the integrity board. Their
+ * history is shown here as this record's own. A reviewer can undo a merge, with a reason, and
+ * everything the merge moved goes back (apps/api/app/services/merge.py).
+ */
+function MergedRecordsCard({
+  records,
+  onUndone,
+}: {
+  records: MergedRecord[];
+  onUndone: () => void;
+}) {
+  const [undoing, setUndoing] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState("");
+
+  async function undo(id: string) {
+    setSaving(true);
+    setProblem("");
+    try {
+      await undoMerge(id, reason.trim());
+      setUndoing(null);
+      setReason("");
+      onUndone();
+    } catch {
+      setProblem("Nothing was changed. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <SectionTitle>Merged into this record</SectionTitle>
+      <ul className="flex flex-col gap-2 text-sm">
+        {records.map((r) => (
+          <li key={r.id} className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                <span dir="auto" className="text-slate-100">
+                  {r.fullName}
+                </span>
+                <span className="ml-2 text-xs text-slate-500">
+                  {r.mergedOn
+                    ? `merged ${r.mergedOn}${r.mergedBy ? ` by ${r.mergedBy}` : ""}`
+                    : "merged before merges were recorded"}
+                </span>
+              </span>
+              {r.undoable && undoing !== r.id ? (
+                <Button size="sm" variant="ghost" onClick={() => setUndoing(r.id)}>
+                  Undo merge
+                </Button>
+              ) : null}
+            </div>
+            {undoing === r.id ? (
+              <div className="flex flex-col gap-2 rounded-md border border-slate-800 bg-slate-950/40 px-3 py-3">
+                <Label>Why undo it</Label>
+                <input
+                  aria-label="Why undo the merge"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Two different boys: same name and birthday, different parents."
+                  className={inputClass}
+                />
+                <span className="text-xs text-slate-500">
+                  Everything the merge moved goes back to {r.fullName}, and the duplicate case
+                  is reopened on the integrity board.
+                </span>
+                {problem ? <p className="text-xs text-rose-300">{problem}</p> : null}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={reason.trim().length < 3 || saving}
+                    onClick={() => undo(r.id)}
+                  >
+                    {saving ? "Saving" : "Undo merge"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setUndoing(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

@@ -37,7 +37,8 @@ working on data that just arrived, and a human deciding with a reason that is ke
 
    It checks the services, the three accounts, the detector run (dry, nothing written) and
    both local models. It warms Ask and writes one summary, which is the slow part (about 80
-   seconds). **It also names the demo player and what the coach types.** It ends with `ready`,
+   seconds). **It also names the demo player and what the coach types: name, date of birth,
+   position and height.** It ends with `ready`,
    or says what to fix.
 
 3. Have two terminals open at the repository root: one for the detector run in step 5,
@@ -46,9 +47,10 @@ working on data that just arrived, and a human deciding with a reason that is ke
 4. Open Firefox at http://localhost:3000. Use a private window per account if you want to
    switch without signing out.
 
-The player below is the first one the check offers, منير عصام فارس حجازي. If a rehearsal has
-already registered him a second time, the check offers the next one; use the name, date and
-position it prints, and everything below is the same.
+The player below is the first one the check offers, منير عصام فارس حجازي. If a rehearsal left
+him registered a second time (it stopped before the merge, or the merge was undone), the check
+offers the next one; use the name, date and position it prints, and everything below is the
+same.
 
 ## The script
 
@@ -60,7 +62,8 @@ Sign in with the **Coach** button on the login screen. That is an academy coach 
 - **Add player.** Full name `منير حجازي`, date of birth `2010-06-09`, position **ST**.
   The date makes him a minor, so the form asks for the guardian's consent: type a guardian's
   name and tick the box. Continue stays locked until then.
-- Height `165`, Save.
+- Height: the number the check printed, about 1 cm above his last reading (`164` for منير).
+  Save.
 
 Say: consent is signed at sign-up, by a guardian, before anything is stored.
 
@@ -89,7 +92,7 @@ Sign out, then sign in with **Scout**: a scout at a different academy.
 
 ### 4. Find them (scout)
 
-Two players: the one the coach just added at المصري (one reading, 165 cm) and منير عصام فارس
+Two players: the one the coach just added at المصري (one reading) and منير عصام فارس
 حجازي at البنك الأهلي with years of history. Same boy, two records.
 
 Say: nothing has flagged this yet. A person might spot it in a search; the platform should
@@ -119,14 +122,25 @@ Sign in with **Federation**. Open **Integrity**.
   under one of the two records' names, منير حجازي or منير عصام فارس حجازي.
 - **Why this was raised**, then **Field by field**: the two records side by side, the
   differences highlighted. The note under the table says which record has more history, and
-  so is the one to keep. Record A and Record B open each profile in a new tab.
+  so is the one kept; **Keep record A / B** is already set to it. Record A and Record B open
+  each profile in a new tab.
 - Type a reason, for example `Same boy, registered at two academies. Spoke to both.` The
   buttons stay disabled until there is one: a decision without a reason teaches the detectors
   nothing.
-- **Confirm duplicate.** The case leaves the queue, and its history keeps who decided, what
+- **Confirm and merge.** The case leaves the queue, and its history keeps who decided, what
   and why.
 
-That is the sentence, end to end.
+That is the sentence, end to end. Then show what the review did:
+
+### 7. One player again (federation)
+
+- Search `منير حجازي`: one result now, منير عصام فارس حجازي.
+- Open him. His latest height is the coach's reading from step 1, added to his years of
+  history, and **Merged into this record** names منير حجازي, who merged it and when. The
+  growth chart now includes the new reading.
+- Say: both academies still have him in their squads, nothing was averaged or invented, and
+  a wrong merge can be undone. **Undo merge** is right there, and asks for a reason. Do not
+  press it in the demo; if asked, describe it.
 
 ## If something goes wrong
 
@@ -142,17 +156,18 @@ That is the sentence, end to end.
 
 ## What not to claim
 
-- **Confirm duplicate does not merge the records yet.** It records the decision. Merging
-  (moving the history onto one record and pointing the other at it with `merged_into`) is the
-  next step, and the schema supports it.
+- **Merging is not automatic.** The detector only raises the case; a person decides, and the
+  merge happens when they confirm. That is deliberate (docs/decisions/0006).
 - **The detector run is a batch job,** run by hand here. Nothing schedules it yet.
 - **The data is synthetic.** Every player, academy and account was generated. No real
   child's data is in the repository or in this database.
 
 ## After a rehearsal
 
-Each rehearsal leaves one second entry behind, and the check moves on to the next demo
-player. After the third, reset the data:
+A rehearsal that ends with the merge leaves nothing in the way: the second entry is merged,
+out of search, and the check offers the same player again. A rehearsal that stops before the
+merge, or undoes it, leaves the second entry active, and the check moves on to the next demo
+player. If all three are used up, reset the data:
 
 ```bash
 docker compose -f docker/docker-compose.yml down -v

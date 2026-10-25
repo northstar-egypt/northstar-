@@ -873,16 +873,20 @@ def _run_detectors() -> str:
 
 def test_the_demo_flow_on_one_player(sign_in, page, browser, identities):
     """Log a player, see the profile, search, find them, a flag surfaces, the federation
-    reviews it: the graded sentence, in order, on the same player, in three accounts."""
+    reviews it: the graded sentence, in order, on the same player, in three accounts. Then the
+    merge the review ends in, and its undo."""
     scout, federation = identities["scout"]["email"], identities["federation"]["email"]
     found = api("/search", scout, body={"query": ORIGINAL, "limit": 20})["results"]
     original = next((r["player"] for r in found if r["player"]["fullName"] == ORIGINAL), None)
     if original is None:
         pytest.skip(f"{ORIGINAL} is not in this database; the flow needs the seeded dataset")
 
-    # 1. Log a player. A coach registers him again, born the same day.
+    # 1. Log a player. A coach registers him again, born the same day, measured just above his
+    # last reading (as docs/demo.md has it, so the merged chart does not show him shrinking).
+    last = api(f"/players/{original['id']}/profile", federation)["latest"]["heightCm"]
+    height = round(last + 1)
     sign_in("Coach", "/dashboard")
-    form = _fill_new_player(page, SECOND_ENTRY, height="152", born=original["dateOfBirth"])
+    form = _fill_new_player(page, SECOND_ENTRY, height=str(height), born=original["dateOfBirth"])
     form.get_by_role("button", name="Save player and measurement").click()
     page.wait_for_url(PROFILE_URL, timeout=15000)
     new_id = page.url.rsplit("/", 1)[-1]
@@ -928,12 +932,32 @@ def test_the_demo_flow_on_one_player(sign_in, page, browser, identities):
     body = text_of(page)
     assert SECOND_ENTRY in body and ORIGINAL in body
     assert "has more history" in body
+    # The original has years of history, so it is the one kept by default.
     page.get_by_placeholder("Rang the academy").fill("E2E: same boy, registered at two academies.")
-    page.get_by_role("button", name="Confirm duplicate").click()
+    page.get_by_role("button", name="Confirm and merge").click()
     page.wait_for_timeout(SETTLE_MS)
 
     decided = next(f for f in api("/integrity/flags?status=confirmed", federation) if f["id"] == case["id"])
     assert decided["history"][-1]["what"].startswith("confirmed, E2E: same boy")
-    # Decided, so it has left the queue. (Earlier runs' second entries are cases of their own
-    # with this record, so its profile may still show a duplicate flag, rightly.)
     assert case["id"] not in {f["id"] for f in api("/integrity/flags", federation)}
+
+    # 7. One player again: the coach's reading is on the record kept, the second entry's link
+    # leads there, and search finds it no more.
+    kept = api(f"/players/{original['id']}/profile", federation)
+    assert kept["latest"]["heightCm"] == height
+    assert new_id in {r["id"] for r in kept["mergedRecords"]}
+    ids = [r["player"]["id"] for r in api("/search", scout, body={"query": SECOND_ENTRY})["results"]]
+    assert new_id not in ids and original["id"] in ids
+    page.goto(f"{WEB_URL}/players/{new_id}", wait_until="load")
+    page.wait_for_url(f"**/players/{original['id']}", timeout=20000)
+    page.get_by_text("Merged into this record").wait_for(timeout=30000)
+
+    # 8. And undone, from the kept record's profile, with a reason: both records are back.
+    row = page.locator("main li").filter(has_text=SECOND_ENTRY)
+    row.get_by_role("button", name="Undo merge").click()
+    page.get_by_label("Why undo the merge").fill("E2E: undoing the rehearsal.")
+    row.get_by_role("button", name="Undo merge").click()
+    page.wait_for_timeout(SETTLE_MS)
+    assert api(f"/players/{new_id}/profile", federation)["player"]["id"] == new_id
+    assert api(f"/players/{original['id']}/profile", federation)["latest"]["heightCm"] == last
+    assert case["id"] in {f["id"] for f in api("/integrity/flags", federation)}

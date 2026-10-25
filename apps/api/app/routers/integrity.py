@@ -16,15 +16,15 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status as http_status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import current_user
-from app.models.enums import FlagStatus
+from app.models.enums import FlagStatus, FlagType
 from app.models.flag import Flag
-from app.schemas.views import FlagDecisionRequest, IntegrityFlagOut
-from app.services import flags as flag_service
+from app.schemas.views import FlagDecisionRequest, IntegrityFlagOut, UndoMergeRequest
+from app.services import flags as flag_service, merge as merge_service
 from app.services.access import Caller
 
 router = APIRouter(tags=["integrity"], prefix="/integrity")
@@ -107,13 +107,32 @@ def decide_flag(
             status_code=http_status.HTTP_404_NOT_FOUND, detail="No such flag."
         )
 
-    flag_service.decide(
-        db,
-        flag=flag,
-        decision=request.decision,
-        reason=request.reason.strip(),
-        actor_user_id=caller.user_id,
-    )
+    if (
+        request.decision == FlagStatus.CONFIRMED.value
+        and flag.type == FlagType.DUPLICATE.value
+        and flag.related_player_id is not None
+    ):
+        # Confirming a duplicate is saying "one player": the two records are merged, in the
+        # same transaction as the decision (services/merge.py).
+        try:
+            merge_service.merge(
+                db,
+                flag=flag,
+                keep_id=request.keep_player_id,
+                actor_user_id=caller.user_id,
+                reason=request.reason.strip(),
+            )
+        except merge_service.MergeError as exc:
+            # Raised before anything is written, so there is nothing to roll back.
+            raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    else:
+        flag_service.decide(
+            db,
+            flag=flag,
+            decision=request.decision,
+            reason=request.reason.strip(),
+            actor_user_id=caller.user_id,
+        )
     db.commit()
 
     updated = flag_service.list_integrity_flags(db, status=None, limit=500)
@@ -124,3 +143,24 @@ def decide_flag(
     raise HTTPException(
         status_code=http_status.HTTP_404_NOT_FOUND, detail="No such flag."
     )
+
+
+@router.post(
+    "/merges/{merged_id}/undo", status_code=http_status.HTTP_204_NO_CONTENT, response_class=Response
+)
+def undo_merge(
+    merged_id: uuid.UUID,
+    request: UndoMergeRequest,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(require_reviewer),
+) -> Response:
+    """Undo a merge: everything the merge moved goes back to the merged record, which is
+    active again, and the duplicate case is reopened. See services/merge.py."""
+    try:
+        merge_service.unmerge(
+            db, merged_id=merged_id, actor_user_id=caller.user_id, reason=request.reason.strip()
+        )
+    except merge_service.MergeError as exc:
+        raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    db.commit()
+    return Response(status_code=http_status.HTTP_204_NO_CONTENT)

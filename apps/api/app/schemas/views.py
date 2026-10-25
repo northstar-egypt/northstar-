@@ -194,6 +194,18 @@ class RatingOut(CamelModel):
     note: str | None = None
 
 
+class MergedRecordOut(CamelModel):
+    """A record merged into this one: a second registration of the same player."""
+
+    id: str
+    full_name: str
+    # Null for a merge made before merges were recorded (the generated data has some).
+    merged_on: str | None = None
+    merged_by: str | None = None
+    # True when the caller may undo it and the merge was recorded, so it can be.
+    undoable: bool = False
+
+
 class PlayerProfileOut(CamelModel):
     player: PlayerOut
     organization_name: str | None = None
@@ -208,6 +220,7 @@ class PlayerProfileOut(CamelModel):
     performance: list[PerformanceSectionOut] = []
     flags: list[FlagSummaryOut] = []
     flag_reason: str | None = None
+    merged_records: list[MergedRecordOut] = []
     provenance: ProvenanceOut
     permissions: PermissionsOut
 
@@ -454,6 +467,15 @@ class FlagDecisionRequest(CamelModel):
     """
 
     decision: str
+    reason: str = Field(min_length=3, max_length=2000)
+    # Confirming a duplicate merges its two records; this is the one to keep. Left out, the
+    # record with more history is kept.
+    keep_player_id: uuid.UUID | None = None
+
+
+class UndoMergeRequest(CamelModel):
+    """Undoing a merge needs a reason, like every decision."""
+
     reason: str = Field(min_length=3, max_length=2000)
 
 

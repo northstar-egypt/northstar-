@@ -12,8 +12,9 @@
  * rather than two. Without "needs more information", cases that cannot be decided today get
  * dismissed to clear the queue, which quietly poisons the data the ML track is graded on.
  *
- * Confirming a duplicate records the decision; it does not merge the two records yet. Merging
- * (moving the history onto one record and setting merged_into on the other) is still to build.
+ * Confirming a duplicate merges the two records: the history moves to the record kept, and the
+ * other leads to it (apps/api/app/services/merge.py). It can be undone from the kept record's
+ * profile.
  */
 
 import Link from "next/link";
@@ -58,6 +59,13 @@ function flagTitle(flag: IntegrityFlag): string {
   return "Measurement anomaly";
 }
 
+/** "A" or "B", whichever record has more measurements, or null on a tie. */
+function richer(fields: { field: string; a: string; b: string }[]): "A" | "B" | null {
+  const row = fields.find((f) => f.field === "Measurements");
+  if (!row || Number(row.a) === Number(row.b)) return null;
+  return Number(row.a) > Number(row.b) ? "A" : "B";
+}
+
 /** Which record has more history, read from the field-by-field rows, for the note under them. */
 function moreHistory(fields: { field: string; a: string; b: string }[]): string {
   const row = fields.find((f) => f.field === "Measurements");
@@ -68,7 +76,7 @@ function moreHistory(fields: { field: string; a: string; b: string }[]): string 
     return `Both records hold ${a} measurements, so neither is the obvious one to keep.`;
   }
   const [more, many, few] = a > b ? ["A", a, b] : ["B", b, a];
-  return `Record ${more} has more history (${many} measurements against ${few}), so it is the one to keep if they are merged.`;
+  return `Record ${more} has more history (${many} measurements against ${few}), so it is kept unless you choose otherwise.`;
 }
 
 export default function IntegrityPage() {
@@ -76,6 +84,9 @@ export default function IntegrityPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState<Decision | null>(null);
+  // For a duplicate: which record survives the merge. Null until the reviewer picks, which
+  // means the record with more history.
+  const [keep, setKeep] = useState<"A" | "B" | null>(null);
   const [resolved, setResolved] = useState<Record<string, Decision>>({});
 
   useEffect(() => {
@@ -110,7 +121,12 @@ export default function IntegrityPage() {
   async function decide(decision: Decision) {
     if (!selected || reason.trim().length < 3) return;
     setPending(decision);
-    await decideFlag(selected.id, decision, reason.trim());
+    const records = selected.records;
+    // Exactly what the radio shows: the reviewer's pick, else more history, else A.
+    const side = keep ?? (records ? (richer(records.fields) ?? "A") : null);
+    const keepId = records && side ? (side === "A" ? records.playerId : records.otherPlayerId) : undefined;
+    await decideFlag(selected.id, decision, reason.trim(), keepId);
+    setKeep(null);
     setResolved((r) => ({ ...r, [selected.id]: decision }));
     setReason("");
     setPending(null);
@@ -161,6 +177,7 @@ export default function IntegrityPage() {
                 onClick={() => {
                   setSelectedId(f.id);
                   setReason("");
+                  setKeep(null);
                 }}
                 className={cx(
                   "rounded-lg border p-3 text-left transition",
@@ -253,9 +270,24 @@ export default function IntegrityPage() {
                     </tbody>
                   </Table>
                   <p className="mt-2 text-xs text-slate-500">
-                    {moreHistory(selected.records.fields)} Confirming records the decision; merging
-                    the two records is not built yet.
+                    {moreHistory(selected.records.fields)} Confirming merges them: the history
+                    moves to the record kept, and the other leads to it. It can be undone from
+                    the kept record&rsquo;s profile.
                   </p>
+                  <div className="mt-2 flex flex-wrap gap-4 text-sm" role="radiogroup" aria-label="Record to keep">
+                    {(["A", "B"] as const).map((side) => (
+                      <label key={side} className="flex cursor-pointer items-center gap-1.5">
+                        <input
+                          type="radio"
+                          name="keep"
+                          className="accent-sky-500"
+                          checked={(keep ?? richer(selected.records!.fields) ?? "A") === side}
+                          onChange={() => setKeep(side)}
+                        />
+                        Keep record {side}
+                      </label>
+                    ))}
+                  </div>
                 </div>
               ) : null}
             </Card>
@@ -297,8 +329,8 @@ export default function IntegrityPage() {
                   >
                     {pending === "confirmed"
                       ? "Saving"
-                      : selected.type === "duplicate"
-                        ? "Confirm duplicate"
+                      : selected.type === "duplicate" && selected.records
+                        ? "Confirm and merge"
                         : "Confirm"}
                   </Button>
                 </div>

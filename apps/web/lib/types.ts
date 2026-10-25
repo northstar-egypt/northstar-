@@ -308,6 +308,8 @@ export interface PlayerProfile {
   performance: PerformanceSection[];
   flags: FlagSummary[];
   flagReason: string | null;
+  /** Records merged into this one (second registrations of the same player). */
+  mergedRecords?: MergedRecord[];
   provenance: {
     measurementCount: number;
     performanceCount: number;
@@ -315,6 +317,16 @@ export interface PlayerProfile {
   };
   /** What the current role is permitted to do, decided by the API, not by the frontend. */
   permissions: { canEdit: boolean; canLog: boolean; canSeeFlags: boolean };
+}
+
+export interface MergedRecord {
+  id: string;
+  fullName: string;
+  /** Null for a merge made before merges were recorded (some generated data). */
+  mergedOn: string | null;
+  mergedBy: string | null;
+  /** Decided by the API: the caller may undo it, and it was recorded so it can be. */
+  undoable: boolean;
 }
 
 export interface SearchResult {

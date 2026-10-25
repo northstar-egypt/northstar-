@@ -386,7 +386,7 @@ Player --- Player            (merged_into self-reference for dedup)
   people immediately makes the flag easier to game; this needs a policy, not a default. Who
   may review a flag against a player at their own organization, which is a conflict of
   interest the role model does not currently prevent (today nobody below federation can reach
-  the board, so it cannot arise yet). And is a merge reversible? Easier to design now than to
-  retrofit.
+  the board, so it cannot arise yet). Whether a merge is reversible is answered by decision
+  0006: it is, from the audit row that lists what it moved.
 - Embedding storage for player similarity: a `pgvector` column on Player, or a separate
   table. TODO once the ML workstream picks an embedding model.

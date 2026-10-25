@@ -92,6 +92,19 @@ def _viewable_player(db: Session, caller: Caller, player_id: uuid.UUID) -> Playe
     ).scalar_one_or_none()
 
     if player is None:
+        # A record merged into another: say where it went, if the caller may see that one.
+        merged = db.get(Player, player_id)
+        if merged is not None and merged.merged_into is not None:
+            try:
+                kept = _viewable_player(db, caller, merged.merged_into)
+            except HTTPException:
+                kept = None
+            if kept is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"message": "This record was merged into another.",
+                            "mergedInto": str(kept.id)},
+                )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such player.")
 
     allowed, reason = may_view(db, caller, player)

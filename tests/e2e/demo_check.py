@@ -120,8 +120,12 @@ def main() -> int:
                "reset the data: docker compose -f docker/docker-compose.yml down -v, then up")
         return 1
     full, typed, born, position, original = chosen
-    report(True, f"demo player: {full}, born {born}, {position}")
-    print(f"       the coach types the name {typed}, born {born}, position {position}")
+    # A height just above his last reading, so the merged growth chart does not show him
+    # shrinking, and the form does not question it as unusual.
+    last = get(f"{API}/players/{original['id']}/profile", scout)["latest"]["heightCm"]
+    height = round(last + 1) if last else 160
+    report(True, f"demo player: {full}, born {born}, {position}, last measured {last} cm")
+    print(f"       the coach types: name {typed}, born {born}, position {position}, height {height}")
 
     # 4. The detector run, dry: it must read the database and write without error.
     done = subprocess.run(
