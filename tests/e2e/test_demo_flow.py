@@ -13,10 +13,14 @@ from __future__ import annotations
 
 import http.cookiejar
 import json
+import os
 import re
+import subprocess
+import sys
 import urllib.parse
 import urllib.request
 import uuid
+from pathlib import Path
 
 import pytest
 
@@ -362,7 +366,7 @@ def _sign_consent_as_guardian(form):
     form.get_by_role("checkbox", name="signed the consent form").check()
 
 
-def _fill_new_player(page, name: str, *, height: str, weight: str = ""):
+def _fill_new_player(page, name: str, *, height: str, weight: str = "", born: str = "2011-05-04"):
     """Steps 1 and 2 of the add player form, stopping short of saving."""
     page.goto(f"{WEB_URL}/players/new", wait_until="networkidle")
     page.wait_for_timeout(SETTLE_MS)
@@ -371,7 +375,7 @@ def _fill_new_player(page, name: str, *, height: str, weight: str = ""):
     # and buttons would otherwise be matched instead of the form's.
     form = page.locator("main")
     form.get_by_label("Full name", exact=True).fill(name)
-    form.locator("input[type='date']").fill("2011-05-04")
+    form.locator("input[type='date']").fill(born)
     _sign_consent_as_guardian(form)
     # Position is a row of buttons rather than a dropdown.
     form.get_by_role("button", name="ST", exact=True).click()
@@ -840,3 +844,96 @@ def test_a_scout_picks_players_to_compare_and_changes_the_set(sign_in, page):
     page.get_by_text("Comparing 2 players").wait_for(timeout=20000)
     assert page.get_by_role("button", name=f"Remove {names[0]} from the comparison").count() == 0
     assert page.url.count(",") == 1
+
+
+# ---------------------------------------------------------------------------
+# The whole flow, on one player (docs/demo.md)
+# ---------------------------------------------------------------------------
+
+# A seeded academy player, registered a second time by a coach at another academy who types
+# only his first and family names: the commonest way a duplicate record is made. docs/demo.md
+# uses a different seeded player, so rehearsing the suite leaves no clutter on the one shown.
+ORIGINAL = "مروان مصطفى فؤاد"
+SECOND_ENTRY = "مروان فؤاد"
+REPO = Path(__file__).resolve().parents[2]
+
+
+def _run_detectors() -> str:
+    """The detector run, as docs/demo.md performs it: reads the database, writes flags."""
+    command = [sys.executable, "-m", "ml.write_flags", "--from-database"]
+    if os.environ.get("E2E_DATABASE_URL"):
+        command += ["--database-url", os.environ["E2E_DATABASE_URL"]]
+    done = subprocess.run(
+        command, cwd=REPO, capture_output=True, text=True, encoding="utf-8", timeout=300,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    assert done.returncode == 0, done.stderr
+    return done.stdout
+
+
+def test_the_demo_flow_on_one_player(sign_in, page, browser, identities):
+    """Log a player, see the profile, search, find them, a flag surfaces, the federation
+    reviews it: the graded sentence, in order, on the same player, in three accounts."""
+    scout, federation = identities["scout"]["email"], identities["federation"]["email"]
+    found = api("/search", scout, body={"query": ORIGINAL, "limit": 20})["results"]
+    original = next((r["player"] for r in found if r["player"]["fullName"] == ORIGINAL), None)
+    if original is None:
+        pytest.skip(f"{ORIGINAL} is not in this database; the flow needs the seeded dataset")
+
+    # 1. Log a player. A coach registers him again, born the same day.
+    sign_in("Coach", "/dashboard")
+    form = _fill_new_player(page, SECOND_ENTRY, height="152", born=original["dateOfBirth"])
+    form.get_by_role("button", name="Save player and measurement").click()
+    page.wait_for_url(PROFILE_URL, timeout=15000)
+    new_id = page.url.rsplit("/", 1)[-1]
+
+    # 2. See the profile: his, saying what one reading cannot show.
+    open_profile(page, new_id)
+    assert SECOND_ENTRY in page.locator("h1").first.inner_text()
+    assert "at least two height measurements" in text_of(page)
+
+    # 3 and 4. Search, as a scout, by the name the coach typed, and find him: both records.
+    scout_page = browser.new_context(viewport={"width": 1280, "height": 900}).new_page()
+    scout_page.goto(f"{WEB_URL}/login", wait_until="networkidle")
+    scout_page.get_by_role("button", name="Scout").click()
+    scout_page.wait_for_url("**/search", timeout=20000)
+    scout_page.wait_for_timeout(SETTLE_MS)  # typed before the page is live, the query is lost
+    scout_page.get_by_placeholder("left footed").fill(SECOND_ENTRY)
+    scout_page.keyboard.press("Enter")
+    scout_page.locator("main").get_by_text(ORIGINAL, exact=True).first.wait_for(timeout=20000)
+    scout_page.wait_for_timeout(SETTLE_MS)
+    shown = scout_page.locator("main").inner_text()
+    assert ORIGINAL in shown and SECOND_ENTRY in shown
+    ids = [r["player"]["id"] for r in api("/search", scout, body={"query": SECOND_ENTRY})["results"]]
+    assert new_id in ids and original["id"] in ids
+    scout_page.context.close()
+
+    # 5. A flag surfaces: the detector run reads the database and finds the pair.
+    assert "flags raised" in _run_detectors()
+    case = next(
+        (f for f in api("/integrity/flags", federation)
+         if f["type"] == "duplicate" and f["records"]
+         and {f["records"]["playerId"], f["records"]["otherPlayerId"]} == {new_id, original["id"]}),
+        None,
+    )
+    assert case is not None, "the detector run raised no duplicate case for the pair"
+    open_profile(page, new_id)
+    assert "possible duplicate" in text_of(page)
+
+    # 6. The federation reviews it, with a reason, on the board.
+    sign_in("Federation", "/oversight")
+    page.goto(f"{WEB_URL}/integrity", wait_until="networkidle")
+    page.locator(f"[data-flag-id='{case['id']}']").click()
+    page.get_by_text("Field by field").wait_for(timeout=20000)
+    body = text_of(page)
+    assert SECOND_ENTRY in body and ORIGINAL in body
+    assert "has more history" in body
+    page.get_by_placeholder("Rang the academy").fill("E2E: same boy, registered at two academies.")
+    page.get_by_role("button", name="Confirm duplicate").click()
+    page.wait_for_timeout(SETTLE_MS)
+
+    decided = next(f for f in api("/integrity/flags?status=confirmed", federation) if f["id"] == case["id"])
+    assert decided["history"][-1]["what"].startswith("confirmed, E2E: same boy")
+    # Decided, so it has left the queue. (Earlier runs' second entries are cases of their own
+    # with this record, so its profile may still show a duplicate flag, rightly.)
+    assert case["id"] not in {f["id"] for f in api("/integrity/flags", federation)}

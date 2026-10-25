@@ -243,6 +243,35 @@ def test_flags_appear_on_the_squad_table(client, auth, world, raise_flag):
     assert rows["Adult A"]["flags"] == []
 
 
+def test_a_duplicate_case_shows_on_both_records(client, auth, world, raise_flag, db):
+    """One row per pair, stored against one record. A coach who has just entered the other
+    record, the one most in need of the warning, sees the case on it too: on the profile, in
+    the squad table and in the dashboard's open-flag count."""
+    raise_flag(
+        "adult_b", flag_type=FlagType.DUPLICATE.value, related="adult_a",
+        reason="Likely the same player entered twice.",
+    )
+    adult_a = world["players"]["adult_a"].id
+    body = client.get(f"/players/{adult_a}/profile", headers=auth("coach_a")).json()
+    assert [flag["type"] for flag in body["flags"]] == ["duplicate"]
+    assert body["flagReason"] == "Likely the same player entered twice."
+
+    rows = {
+        row["player"]["fullName"]: row
+        for row in client.get("/players", headers=auth("coach_a")).json()
+    }
+    assert [flag["type"] for flag in rows["Adult A"]["flags"]] == ["duplicate"]
+    # Stored against academy B's record, counted for academy A too.
+    assert flag_service.open_flag_count(db, world["orgs"]["a"].id) == 1
+
+
+def test_only_a_duplicate_case_follows_its_related_record(client, auth, world, raise_flag):
+    raise_flag("adult_b", related="adult_a")  # a fraud flag that happens to name someone
+    adult_a = world["players"]["adult_a"].id
+    body = client.get(f"/players/{adult_a}/profile", headers=auth("coach_a")).json()
+    assert body["flags"] == []
+
+
 # ---------------------------------------------------------------------------
 # The integrity board
 # ---------------------------------------------------------------------------
@@ -310,7 +339,7 @@ def test_a_rule_without_a_score_shows_none_and_says_which_rule_it_was(client, au
     assert rows["Adult A"]["detector"] == "test_detector"
 
 
-def test_a_duplicate_flag_carries_the_field_by_field_diff(client, auth, raise_flag):
+def test_a_duplicate_flag_carries_the_field_by_field_diff(client, auth, world, raise_flag):
     """For a duplicate this diff is the whole decision, and it has to show which record has
     more history, because that determines which one survives the merge."""
     raise_flag("adult_a", flag_type=FlagType.DUPLICATE.value, related="adult_b")
@@ -320,6 +349,8 @@ def test_a_duplicate_flag_carries_the_field_by_field_diff(client, auth, raise_fl
         if row["type"] == "duplicate"
     )
     assert row["records"] is not None
+    assert row["records"]["playerId"] == str(world["players"]["adult_a"].id)
+    assert row["records"]["otherPlayerId"] == str(world["players"]["adult_b"].id)
     fields = {field["field"]: field for field in row["records"]["fields"]}
     assert fields["Full name"]["a"] == "Adult A"
     assert fields["Full name"]["b"] == "Adult B"

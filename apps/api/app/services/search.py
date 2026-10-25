@@ -27,6 +27,7 @@ list while claiming the word was ignored. Both are avoided here.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from datetime import date, timedelta
 
 from sqlalchemy import Select, and_, func, or_, select
@@ -112,7 +113,11 @@ def _sport_label(sport: str) -> str:
 
 
 def parse_query(
-    text: str, *, can_use_flags: bool = True, reader: concepts.Reader | None = None
+    text: str,
+    *,
+    can_use_flags: bool = True,
+    reader: concepts.Reader | None = None,
+    is_a_name: Callable[[list[str]], bool] | None = None,
 ) -> tuple[dict, list[dict], list[str]]:
     """Pull what can be understood out of a query string.
 
@@ -127,6 +132,13 @@ def parse_query(
     `filters["concepts"]` lists the concepts to filter on (app/concepts.py). A caller who may
     not see flags (a player's own account) cannot filter on one: the chip says so and the
     search is unaffected. `reader` is the embedding model; None reads with keywords alone.
+
+    `is_a_name(words)` says whether some player's name holds all these words (`name_check`).
+    The model reads any two or more words, and on a name it can land above its threshold:
+    "منير حجازي" read as "potential rating", which dropped the name and returned everyone. So
+    a phrase only the model read as a concept, whose words are a registered player's name, is
+    searched as that name. A keyword reading is never overruled: it is an exact word on the
+    list, not a guess.
     """
     filters: dict = {}
     chips: list[dict] = []
@@ -218,6 +230,13 @@ def parse_query(
             continue
 
         reading = concepts.read(words, reader)
+        if (
+            is_a_name is not None
+            and reading.concepts
+            and all(how == "model" for _, how, _ in reading.concepts)
+            and is_a_name(reading.concepts[0][2].split())
+        ):
+            reading = concepts.Reading([], reading.concepts[0][2].split())
         for concept, how, source in reading.concepts:
             label = concept.label if how == "keyword" else f'{concept.label} (read from "{source}")'
             if not concept.answerable:
@@ -326,6 +345,20 @@ def apply_filters(
         )
 
     return stmt
+
+
+def name_check(db: Session, stmt: Select) -> Callable[[list[str]], bool]:
+    """`parse_query`'s `is_a_name`, over the players `stmt` reaches. Reads the names only when
+    asked, which is only when the model has read a phrase as a concept."""
+
+    def is_a_name(words: list[str]) -> bool:
+        query = " ".join(words)
+        rows = db.execute(
+            stmt.with_only_columns(Player.full_name, Player.known_as).order_by(None)
+        )
+        return any(names.matches(query, full_name, known_as) for full_name, known_as in rows)
+
+    return is_a_name
 
 
 def _name_match_ids(db: Session, stmt: Select, name_terms: list[str]) -> list:

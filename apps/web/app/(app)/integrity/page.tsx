@@ -12,9 +12,11 @@
  * rather than two. Without "needs more information", cases that cannot be decided today get
  * dismissed to clear the queue, which quietly poisons the data the ML track is graded on.
  *
- * BLOCKED: there is no flag table in docs/schema.md. See lib/api.ts.
+ * Confirming a duplicate records the decision; it does not merge the two records yet. Merging
+ * (moving the history onto one record and setting merged_into on the other) is still to build.
  */
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   Button,
@@ -54,6 +56,19 @@ function flagTitle(flag: IntegrityFlag): string {
   if (flag.type === "duplicate") return "Possible duplicate record";
   if (flag.type === "fraud") return "Possible fraud";
   return "Measurement anomaly";
+}
+
+/** Which record has more history, read from the field-by-field rows, for the note under them. */
+function moreHistory(fields: { field: string; a: string; b: string }[]): string {
+  const row = fields.find((f) => f.field === "Measurements");
+  if (!row) return "";
+  const a = Number(row.a);
+  const b = Number(row.b);
+  if (a === b) {
+    return `Both records hold ${a} measurements, so neither is the obvious one to keep.`;
+  }
+  const [more, many, few] = a > b ? ["A", a, b] : ["B", b, a];
+  return `Record ${more} has more history (${many} measurements against ${few}), so it is the one to keep if they are merged.`;
 }
 
 export default function IntegrityPage() {
@@ -142,6 +157,7 @@ export default function IntegrityPage() {
               <button
                 key={f.id}
                 type="button"
+                data-flag-id={f.id}
                 onClick={() => {
                   setSelectedId(f.id);
                   setReason("");
@@ -213,8 +229,17 @@ export default function IntegrityPage() {
                     <thead>
                       <tr>
                         <Th>Field</Th>
-                        <Th>Record A</Th>
-                        <Th>Record B</Th>
+                        {/* Each record opens in a new tab, so the reviewer keeps their place. */}
+                        <Th>
+                          <Link href={`/players/${selected.records.playerId}`} target="_blank" className="hover:text-sky-300">
+                            Record A
+                          </Link>
+                        </Th>
+                        <Th>
+                          <Link href={`/players/${selected.records.otherPlayerId}`} target="_blank" className="hover:text-sky-300">
+                            Record B
+                          </Link>
+                        </Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -228,8 +253,8 @@ export default function IntegrityPage() {
                     </tbody>
                   </Table>
                   <p className="mt-2 text-xs text-slate-500">
-                    Record A has more history, so it is the one that should survive a merge. The
-                    schema supports this directly through merged_into.
+                    {moreHistory(selected.records.fields)} Confirming records the decision; merging
+                    the two records is not built yet.
                   </p>
                 </div>
               ) : null}
@@ -273,7 +298,7 @@ export default function IntegrityPage() {
                     {pending === "confirmed"
                       ? "Saving"
                       : selected.type === "duplicate"
-                        ? "Confirm and merge"
+                        ? "Confirm duplicate"
                         : "Confirm"}
                   </Button>
                 </div>

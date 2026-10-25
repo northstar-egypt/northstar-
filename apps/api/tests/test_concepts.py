@@ -328,3 +328,56 @@ def test_a_player_account_cannot_filter_on_flags(client, auth, squad):
     ).json()
     chips = body["parsed"]["chips"]
     assert chips and all(chip["understood"] is False for chip in chips)
+
+
+class _NameAsPotential:
+    """Stands in for the model's known failure: a two-word Arabic name read as "potential"."""
+
+    def read(self, phrase: str, threshold: float = concepts.THRESHOLD):
+        by_id = {c.id: c for c in concepts.all_concepts()}
+        return by_id["no_data:potential"], 0.7
+
+
+def test_a_phrase_the_model_read_is_searched_as_a_name_when_a_player_has_it():
+    from app.services.search import parse_query
+
+    filters, chips, names = parse_query(
+        "منير حجازي", reader=_NameAsPotential(), is_a_name=lambda words: True
+    )
+    assert names == ["منير", "حجازي"]
+    assert "concepts" not in filters
+    assert [c["label"] for c in chips] == ["name: منير", "name: حجازي"]
+
+
+def test_a_phrase_the_model_read_stays_a_concept_when_nobody_has_that_name():
+    from app.services.search import parse_query
+
+    _, chips, names = parse_query(
+        "منير حجازي", reader=_NameAsPotential(), is_a_name=lambda words: False
+    )
+    assert names == []
+    assert [c["label"] for c in chips] == ['potential rating: no data (read from "منير حجازي")']
+
+
+def test_a_keyword_reading_is_never_checked_against_names():
+    from app.services.search import parse_query
+
+    def never(words):
+        raise AssertionError("a keyword reading asked whether it was a name")
+
+    filters, _, _ = parse_query("small for his age", is_a_name=never)
+    assert filters["concepts"] == ["small_for_age"]
+
+
+def test_a_two_word_name_finds_that_player_through_the_api(client, auth, db, world, monkeypatch):
+    """The search that went wrong on the demo data: the model read "منير حجازي" as potential,
+    the name was dropped, and every player came back."""
+    from tests.test_results_import import _tt_player
+
+    player = _tt_player(db, world["orgs"]["a"], "منير عصام فارس حجازي")
+    monkeypatch.setattr(concepts, "get_reader", lambda: _NameAsPotential())
+    body = _search(client, auth, "منير حجازي")
+    # Every result is called that (a local database may hold a seeded player of the same name).
+    assert str(player.id) in [r["player"]["id"] for r in body["results"]]
+    assert all("حجازي" in r["player"]["fullName"] for r in body["results"])
+    assert [c["label"] for c in body["parsed"]["chips"]] == ["name: منير", "name: حجازي"]

@@ -413,6 +413,8 @@ class FlagRecordsOut(CamelModel):
 
     label: str
     player_id: str
+    # Record B, the flag's related player.
+    other_player_id: str
     created_at: str
     measurement_count: int
     source: str

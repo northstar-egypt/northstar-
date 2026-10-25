@@ -47,8 +47,15 @@ python -m playwright install firefox     # once
 pytest tests/e2e
 ```
 
+`test_the_demo_flow_on_one_player` is the whole sentence on one player, in the order
+`docs/demo.md` gives it: a coach registers a seeded boy a second time, a scout finds both
+records, the detector run (`python -m ml.write_flags --from-database`, which the test starts
+itself) raises a duplicate flag, and the federation confirms it with a reason. Before giving
+the demo by hand, run `python tests/e2e/demo_check.py`.
+
 The add-player tests really save. Each run adds two players to the coach's academy, named
-`E2E Player ...` and `E2E Heavy ...` so they are easy to spot. Re-run the generator with
+`E2E Player ...` and `E2E Heavy ...` so they are easy to spot, and the demo flow test adds
+one second entry of `مروان مصطفى فؤاد`, called `مروان فؤاد`. Re-run the generator with
 `--truncate` for a clean dataset.
 
 The suite skips, with a message saying what is missing, when the web app or the API is not

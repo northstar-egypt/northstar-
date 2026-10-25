@@ -45,6 +45,8 @@ def search(
         # Only fetched when there are words to read: loading it can take seconds right
         # after the API starts, and an empty query does not need it.
         reader=concepts.get_reader() if request.query.strip() else None,
+        # A phrase the model read as a concept is still a name when a player is called that.
+        is_a_name=search_service.name_check(db, _base_query(caller)),
     )
 
     stmt = search_service.apply_filters(

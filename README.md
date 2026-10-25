@@ -100,6 +100,9 @@ for real through `POST /auth/login`, which sets an HttpOnly session cookie.
 | Federation | Oversight | national coverage, staleness, flag counts |
 | Federation | Integrity | the review queue. Open a duplicate case: the field-by-field diff is the decision |
 
+**Giving the demo:** `docs/demo.md` is the graded flow as a ten-minute script on one player,
+and `python tests/e2e/demo_check.py` checks the stack is ready for it and warms the models.
+
 The amber dropdown in the top right switches role. It is not a display toggle: it changes
 which account the API answers as, so the data changes with it.
 
