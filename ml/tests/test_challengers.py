@@ -213,3 +213,25 @@ def test_tempo_fit_does_not_read_a_small_on_time_child_as_late():
     tau, size = tempo_fit.fit(small, curve, 0.04)
     assert tau < tempo_fit.TAU_THRESHOLD
     assert size < 1
+
+
+def test_sitar_knot_heights_are_window_medians_and_none_when_too_sparse():
+    from ml.challengers import sitar
+
+    aligned = sorted([(12.0 + 0.1 * k, 150.0 + k) for k in range(7)] + [(18.0, 170.0)])
+    heights = sitar._knot_heights(aligned, [12.3, 18.0])
+    assert heights[0] == 153.0  # the median of the readings within half a year of 12.3
+    assert heights[1] is None   # one reading near 18 is not enough to move a knot
+
+
+def test_sitar_is_deterministic_and_only_flags_children_v1_would_consider(small_dataset):
+    from ml.challengers import sitar, tempo_fit
+    from ml.detectors.features import FeatureSet
+    from ml.detectors.late_bloomer import LateBloomerParams
+
+    features = FeatureSet(small_dataset)
+    first, second = sitar.fitted_taus(features), sitar.fitted_taus(features)
+    assert first == second
+    params = LateBloomerParams()
+    assert all(tempo_fit.eligible(features.players[pid], params) for pid in first)
+    assert set(sitar.detect(features)) == {p for p, t in first.items() if t >= sitar.TAU_THRESHOLD}

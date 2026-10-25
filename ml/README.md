@@ -532,6 +532,8 @@ only; the module docstring records every step, including the two versions that d
 | **v1 rule** | **0.567** | 36 | **21** | 34 |
 | timing fit | 0.477 | **44** | 69 | **26** |
 | v1 or a timing flag of 1.8+ years | 0.554 | 39 | 31 | 31 |
+| v1 or a SITAR timing flag of 1.4+ years (2026-10-25) | 0.549 | 39 | 33 | 31 |
+| SITAR timing fit alone, 1.4+ years | 0.346 | 19 | 20 | 51 |
 
 The timing fit finds more late bloomers and accuses three times as many other children, so
 **v1 stays**. The likeliest reason is the reference curve: it is cross-sectional, a median of
@@ -539,6 +541,26 @@ children caught at different points in their spurts, and so flatter than any one
 Fitted against it, the planted late bloomers (delayed 1.3 to 2.6 years) came out at a median of
 0.85. Real SITAR fits the curve and the shifts together, and has more years per child than the
 14 to 40 months the synthetic data follows. Both are where to start if this is picked up again.
+
+**Picked up again on 2026-10-25, and it lost again** (`challengers/sitar.py`). This one fits the
+curve and every child's shift and size together, re-estimating the curve from everyone's
+aligned readings until it settles, as SITAR proper does. Its threshold was chosen on seeds 101,
+202 and 303 (best there: v1 or a fitted delay of 1.4+ years, 0.585 against v1's 0.557, the best
+of eight thresholds) and committed before the reported seeds were run once. Reported, it adds 3
+late bloomers and 12 false alarms, and v1 stays.
+
+The finding worth keeping: the joint curve moved the planted late bloomers' fitted delay only
+from about 0.85 years to about 1.05 (0.95 to 1.12 by seed), against true delays of 1.3 to 2.6.
+The curve was not what held it back. Over 14 to 40 months of readings per child, the prior that
+keeps a small child on time from reading as a big child running late pulls every timing estimate
+toward zero. That held even though the generator grows children exactly as SITAR assumes (a
+size factor and a time shift of one curve), so this was the method's best case; real children,
+whose curves also differ in shape, would do no better. **Timing needs more years of readings per
+child, not a cleverer fit over the same short records.** That is a practical recommendation as
+much as a modelling one: measure at intake and keep measuring.
+
+    python -m ml.challengers.sitar --seed-sweep 101 202 303 --thresholds 0.6 0.8 1.0 1.2 1.4 1.6 1.8 2.0
+    python -m ml.challengers.sitar --seed-sweep 20260827 7 99 404 555
 
 ### What this says
 

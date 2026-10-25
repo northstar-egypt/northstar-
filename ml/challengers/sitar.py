@@ -1,4 +1,4 @@
-"""Late bloomers by growth timing, with the growth curve fitted too (SITAR proper).
+"""Late bloomers by growth timing, with the growth curve fitted too (SITAR proper). It lost too.
 
     python -m ml.challengers.sitar --seed-sweep 101 202 303            # calibration
     python -m ml.challengers.sitar --seed-sweep 20260827 7 99 404 555   # reported
@@ -42,8 +42,28 @@ Tuning
 ------
 Only `TAU_THRESHOLD`, and whether to combine with v1, are chosen, on seeds 101, 202 and 303.
 The priors and grid are `tempo_fit`'s, unchanged, and the curve settings below were set by
-reasoning before the first run. Reported seeds are run once, with everything frozen. The results
-are in ml/README.md, "Late bloomers by growth timing".
+reasoning before the first run. Reported seeds are run once, with everything frozen; the frozen
+threshold was committed before that run.
+
+Calibration (mean F1; best of eight thresholds, so optimistic): v1 0.557; SITAR alone at best
+0.505 (tau >= 0.6); v1 or SITAR tau >= 1.4, 0.585.
+
+Reported seeds, run once (mean F1, pooled TP / FP / FN over five datasets):
+
+    v1 rule                    0.567    36 / 21 / 34
+    v1 or SITAR tau >= 1.4     0.549    39 / 33 / 31
+    SITAR tau >= 1.4 alone     0.346    19 / 20 / 51
+
+So v1 stays. Three more late bloomers found for twelve more children wrongly flagged.
+
+What it shows: fitting the curve jointly moved the planted late bloomers' fitted delay only from
+a median of about 0.85 years (fixed curve) to about 1.05 (0.95 to 1.12 by seed), against true
+delays of 1.3 to 2.6. The curve was not the main thing holding the estimate back. Over the 14 to
+40 months of readings each child has, the prior on timing, which is what keeps a small child on
+time from reading as a big child running late, pulls every estimate toward zero. That is so even
+though this method fits the very model the data was drawn from. On real children, with curves
+that also differ in shape, it would do no better. More years of readings per child is what
+timing needs; a cleverer fit over the same short records is not.
 
 Standard library only, like the v1 detectors.
 """
