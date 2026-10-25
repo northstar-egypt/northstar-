@@ -50,6 +50,10 @@ export default function SearchPage() {
   const usesTier = sportModule ? sportModule.usesTier : true;
   const asksSex = (sportModule?.genders.length ?? 0) > 1;
   const [results, setResults] = useState<SearchResult[] | null>(null);
+  // Players ticked for comparison, kept across new searches so a scout can gather them.
+  const [picked, setPicked] = useState<string[]>([]);
+  const togglePick = (id: string) =>
+    setPicked((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < 4 ? [...ids, id] : ids));
   const [parsed, setParsed] = useState<ParsedQuery>({ chips: [] });
   const [busy, setBusy] = useState(false);
 
@@ -247,6 +251,28 @@ export default function SearchPage() {
                 <span className="text-xs text-slate-600">sorted by relevance</span>
               </div>
 
+              {picked.length > 0 ? (
+                <Card className="flex flex-wrap items-center justify-between gap-2 border-sky-800">
+                  <span className="text-sm text-slate-300">
+                    {picked.length} of up to 4 picked to compare
+                    {picked.length < 2 ? ": pick at least one more" : ""}
+                  </span>
+                  <span className="flex gap-2">
+                    <button className="text-xs text-slate-500 hover:text-slate-300" onClick={() => setPicked([])}>
+                      Clear
+                    </button>
+                    {picked.length >= 2 ? (
+                      <Link
+                        href={`/compare?players=${picked.map(encodeURIComponent).join(",")}`}
+                        className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-sky-500"
+                      >
+                        Compare {picked.length}
+                      </Link>
+                    ) : null}
+                  </span>
+                </Card>
+              ) : null}
+
               {results.map((r) => (
                 <Card key={r.player.id} className={r.withheld ? "border-dashed" : undefined}>
                   <div className="flex flex-wrap items-start gap-3">
@@ -263,9 +289,23 @@ export default function SearchPage() {
                             {r.player.fullName}
                           </Link>
                         )}
-                        <Chip tone={r.matchScore > 0.9 ? "brand" : "default"} title="Similarity score, not a probability.">
-                          {pct(r.matchScore)} match
-                        </Chip>
+                        <span className="flex items-center gap-2">
+                          {!r.withheld ? (
+                            <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-400">
+                              <input
+                                type="checkbox"
+                                checked={picked.includes(r.player.id)}
+                                disabled={!picked.includes(r.player.id) && picked.length >= 4}
+                                onChange={() => togglePick(r.player.id)}
+                                aria-label={`Pick ${r.player.fullName} to compare`}
+                              />
+                              compare
+                            </label>
+                          ) : null}
+                          <Chip tone={r.matchScore > 0.9 ? "brand" : "default"} title="Similarity score, not a probability.">
+                            {pct(r.matchScore)} match
+                          </Chip>
+                        </span>
                       </div>
 
                       <span className="text-xs text-slate-500">

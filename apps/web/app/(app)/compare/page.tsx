@@ -26,10 +26,13 @@ import {
   Td,
   Th,
 } from "@/components/ui";
-import { useSearchParams } from "next/navigation";
-import { getComparison, getRadar } from "@/lib/api";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getComparison, getRadar, search } from "@/lib/api";
 import { cx } from "@/lib/format";
-import type { Comparison, PlayerRadar } from "@/lib/types";
+import type { Comparison, PlayerRadar, SearchResult } from "@/lib/types";
+
+/** The API compares two to four players (routers/comparison.py, MAX_PLAYERS). */
+const MAX_PLAYERS = 4;
 
 export default function ComparePage() {
   const [basis, setBasis] = useState<"age" | "maturity">("age");
@@ -41,8 +44,14 @@ export default function ComparePage() {
   const params = useSearchParams();
   const playerIds = useMemo(() => {
     const raw = params.getAll("players").flatMap((value) => value.split(","));
-    return raw.map((value) => value.trim()).filter(Boolean);
+    return Array.from(new Set(raw.map((value) => value.trim()).filter(Boolean)));
   }, [params]);
+
+  // Adding or removing a player rewrites the address, so a comparison can still be shared or
+  // bookmarked, and the effect below loads it like any other.
+  const router = useRouter();
+  const setPlayers = (ids: string[]) =>
+    router.replace(ids.length ? `/compare?players=${ids.map(encodeURIComponent).join(",")}` : "/compare");
 
   useEffect(() => {
     let alive = true;
@@ -52,8 +61,8 @@ export default function ComparePage() {
     if (playerIds.length < 2) {
       setError(
         playerIds.length === 0
-          ? "Pick players to compare from a player profile or from search."
-          : "Comparison needs at least two players. Add another from search.",
+          ? "Add two to four players to compare: search for them below, or use Compare on a profile or in search."
+          : "Comparison needs at least two players. Add another below.",
       );
       return;
     }
@@ -68,9 +77,23 @@ export default function ComparePage() {
 
   if (error) {
     return (
-      <Card>
-        <p className="text-sm text-slate-400">{error}</p>
-      </Card>
+      <div className="flex flex-col gap-4">
+        <h1 className="text-xl font-bold tracking-tight">Compare players</h1>
+        <Card>
+          <p className="text-sm text-slate-400">{error}</p>
+        </Card>
+        {playerIds.length > 0 ? (
+          <Card className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span className="text-slate-400">
+              {playerIds.length} player{playerIds.length === 1 ? "" : "s"} chosen so far.
+            </span>
+            <button className="text-xs text-slate-500 hover:text-slate-300" onClick={() => setPlayers([])}>
+              Start over
+            </button>
+          </Card>
+        ) : null}
+        <PlayerPicker exclude={playerIds} onPick={(id) => setPlayers([...playerIds, id])} />
+      </div>
     );
   }
 
@@ -104,9 +127,17 @@ export default function ComparePage() {
         <>
           {data.caveat ? <Banner tone="warn">{data.caveat}</Banner> : null}
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {data.players.map((entry) => (
-              <Card key={entry.player.id} className="flex items-center gap-3">
+              <Card key={entry.player.id} className="relative flex items-center gap-3">
+                <button
+                  className="absolute right-2 top-2 rounded px-1.5 text-sm text-slate-500 hover:bg-slate-800 hover:text-rose-300"
+                  onClick={() => setPlayers(playerIds.filter((id) => id !== entry.player.id))}
+                  aria-label={`Remove ${entry.player.fullName} from the comparison`}
+                  title="Remove from the comparison"
+                >
+                  ×
+                </button>
                 <Avatar size={40} />
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{entry.player.fullName}</p>
@@ -122,10 +153,12 @@ export default function ComparePage() {
                 </div>
               </Card>
             ))}
-            {data.players.length < 3 ? (
-              <Card className="flex items-center justify-center border-dashed text-sm text-slate-600">
-                Add a third player
-              </Card>
+            {data.players.length < MAX_PLAYERS ? (
+              <PlayerPicker
+                exclude={playerIds}
+                onPick={(id) => setPlayers([...playerIds, id])}
+                compact
+              />
             ) : null}
           </div>
 
@@ -219,10 +252,6 @@ export default function ComparePage() {
           <Card className="border-dashed">
             <SectionTitle>Not built</SectionTitle>
             <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-slate-500">
-              <li>
-                Choosing which players to compare. The pair is fixed here until search can hand
-                a selection to this screen.
-              </li>
               <li>
                 Metric direction is carried in the response. It should come from metric
                 definitions in packages/shared so every screen agrees.
@@ -319,6 +348,81 @@ function CompareRadar({ players }: { players: { id: string; name: string; sport:
             </div>
           );
         })()
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Find a player by name and add them. Uses the same search as the Search screen, so it only
+ * offers players the viewer may open; a withheld result is never offered.
+ */
+function PlayerPicker({
+  exclude,
+  onPick,
+  compact = false,
+}: {
+  exclude: string[];
+  onPick: (id: string) => void;
+  compact?: boolean;
+}) {
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState<SearchResult[] | null>(null);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setFound(null);
+      return;
+    }
+    let alive = true;
+    const timer = setTimeout(() => {
+      search(q)
+        .then((res) => alive && setFound(res.results.filter((r) => !r.withheld && !exclude.includes(r.player.id)).slice(0, 6)))
+        .catch(() => alive && setFound([]));
+    }, 300);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [query, exclude]);
+
+  return (
+    <Card className={cx("flex flex-col gap-2", compact && "border-dashed")}>
+      <label className="text-xs uppercase tracking-[0.12em] text-slate-500" htmlFor="compare-add">
+        Add a player
+      </label>
+      <input
+        id="compare-add"
+        dir="auto"
+        className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-sky-500 focus:outline-none"
+        placeholder="Type a name"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {found === null ? null : found.length === 0 ? (
+        <p className="text-xs text-slate-500">No players you may open match that.</p>
+      ) : (
+        <ul className="flex flex-col">
+          {found.map((r) => (
+            <li key={r.player.id}>
+              <button
+                className="flex w-full items-baseline justify-between gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-800"
+                onClick={() => {
+                  onPick(r.player.id);
+                  setQuery("");
+                }}
+              >
+                <span className="truncate text-slate-100" dir="auto">
+                  {r.player.fullName}
+                </span>
+                <span className="shrink-0 text-xs text-slate-500">
+                  {r.player.position ?? ""} {r.ageLabel}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </Card>
   );
