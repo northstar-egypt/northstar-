@@ -796,6 +796,10 @@ def test_federation_imports_table_tennis_results(sign_in, page, identities, tmp_
     page.get_by_text("3. Imported").wait_for(timeout=15000)
     assert "2 match records written" in text_of(page)
 
+    # The event is kept with the match and shown on the player's profile.
+    page.goto(f"{WEB_URL}/players/{a['id']}", wait_until="load")
+    page.get_by_text("E2E Test Open").first.wait_for(timeout=20000)
+
 
 def test_oversight_shows_coverage_for_every_governorate(sign_in, page):
     """All 27 governorates, with the ones the platform has not reached marked as such."""

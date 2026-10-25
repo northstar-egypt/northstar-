@@ -89,6 +89,8 @@ class PerformanceEntryOut(CamelModel):
     period_type: str
     period_start: date
     period_end: date | None = None
+    # The competition or tournament, when known.
+    event: str | None = None
     metrics: dict = {}
     schema_ref: str
     source: str

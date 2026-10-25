@@ -69,6 +69,8 @@ export interface PerformanceEntry {
   periodType: "match" | "session" | "tournament" | "season_aggregate";
   periodStart: string;
   periodEnd?: string | null;
+  /** The competition or tournament, when known. */
+  event?: string | null;
   metrics: Record<string, number>;
   schemaRef: string;
   source: DataSource;

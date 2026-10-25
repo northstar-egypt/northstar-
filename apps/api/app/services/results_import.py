@@ -32,8 +32,8 @@ import that checks the file again from scratch and saves the ready rows in one t
   is safe. Men and women are never matched against each other.
 - One audit record per import: who, how many rows of each kind, and the events named.
 
-TODO: the event name is shown and audited but not stored with the match; the match record has
-no field for it, and adding one is a schema change.
+The event is stored with each match record (`PerformanceEntry.event`) and shown on the
+profile.
 """
 
 from __future__ import annotations
@@ -55,6 +55,7 @@ from app.services.imports import _looks_like_formula, _read
 
 SCHEMA_REF = "table_tennis.match.v1"
 MAX_ROWS = 500
+MAX_EVENT = 200
 
 COLUMNS: dict[str, str] = {
     "date": "Date of the match, YYYY-MM-DD (required)",
@@ -223,6 +224,8 @@ def preview(db: Session, text: str, today: date | None = None) -> Preview:
             row.problems.append("The row has more cells than there are columns.")
         if any(_looks_like_formula(v) for k, v in cells.items() if k != "games"):
             row.problems.append("A cell starts like a spreadsheet formula (= + - @).")
+        if len(row.event) > MAX_EVENT:
+            row.problems.append(f"The event name is longer than {MAX_EVENT} characters.")
 
         try:
             row.played_on = date.fromisoformat(cells.get("date", ""))
@@ -315,6 +318,7 @@ def commit(db: Session, *, text: str, actor_user_id, today: date | None = None) 
                 period_start=row.played_on,
                 organization_id=_club(db, player),
                 opponent_player_id=opponent.id if opponent else None,
+                event=row.event or None,
                 metrics=metrics,
                 schema_ref=SCHEMA_REF,
                 source=PerformanceSource.IMPORT.value,
