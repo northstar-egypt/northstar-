@@ -463,7 +463,9 @@ def purge_merged_player_flags(db: Session) -> int:
     merged = select(Player.id).where(Player.status == PlayerStatus.MERGED)
     flags = list(
         db.execute(
-            select(Flag).where(Flag.player_id.in_(merged)).where(Flag.status.in_(LIVE_STATUSES))
+            # A duplicate case naming a merged record as its second record counts too: the
+            # pair is already resolved.
+            select(Flag).where(about(merged)).where(Flag.status.in_(LIVE_STATUSES))
         ).scalars()
     )
     for flag in flags:

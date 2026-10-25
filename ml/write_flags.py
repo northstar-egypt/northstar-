@@ -296,6 +296,11 @@ def _run(args: argparse.Namespace) -> int:
         # Duplicates. Written once per pair rather than once per record, with the partner on
         # `related_player_id` so the integrity board can render the field-by-field diff.
         for (a, b), reason in duplicate.detect_pairs(features).items():
+            # A merged record is a duplicate already resolved. The detector does not read
+            # status (so its evaluation cannot score by reading the answer), but a case naming
+            # one could not be acted on: there is nothing left to merge.
+            if any(features.players[pid].player.get("status") == "merged" for pid in (a, b)):
+                continue
             raise_flag(
                 a,
                 flag_type=FlagType.DUPLICATE.value,

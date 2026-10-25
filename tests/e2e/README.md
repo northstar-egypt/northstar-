@@ -50,7 +50,9 @@ pytest tests/e2e
 `test_the_demo_flow_on_one_player` is the whole sentence on one player, in the order
 `docs/demo.md` gives it: a coach registers a seeded boy a second time, a scout finds both
 records, the detector run (`python -m ml.write_flags --from-database`, which the test starts
-itself) raises a duplicate flag, and the federation confirms it with a reason. Before giving
+itself) raises a duplicate flag, and the federation confirms it with a reason, which merges
+the two records (decision 0006). The test then undoes the merge from the kept record's
+profile and checks both records are back. Before giving
 the demo by hand, run `python tests/e2e/demo_check.py`.
 
 The add-player tests really save. Each run adds two players to the coach's academy, named

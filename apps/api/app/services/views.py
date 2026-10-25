@@ -29,7 +29,7 @@ from app.models.organization import Organization
 from app.models.performance_entry import PerformanceEntry
 from app.models.player import Player
 from app.models.player_organization import PlayerOrganization
-from app.services import cohort, flags, forecast, rating
+from app.services import cohort, flags, forecast, merge, rating
 from app.services.access import (
     Caller,
     consent_complete,
@@ -319,6 +319,14 @@ def build_profile(db: Session, caller: Caller, player: Player) -> dict:
         ),
         "flags": visible_flags,
         "flag_reason": visible_reason,
+        # Records merged into this one (services/merge.py). Integrity information, so shown to
+        # the roles that see flags; only reviewers may undo a merge.
+        "merged_records": [
+            {**row, "undoable": row["undoable"] and (caller.is_federation or caller.is_admin)}
+            for row in merge.merged_into(db, player.id)
+        ]
+        if granted["can_see_flags"]
+        else [],
         "provenance": {
             "measurement_count": measurement_count,
             "performance_count": performance_count,

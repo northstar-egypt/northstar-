@@ -492,3 +492,16 @@ def test_flags_against_merged_records_are_closed(db, raise_flag, world):
     closed = flag_service.purge_merged_player_flags(db)
     assert closed == 1
     assert db.get(Flag, flag.id).status == FlagStatus.DISMISSED.value
+
+
+def test_a_duplicate_case_naming_a_merged_record_is_closed(db, raise_flag, world):
+    """Stored against the active record, naming the merged one: the pair is already resolved."""
+    from app.models.enums import PlayerStatus
+
+    flag, _ = raise_flag("adult_a", flag_type=FlagType.DUPLICATE.value, related="adult_b")
+    world["players"]["adult_b"].status = PlayerStatus.MERGED.value
+    world["players"]["adult_b"].merged_into = world["players"]["adult_a"].id
+    db.flush()
+
+    assert flag_service.purge_merged_player_flags(db) == 1
+    assert db.get(Flag, flag.id).status == FlagStatus.DISMISSED.value

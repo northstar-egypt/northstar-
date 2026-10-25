@@ -190,11 +190,17 @@ export async function getSquad(organizationId?: string): Promise<SquadRow[]> {
  * a child without scouting consent that is the disclosure the rule exists to prevent. This
  * function must not try to be more helpful than that.
  */
-export async function getProfile(playerId: string): Promise<PlayerProfile | null> {
+export async function getProfile(
+  playerId: string,
+): Promise<PlayerProfile | { mergedInto: string } | null> {
   try {
     return await request<PlayerProfile>(`/players/${encodeURIComponent(playerId)}/profile`);
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
+    if (error instanceof ApiError && error.status === 404) {
+      // A record merged into another says which, when the caller may open that one.
+      const into = (error.detail as { mergedInto?: unknown } | null)?.mergedInto;
+      return typeof into === "string" ? { mergedInto: into } : null;
+    }
     throw error;
   }
 }
@@ -535,9 +541,19 @@ export async function decideFlag(
   flagId: string,
   decision: "confirmed" | "dismissed" | "needs_info",
   reason: string,
+  /** Confirming a duplicate merges its records; this is the one to keep. */
+  keepPlayerId?: string,
 ): Promise<IntegrityFlag> {
   return request<IntegrityFlag>(
     `/integrity/flags/${encodeURIComponent(flagId)}/decision`,
-    { method: "POST", body: JSON.stringify({ decision, reason }) },
+    { method: "POST", body: JSON.stringify({ decision, reason, keepPlayerId }) },
   );
+}
+
+/** Undo a merge: the merged record's history goes back to it and the case reopens. */
+export async function undoMerge(mergedId: string, reason: string): Promise<void> {
+  await request<void>(`/integrity/merges/${encodeURIComponent(mergedId)}/undo`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
 }
