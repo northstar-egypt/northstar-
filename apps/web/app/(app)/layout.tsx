@@ -55,9 +55,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <footer className="border-t border-slate-900 px-4 py-3">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
           <ApiStatus />
-          <span className="text-xs text-slate-600">
-            Wireframes in <span className="font-mono">docs/wireframes</span>
-          </span>
         </div>
       </footer>
     </div>

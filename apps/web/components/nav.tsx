@@ -31,7 +31,7 @@ export function Nav() {
   });
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5">
         <Link href={homeFor(user.role, user.linkedPlayerId)} className="flex items-center gap-2 font-bold tracking-tight">
           <span className="inline-block h-2.5 w-2.5 rotate-45 bg-sky-400" aria-hidden />

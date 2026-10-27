@@ -75,13 +75,6 @@ export default function OversightPage() {
           <Link href="/results/import">
             <Button variant="ghost">Import table tennis results</Button>
           </Link>
-          <Button
-            variant="ghost"
-            title="A national export of minors' data is the highest risk action in the product. Not built."
-            disabled
-          >
-            Export
-          </Button>
         </div>
       </div>
 
@@ -122,9 +115,11 @@ export default function OversightPage() {
           <SectionTitle>Players by age and tier</SectionTitle>
           <StackedAges rows={data.byAgeTier} />
           <p className="mt-3 text-xs text-slate-500">
-            The professional tier only begins to appear at 16, which is expected. A collapse in
-            the youth bars before then would mean the platform is losing players, not that the
-            players stopped existing.
+            {firstPro(data.byAgeTier) !== null
+              ? `The professional tier begins at ${firstPro(data.byAgeTier)} here, which is expected. `
+              : ""}
+            A collapse in the youth bars before then would mean the platform is losing players,
+            not that the players stopped existing.
           </p>
         </Card>
       </div>
@@ -196,4 +191,10 @@ export default function OversightPage() {
       </Card>
     </div>
   );
+}
+
+/** The youngest age with a professional player, read from the data rather than assumed. */
+function firstPro(rows: { age: number; pro: number }[]): number | null {
+  const row = rows.find((r) => r.pro > 0);
+  return row ? row.age : null;
 }

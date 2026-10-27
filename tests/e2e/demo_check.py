@@ -101,6 +101,17 @@ def main() -> int:
     print(f"       the coach's academy is {coach['organizationName']}")
     scout = signed_in(identities["scout"]["email"], identities["scout"]["demoPassword"])
 
+    # Leftovers from the browser tests, which add players to this coach's academy on every run
+    # (named "E2E ...", and second entries of the test flow's player). They fill the squad and
+    # the integrity queue an audience would see.
+    squad = get(f"{API}/players", signed_in(coach["email"], coach["demoPassword"]))
+    leftovers = [r for r in squad if r["player"]["fullName"].startswith("E2E ")
+                 or r["player"]["fullName"] == "مروان فؤاد"]
+    report(None if leftovers else True,
+           f"{len(leftovers)} test players in the coach's squad of {len(squad)}"
+           if leftovers else f"no test players in the coach's squad ({len(squad)} players)",
+           "reset the data before presenting (docs/demo.md, After a rehearsal)")
+
     # 3. Which demo player: the first whose second entry has not been made yet.
     chosen = None
     for full, typed, born, position in DEMO_PLAYERS:

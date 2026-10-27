@@ -276,7 +276,7 @@ export default function SearchPage() {
               {results.map((r) => (
                 <Card key={r.player.id} className={r.withheld ? "border-dashed" : undefined}>
                   <div className="flex flex-wrap items-start gap-3">
-                    <Avatar size={44} />
+                    <Avatar size={44} name={r.withheld ? null : r.player.fullName} />
                     <div className="flex min-w-[12rem] flex-1 flex-col gap-1.5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         {r.withheld ? (

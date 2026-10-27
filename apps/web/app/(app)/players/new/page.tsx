@@ -17,7 +17,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Banner, Button, Card, Chip, Label, SectionTitle, inputClass } from "@/components/ui";
+import { Banner, Button, Card, Chip, Label, inputClass } from "@/components/ui";
 import { createPlayer, getSports, writeRefusal, type MeasurementWarning } from "@/lib/api";
 import { ageLabel, isMinorFrom } from "@/lib/format";
 import type { SportModule } from "@/lib/types";
@@ -447,19 +447,9 @@ export default function NewPlayerPage() {
             </Button>
           </div>
 
-          <p className="text-center text-xs text-slate-600">
-            Offline saving is drawn in the wireframe and not built. It needs a service worker, a
-            local queue, and a conflict story, so it is a decision rather than a detail.
-          </p>
         </Card>
       )}
 
-      <Card className="border-dashed">
-        <SectionTitle>Not built on this screen</SectionTitle>
-        <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-slate-500">
-          <li>Editing an existing player. Same form, loaded with values, once the API can serve one.</li>
-        </ul>
-      </Card>
     </div>
   );
 }

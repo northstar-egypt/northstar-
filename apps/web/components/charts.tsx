@@ -11,8 +11,33 @@
  * showing uncertainty rather than hiding it.
  */
 
+import { useEffect, useRef, useState } from "react";
 import type { GrowthSeries } from "@/lib/types";
 import { ordinal, shortDate } from "@/lib/format";
+
+/**
+ * The width a chart is actually drawn at, in CSS pixels, so its SVG can use one unit per pixel.
+ * A fixed viewBox stretched to the card scales the text with it: 9-unit labels came out at 19 px
+ * on a wide card and 5 px on a phone. Drawn at its real width, a label is the size it says.
+ */
+function useDrawnWidth(fallback: number) {
+  const ref = useRef<HTMLElement>(null);
+  const [width, setWidth] = useState(fallback);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const w = Math.round(entry.contentRect.width);
+      if (w > 0) setWidth(w);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
+/** Axis text, in pixels now that charts are drawn one unit per pixel. */
+const AXIS_FONT = 11;
 
 /* ------------------------------------------------------------------ sparkline */
 
@@ -72,7 +97,7 @@ export function Sparkline({
  * drawn as a cone. Three layers, one frame, because the comparison between them is the point.
  */
 export function GrowthChart({ series, height = 220 }: { series: GrowthSeries; height?: number }) {
-  const width = 640;
+  const [box, width] = useDrawnWidth(640);
   const pad = { top: 12, right: 14, bottom: 24, left: 34 };
 
   const all = [
@@ -117,7 +142,7 @@ export function GrowthChart({ series, height = 220 }: { series: GrowthSeries; he
   const ticks = [min, Math.round((min + max) / 2), max];
 
   return (
-    <figure className="m-0">
+    <figure ref={box} className="m-0">
       <svg
         viewBox={`0 0 ${width} ${height}`}
         className="w-full"
@@ -134,7 +159,7 @@ export function GrowthChart({ series, height = 220 }: { series: GrowthSeries; he
               stroke="#1e293b"
               strokeWidth="1"
             />
-            <text x={4} y={y(t) + 3} fill="#64748b" fontSize="9">
+            <text x={4} y={y(t) + 3} fill="#64748b" fontSize={AXIS_FONT}>
               {t}
             </text>
           </g>
@@ -177,15 +202,15 @@ export function GrowthChart({ series, height = 220 }: { series: GrowthSeries; he
           />
         ) : null}
 
-        <text x={pad.left} y={height - 6} fill="#64748b" fontSize="9">
+        <text x={pad.left} y={height - 6} fill="#64748b" fontSize={AXIS_FONT}>
           {shortDate(dates[0])}
         </text>
         {hasForecast && series.forecastFrom ? (
-          <text x={x(series.forecastFrom)} y={height - 6} fill="#94a3b8" fontSize="9" textAnchor="middle">
+          <text x={x(series.forecastFrom)} y={height - 6} fill="#94a3b8" fontSize={AXIS_FONT} textAnchor="middle">
             today
           </text>
         ) : null}
-        <text x={width - pad.right} y={height - 6} fill="#64748b" fontSize="9" textAnchor="end">
+        <text x={width - pad.right} y={height - 6} fill="#64748b" fontSize={AXIS_FONT} textAnchor="end">
           {shortDate(dates[dates.length - 1])}
         </text>
       </svg>
@@ -327,22 +352,27 @@ export function StackedAges({
 }: {
   rows: { age: number; pro: number; youth: number; diaspora: number }[];
 }) {
-  const max = Math.max(...rows.map((r) => r.pro + r.youth + r.diaspora));
+  const max = Math.max(1, ...rows.map((r) => r.pro + r.youth + r.diaspora));
+  const share = (part: number, total: number) => `${total ? (part / total) * 100 : 0}%`;
   return (
     <div>
-      <div className="flex h-40 items-end gap-2">
+      {/* Each column is full height, and the bar sits in the space above the age label. A bar
+          sized in percent needs a parent with a height; without one every bar was 0 px tall. */}
+      <div className="flex h-40 gap-1 sm:gap-2">
         {rows.map((r) => {
           const total = r.pro + r.youth + r.diaspora;
           return (
-            <div key={r.age} className="flex flex-1 flex-col items-center gap-1">
-              <div
-                className="flex w-full flex-col-reverse justify-start"
-                style={{ height: `${(total / max) * 100}%` }}
-                title={`age ${r.age}: ${total} players`}
-              >
-                <div className="w-full bg-sky-500/80" style={{ height: `${(r.youth / total) * 100}%` }} />
-                <div className="w-full bg-emerald-500/80" style={{ height: `${(r.pro / total) * 100}%` }} />
-                <div className="w-full bg-amber-500/80" style={{ height: `${(r.diaspora / total) * 100}%` }} />
+            <div key={r.age} className="flex h-full min-w-0 flex-1 flex-col items-center gap-1">
+              <div className="flex w-full flex-1 items-end">
+                <div
+                  className="flex w-full flex-col-reverse"
+                  style={{ height: share(total, max) }}
+                  title={`age ${r.age}: ${total} players (${r.youth} youth, ${r.pro} pro, ${r.diaspora} diaspora)`}
+                >
+                  <div className="w-full bg-sky-500/80" style={{ height: share(r.youth, total) }} />
+                  <div className="w-full bg-emerald-500/80" style={{ height: share(r.pro, total) }} />
+                  <div className="w-full bg-amber-500/80" style={{ height: share(r.diaspora, total) }} />
+                </div>
               </div>
               <span className="text-[0.65rem] tabular-nums text-slate-500">{r.age}</span>
             </div>
@@ -367,45 +397,65 @@ export function OverlaidGrowth({
   series: { playerId: string; points: { date: string; value: number }[] }[];
   labels: string[];
 }) {
-  const width = 520;
-  const height = 180;
-  const pad = { top: 10, right: 12, bottom: 20, left: 30 };
-  const colors = ["#38bdf8", "#f59e0b", "#a78bfa"];
+  const [box, width] = useDrawnWidth(520);
+  const height = 240;
+  const pad = { top: 12, right: 14, bottom: 24, left: 34 };
+  // One per player; Compare takes up to four.
+  const colors = ["#38bdf8", "#f59e0b", "#a78bfa", "#34d399"];
 
   const all = series.flatMap((s) => s.points.map((p) => p.value));
   const min = Math.floor(Math.min(...all) - 2);
   const max = Math.ceil(Math.max(...all) + 2);
-  const dates = series[0]?.points.map((p) => new Date(p.date).getTime()) ?? [];
-  const t0 = Math.min(...dates);
-  const t1 = Math.max(...dates);
+  // The time axis spans every player's readings, not only the first player's.
+  const times = series.flatMap((s) => s.points.map((p) => new Date(p.date).getTime()));
+  const t0 = Math.min(...times);
+  const t1 = Math.max(...times);
 
   const x = (iso: string) =>
     pad.left + ((new Date(iso).getTime() - t0) / (t1 - t0 || 1)) * (width - pad.left - pad.right);
   const y = (v: number) =>
     pad.top + (1 - (v - min) / (max - min || 1)) * (height - pad.top - pad.bottom);
+  const ticks = [min, Math.round((min + max) / 2), max];
 
   return (
-    <figure className="m-0">
+    <figure ref={box} className="m-0">
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" role="img" aria-label="Growth curves compared">
-        {[min, max].map((t) => (
+        {ticks.map((t) => (
           <g key={t}>
             <line x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)} stroke="#1e293b" />
-            <text x={2} y={y(t) + 3} fill="#64748b" fontSize="9">{t}</text>
+            <text x={4} y={y(t) + 4} fill="#64748b" fontSize={AXIS_FONT}>{t}</text>
           </g>
         ))}
         {series.map((s, i) => (
-          <path
-            key={s.playerId}
-            d={s.points.map((p, j) => `${j === 0 ? "M" : "L"}${x(p.date).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ")}
-            fill="none"
-            stroke={colors[i % colors.length]}
-            strokeWidth="2"
-          />
+          <g key={s.playerId} color={colors[i % colors.length]}>
+            <path
+              d={s.points.map((p, j) => `${j === 0 ? "M" : "L"}${x(p.date).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ")}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            />
+            {/* Each reading as a dot, so a player with one reading is still drawn. */}
+            {s.points.map((p) => (
+              <circle key={p.date} cx={x(p.date)} cy={y(p.value)} r="3" fill="currentColor" />
+            ))}
+          </g>
         ))}
+        {times.length ? (
+          <>
+            <text x={pad.left} y={height - 6} fill="#64748b" fontSize={AXIS_FONT}>
+              {shortDate(new Date(t0).toISOString())}
+            </text>
+            {t1 > t0 ? (
+              <text x={width - pad.right} y={height - 6} fill="#64748b" fontSize={AXIS_FONT} textAnchor="end">
+                {shortDate(new Date(t1).toISOString())}
+              </text>
+            ) : null}
+          </>
+        ) : null}
       </svg>
       <figcaption className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
         {labels.map((l, i) => (
-          <span key={l} className="flex items-center gap-1.5">
+          <span key={`${l}-${i}`} className="flex items-center gap-1.5">
             <span className="inline-block h-0.5 w-4" style={{ background: colors[i % colors.length] }} />
             {l}
           </span>

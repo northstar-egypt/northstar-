@@ -27,7 +27,7 @@ import {
 } from "@/components/ui";
 import { getSquad } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { STALE_DAYS, cx, daysLabel, isStale } from "@/lib/format";
+import { STALE_DAYS, cx, daysLabel, flagsByType, isStale, times } from "@/lib/format";
 import type { SquadRow } from "@/lib/types";
 
 type Filter = "all" | "overdue" | "consent" | "flagged" | "readings";
@@ -220,7 +220,7 @@ export default function DashboardPage() {
               {visible.map((r) => (
                 <tr key={r.player.id} className="hover:bg-slate-900/40">
                   <Td className="w-9">
-                    <Avatar size={28} />
+                    <Avatar size={28} name={r.player.fullName} />
                   </Td>
                   <Td>
                     <Link
@@ -270,9 +270,10 @@ function RowChips({ row }: { row: SquadRow }) {
           {row.heightReadingsNeeded === 1 ? "reading" : "readings"} needed
         </Chip>
       ) : null}
-      {row.flags.map((f) => (
+      {flagsByType(row.flags).map((f) => (
         <Chip key={f.type} tone={f.type === "consent" ? "warn" : "brand"}>
           {f.label}
+          {times(f.count)}
         </Chip>
       ))}
     </div>

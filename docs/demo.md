@@ -20,6 +20,11 @@ working on data that just arrived, and a human deciding with a reason that is ke
 
 ## Before you present
 
+If the browser tests (`pytest tests/e2e`) have run on this machine, reset the data first (see
+"After a rehearsal"). Each run adds test players named "E2E ..." to the demo coach's squad and
+duplicate cases to the integrity queue, and an audience would see them. The check below warns
+when they are there.
+
 1. Start the full stack, with the models:
 
    ```bash
