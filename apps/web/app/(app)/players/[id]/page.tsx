@@ -34,7 +34,9 @@ import {
 import {
   getPlayerEvents,
   getProfile,
+  getEventAnalysis,
   getRadar,
+  getSports,
   getSimilar,
   getSummary,
   logMeasurement,
@@ -46,6 +48,7 @@ import {
 import { canAccess, useAuth } from "@/lib/auth";
 import { cx, flagsByType, num, ordinal, shortDate, times } from "@/lib/format";
 import type {
+  EventAnalysis,
   MergedRecord,
   Opponent,
   PerformanceSection,
@@ -305,6 +308,7 @@ export default function PlayerProfilePage() {
 
       {data.player.primarySport === "football" ? <ShotMapCard playerId={playerId} /> : null}
       {data.player.primarySport === "table_tennis" ? <PointsCard playerId={playerId} /> : null}
+      <TaggedRateCard playerId={playerId} sport={data.player.primarySport} gender={data.player.sex ?? null} />
 
       {/* performance, laid out by the sport module */}
       {data.performance.length === 0 ? (
@@ -1266,4 +1270,49 @@ function inWords(metric: string, percentile: number, higherIsBetter: boolean): s
   // Where lower is better the percentile is turned round, so the sentence says the good way.
   const share = higherIsBetter ? percentile : 100 - percentile;
   return `${verbs[metric] ?? "better than"} ${Math.round(share)}% of`;
+}
+
+/**
+ * The player's own rate from tagged events (finishing; points by stroke), beside everyone's,
+ * from the sport module's first analysis (decision 0007). Shown only when they have attempts.
+ */
+function TaggedRateCard({ playerId, sport, gender }: { playerId: string; sport: string; gender: string | null }) {
+  const [data, setData] = useState<EventAnalysis | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getSports()
+      .then((all) => {
+        const key = all.find((m) => m.sport === sport)?.analyses?.[0]?.key;
+        return key ? getEventAnalysis(sport, key, { player: playerId, gender }) : null;
+      })
+      .then((d) => alive && setData(d))
+      .catch(() => alive && setData(null));
+    return () => {
+      alive = false;
+    };
+  }, [playerId, sport, gender]);
+
+  const me = data?.player;
+  if (!data || !me || me.attempts === 0) return null;
+  const pct = (r: number | null) => (r == null ? null : `${Math.round(r * 100)}%`);
+  return (
+    <Card>
+      <SectionTitle
+        action={
+          <Link href={`/explore/finishing?sport=${sport}&key=${data.key}&player=${playerId}`} className="text-xs text-sky-300 hover:underline">
+            See everyone
+          </Link>
+        }
+      >
+        {data.label}
+      </SectionTitle>
+      <p className="text-sm text-slate-300">
+        {me.successes} of {me.attempts} {data.rateLabel}
+        {me.rate != null ? `, ${pct(me.rate)}` : `; a rate needs ${data.minAttempts} attempts`}.{" "}
+        Everyone here: {pct(data.rate) ?? `${data.successes} of ${data.attempts}`}
+        {me.percentile != null ? `. ${ordinal(me.percentile)} percentile of ${data.qualifying} players with ${data.minAttempts} or more.` : "."}
+      </p>
+      <p className="mt-1 text-xs text-slate-500">{data.note}</p>
+    </Card>
+  );
 }

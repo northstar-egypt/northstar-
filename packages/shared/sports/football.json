@@ -103,6 +103,27 @@
           "on_target": { "label": "Saved", "counts": ["shots", "shots_on_target"] },
           "off_target": { "label": "Off target", "counts": ["shots"] },
           "blocked": { "label": "Blocked", "counts": ["shots"] }
+        },
+        "details": {
+          "placement": {
+            "label": "Where in the goal", "outcomes": ["goal", "on_target"], "grid": [2, 3],
+            "values": {
+              "top_left": "Top left", "top_middle": "Top middle", "top_right": "Top right",
+              "bottom_left": "Bottom left", "bottom_middle": "Bottom middle", "bottom_right": "Bottom right"
+            }
+          },
+          "technique": {
+            "label": "Technique",
+            "values": { "placed": "Placed", "power": "Power", "chip": "Chip", "header": "Header", "volley": "Volley" }
+          },
+          "situation": {
+            "label": "Situation",
+            "values": { "one_on_one": "One on one with the keeper", "open_play": "Open play", "set_piece": "Set piece", "penalty": "Penalty" }
+          },
+          "keeper_distance": {
+            "label": "Keeper's distance",
+            "values": { "under_3": "Under 3 yards", "from_3_to_6": "3 to 6 yards", "over_6": "Over 6 yards" }
+          }
         }
       },
       "pass": {
@@ -120,6 +141,12 @@
           "won": { "label": "Won", "counts": ["tackles"] },
           "lost": { "label": "Lost", "counts": [] }
         }
+      }
+    },
+    "analyses": {
+      "finishing": {
+        "label": "Finishing", "events": ["shot"], "success": ["shot.goal"],
+        "rateLabel": "scored", "minAttempts": 10
       }
     }
   }

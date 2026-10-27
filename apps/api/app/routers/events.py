@@ -29,6 +29,12 @@ class EventIn(CamelModel):
     x: float | None = None
     y: float | None = None
     video_seconds: float | None = None
+    # {detail: value} from the sport module, for example {"placement": "bottom_left"}.
+    details: dict[str, str] | None = None
+
+
+class DetailsIn(CamelModel):
+    details: dict[str, str]
 
 
 class EventOut(CamelModel):
@@ -43,6 +49,7 @@ class EventOut(CamelModel):
     x: float | None = None
     y: float | None = None
     video_seconds: float | None = None
+    details: dict[str, str] = {}
 
 
 class MatchPlayerOut(CamelModel):
@@ -116,6 +123,27 @@ def untag_event(
     events.remove(db, caller, event)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/events/{event_id}/details", response_model=EventOut)
+def set_event_details(
+    event_id: uuid.UUID,
+    payload: DetailsIn,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> EventOut:
+    """Replace a tag's details (where in the goal, technique...). Same rights as removing it."""
+    event = db.get(MatchEvent, event_id)
+    if event is None or not events.may_change(db, caller, event):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such event.")
+    try:
+        events.set_details(db, caller, event, payload.details)
+    except events.TagRejected as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error.problems
+        ) from None
+    db.commit()
+    return EventOut.model_validate(events.event_out(event))
 
 
 @router.get("/events", response_model=MatchTagsOut)

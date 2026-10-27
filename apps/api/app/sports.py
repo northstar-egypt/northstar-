@@ -41,6 +41,20 @@ A derived statistic can also be made searchable, which lets a scout ask for it i
               "keywords": ["...", ...] }      single words that mean it on their own
 
 A player matches when they are in the better quarter of their sport and tier for it.
+
+Tagged match events (`events`, decision 0005) can carry details a coach picks after the
+outcome, and the module says which rates are worth reading from them (decision 0007):
+
+  "details": { key: { "label": "...",
+                      "values": { value: label, ... },   ordered
+                      "outcomes": [outcome, ...],        optional: only these outcomes have it
+                      "grid": [rows, cols] } }           optional: values drawn as a grid,
+                                                         row by row (a goal mouth)
+  "analyses": { key: { "label": "...",
+                       "events": [type, ...],            what counts as an attempt
+                       "success": ["type" or "type.outcome", ...],
+                       "rateLabel": "...",               "scored", "won"
+                       "minAttempts": n } }              before a player's rate is shown
 """
 
 from __future__ import annotations
@@ -103,12 +117,49 @@ class EventOutcome:
 
 
 @dataclass(frozen=True)
+class EventDetail:
+    """Something a coach can add to a tagged event: where in the goal a shot went, the stroke
+    that won a point. Optional on every tag; a tag without it is still a tag."""
+
+    key: str
+    label: str
+    # value -> label, in the order the screen shows them.
+    values: dict[str, str]
+    # The outcomes this detail applies to; empty means all of them. Where a saved shot went in
+    # the goal is a detail of goals and saves, not of shots that missed.
+    outcomes: list[str] = field(default_factory=list)
+    # Drawn as rows x columns, values row by row (a goal mouth seen from the shooter), or None.
+    grid: tuple[int, int] | None = None
+
+
+@dataclass(frozen=True)
 class EventType:
     key: str
     label: str
     # The keyboard key the tagging screen binds to this type.
     shortcut: str
     outcomes: dict[str, EventOutcome]
+    details: dict[str, EventDetail] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class Analysis:
+    """A success rate read from tagged events: shots that became goals, points won. Broken
+    down by the details of its event types (services/event_analysis.py)."""
+
+    key: str
+    label: str
+    # The event types that count as an attempt.
+    events: list[str]
+    # What counts as a success: a whole type ("point_won") or one outcome ("shot.goal").
+    success: list[str]
+    # The verb for a success, for sentences: "scored", "won".
+    rate_label: str
+    # Attempts a player needs before their own rate is shown.
+    min_attempts: int
+
+    def is_success(self, event_type: str, outcome: str) -> bool:
+        return event_type in self.success or f"{event_type}.{outcome}" in self.success
 
 
 @dataclass(frozen=True)
@@ -130,6 +181,8 @@ class SportModule:
     events: dict[str, EventType] = field(default_factory=dict)
     # The match period whose totals the events' `counts` name.
     events_period: str | None = None
+    # Rates worth reading from the tagged events, by key.
+    analyses: dict[str, Analysis] = field(default_factory=dict)
 
 
 def default_modules_dir() -> Path:
@@ -240,6 +293,7 @@ def load_module(path: Path) -> SportModule:
                         f"{path.name}: {stat['key']} is searchable but no period describes "
                         f"what asking for it sounds like (search.describe)"
                     )
+        events = _events(path.name, raw.get("events"), periods)
         return SportModule(
             sport=raw["sport"],
             label=raw["label"],
@@ -249,8 +303,9 @@ def load_module(path: Path) -> SportModule:
             role_names=_role_names(path.name, raw["roles"]),
             genders=_genders(path.name, raw.get("genders", ["male", "female"])),
             periods=periods,
-            events=_events(path.name, raw.get("events"), periods),
+            events=events,
             events_period=(raw.get("events") or {}).get("matchPeriod"),
+            analyses=_analyses(path.name, (raw.get("events") or {}).get("analyses"), events),
         )
     except KeyError as exc:
         raise ModuleError(f"{path.name}: missing {exc}") from exc
@@ -282,8 +337,51 @@ def _events(name: str, raw: dict | None, periods: dict[str, Period]) -> dict[str
             outcomes[outcome] = EventOutcome(outcome, detail["label"], list(detail.get("counts", [])))
         if not outcomes:
             raise ModuleError(f"{name}: events.{key} has no outcomes")
-        types[key] = EventType(key, spec["label"], shortcut, outcomes)
+        types[key] = EventType(
+            key, spec["label"], shortcut, outcomes,
+            _details(name, key, spec.get("details") or {}, outcomes),
+        )
     return types
+
+
+def _details(name: str, kind: str, raw: dict, outcomes: dict) -> dict[str, EventDetail]:
+    details = {}
+    for key, spec in raw.items():
+        where = f"{name}: events.{kind}.details.{key}"
+        values = spec.get("values") or {}
+        if not values:
+            raise ModuleError(f"{where} has no values")
+        applies = list(spec.get("outcomes") or [])
+        unknown = set(applies) - set(outcomes)
+        if unknown:
+            raise ModuleError(f"{where}.outcomes names outcomes {kind} does not have: {sorted(unknown)}")
+        grid = spec.get("grid")
+        if grid is not None:
+            if len(grid) != 2 or grid[0] * grid[1] != len(values):
+                raise ModuleError(f"{where}.grid must be [rows, cols] covering its {len(values)} values")
+            grid = (int(grid[0]), int(grid[1]))
+        details[key] = EventDetail(key, spec["label"], dict(values), applies, grid)
+    return details
+
+
+def _analyses(name: str, raw: dict | None, events: dict[str, EventType]) -> dict[str, Analysis]:
+    out = {}
+    for key, spec in (raw or {}).items():
+        where = f"{name}: events.analyses.{key}"
+        kinds = list(spec.get("events") or [])
+        if not kinds or set(kinds) - set(events):
+            raise ModuleError(f"{where}.events must name event types of the module")
+        for item in spec.get("success") or []:
+            kind, _, outcome = item.partition(".")
+            if kind not in kinds or (outcome and outcome not in events[kind].outcomes):
+                raise ModuleError(f"{where}.success: {item!r} is not one of its events or their outcomes")
+        if not spec.get("success"):
+            raise ModuleError(f"{where} says nothing counts as a success")
+        out[key] = Analysis(
+            key, spec["label"], kinds, list(spec["success"]), spec.get("rateLabel", "succeeded"),
+            int(spec.get("minAttempts", 10)),
+        )
+    return out
 
 
 def _role_names(name: str, roles: dict) -> dict[str, str]:

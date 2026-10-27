@@ -23,6 +23,7 @@
 
 import type {
   AssistantAnswer,
+  EventAnalysis,
   ResultsImport,
   MatchEvent,
   MatchTags,
@@ -489,6 +490,27 @@ export interface EventInput {
 /** Save one event tagged from video. A 422 carries every reason in its message. */
 export async function tagEvent(input: EventInput): Promise<MatchEvent> {
   return request<MatchEvent>("/events", { method: "POST", body: JSON.stringify(input) });
+}
+
+/** Replace a tag's details (where in the goal, technique...): the coach adds them after the outcome. */
+export async function setEventDetails(eventId: string, details: Record<string, string>): Promise<MatchEvent> {
+  return request<MatchEvent>(`/events/${encodeURIComponent(eventId)}/details`, {
+    method: "PUT",
+    body: JSON.stringify({ details }),
+  });
+}
+
+/** GET /analysis/{sport}/{key}: finishing, points by stroke. Null on a question it cannot answer. */
+export async function getEventAnalysis(
+  sport: string,
+  key: string,
+  query: { gender?: string | null; group?: string | null; ageFrom?: number | null; ageTo?: number | null; player?: string | null } = {},
+): Promise<EventAnalysis> {
+  const params = new URLSearchParams();
+  for (const [name, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== "") params.set(name, String(value));
+  }
+  return request<EventAnalysis>(`/analysis/${encodeURIComponent(sport)}/${encodeURIComponent(key)}?${params.toString()}`);
 }
 
 export async function untagEvent(eventId: string): Promise<void> {

@@ -9,6 +9,10 @@
  * outcome, by button or by key. Each tag is saved at once with the time in the video, so it can
  * be found and checked again from the list.
  *
+ * After the outcome, the coach can add the details the sport module lists for it (where in the
+ * goal a shot went, its technique; the stroke of a table tennis point, decision 0007), each
+ * saved as it is picked. They are optional: a tag without them is still a tag.
+ *
  * The event types and outcomes come from the sport module (GET /sports, `events`), so this
  * screen knows no sport's rules; it only knows which surface to draw. Beside the list, each player's tags are added up into
  * match totals and set next to what was logged for that date: two records of one match that
@@ -16,11 +20,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pitch, TennisTable, type PitchMarker } from "@/components/charts";
-import { Banner, Button, Card, Field, SectionTitle, inputClass } from "@/components/ui";
-import { getMatchTags, getSports, getSquad, tagEvent, untagEvent } from "@/lib/api";
+import { GoalMouth, Pitch, TennisTable, type PitchMarker } from "@/components/charts";
+import { Banner, Button, Card, Chip, Field, Label, SectionTitle, inputClass } from "@/components/ui";
+import { getMatchTags, getSports, getSquad, setEventDetails, tagEvent, untagEvent } from "@/lib/api";
 import { cx } from "@/lib/format";
-import type { EventType, MatchTags, SportModule, SquadRow } from "@/lib/types";
+import type { EventType, MatchEvent, MatchTags, SportModule, SquadRow } from "@/lib/types";
 
 const TYPE_COLOURS = ["#f59e0b", "#38bdf8", "#34d399", "#f472b6", "#a78bfa"];
 // Where a type's meaning has an obvious colour, it gets it.
@@ -56,6 +60,8 @@ export default function TagMatchPage() {
   const [video, setVideo] = useState<string | null>(null);
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null);
   const [kind, setKind] = useState<EventType | null>(null);
+  // The tag just saved, while the coach adds its details. Cleared when the next tag starts.
+  const [last, setLast] = useState<MatchEvent | null>(null);
   const [tags, setTags] = useState<MatchTags | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -111,7 +117,7 @@ export default function TagMatchPage() {
       setSaving(true);
       setError(null);
       try {
-        await tagEvent({
+        const saved = await tagEvent({
           playerId,
           matchDate,
           matchLabel: matchLabel.trim() || null,
@@ -123,6 +129,7 @@ export default function TagMatchPage() {
         });
         setPoint(null);
         setKind(null);
+        setLast(saved);
         refresh();
       } catch (e) {
         setError((e as Error).message);
@@ -181,6 +188,29 @@ export default function TagMatchPage() {
     videoRef.current?.pause();
     setPoint({ x, y });
     setKind(null);
+    setLast(null);
+  };
+
+  const lastKind = last ? types?.find((t) => t.key === last.eventType) ?? null : null;
+  const pickDetail = (key: string, value: string) => {
+    if (!last) return;
+    const current = last.details ?? {};
+    // Picking the chosen value again takes it off.
+    const next = { ...current };
+    if (current[key] === value) delete next[key];
+    else next[key] = value;
+    setEventDetails(last.id, next)
+      .then((updated) => {
+        setLast(updated);
+        refresh();
+      })
+      .catch((e) => setError(e.message));
+  };
+  const detailsText = (e: MatchEvent) => {
+    const kindOf = types?.find((t) => t.key === e.eventType);
+    return Object.entries(e.details ?? {})
+      .map(([k, v]) => kindOf?.details?.find((d) => d.key === k)?.values.find((x) => x.key === v)?.label ?? v)
+      .join(", ");
   };
 
   const players = tags?.players ?? [];
@@ -309,6 +339,9 @@ export default function TagMatchPage() {
               </div>
             )}
           </div>
+          {last && lastKind ? (
+            <DetailsPanel event={last} kind={lastKind} onPick={pickDetail} onDone={() => setLast(null)} />
+          ) : null}
         </Card>
       </div>
 
@@ -339,6 +372,7 @@ export default function TagMatchPage() {
                   <span className="shrink-0 text-slate-300">
                     <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: colourOf[e.eventType] }} />
                     {typeLabel(e.eventType)}, {outcomeLabel(e.eventType, e.outcome).toLowerCase()}
+                    {detailsText(e) ? <span className="ml-1 text-xs text-slate-500">({detailsText(e)})</span> : null}
                   </span>
                   <button
                     className="shrink-0 text-xs text-slate-500 hover:text-rose-300"
@@ -402,6 +436,65 @@ export default function TagMatchPage() {
           </p>
         </Card>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The details of the tag just saved, from the sport module: only those that apply to its
+ * outcome (where in the goal is a detail of goals and saves). Each pick saves at once.
+ */
+function DetailsPanel({
+  event,
+  kind,
+  onPick,
+  onDone,
+}: {
+  event: MatchEvent;
+  kind: EventType;
+  onPick: (key: string, value: string) => void;
+  onDone: () => void;
+}) {
+  const details = (kind.details ?? []).filter((d) => d.outcomes.length === 0 || d.outcomes.includes(event.outcome));
+  if (details.length === 0) return null;
+  const chosen = event.details ?? {};
+  const outcome = kind.outcomes.find((o) => o.key === event.outcome)?.label ?? event.outcome;
+  return (
+    <div className="mt-4 flex flex-col gap-3 border-t border-slate-800 pt-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm text-slate-300">
+          Saved: {kind.label.toLowerCase()}, {outcome.toLowerCase()}. Add what you saw, if you want:
+        </span>
+        <Button size="sm" variant="ghost" onClick={onDone}>
+          Done
+        </Button>
+      </div>
+      {details.map((detail) =>
+        detail.grid ? (
+          <div key={detail.key} className="flex flex-col gap-1">
+            <Label>{detail.label}</Label>
+            <div className="max-w-sm">
+              <GoalMouth
+                grid={detail.grid}
+                cells={detail.values.map((v) => ({ key: v.key, label: v.label }))}
+                selected={chosen[detail.key] ?? null}
+                onPick={(value) => onPick(detail.key, value)}
+              />
+            </div>
+          </div>
+        ) : (
+          <div key={detail.key} className="flex flex-col gap-1">
+            <Label>{detail.label}</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {detail.values.map((v) => (
+                <Chip key={v.key} active={chosen[detail.key] === v.key} onClick={() => onPick(detail.key, v.key)}>
+                  {v.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        ),
+      )}
     </div>
   );
 }

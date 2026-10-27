@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import concepts
 from app.config import get_settings
 from app.routers import (
+    analysis,
     assistant,
     auth,
     comparison,
@@ -63,6 +64,7 @@ app.include_router(comparison.router)
 app.include_router(explore.router)
 app.include_router(assistant.router)
 app.include_router(events.router)
+app.include_router(analysis.router)
 app.include_router(results.router)
 app.include_router(oversight.router)
 app.include_router(integrity.router)

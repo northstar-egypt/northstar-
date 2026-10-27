@@ -97,6 +97,7 @@ for real through `POST /auth/login`, which sets an HttpOnly session cookie.
 | Coach      | Dashboard | the squad scoped to that coach's academy, with growth sparklines and how long since each player was measured |
 | Coach      | a player  | growth curve against the population band, percentiles, consent and provenance |
 | Scout      | Search    | try `under 16 striker`. The chips show how the query was read. Minors are visible because their guardians signed consent at sign-up |
+| Scout      | Explore, Finishing | how often shots become goals, by where in the goal, technique, one-on-ones and the keeper's distance; table tennis points by stroke. From coaches' tags (decision 0007); on seeded data the screen says the rates come from the generator |
 | Federation | Oversight | national coverage, staleness, flag counts |
 | Federation | Integrity | the review queue. Open a duplicate case: the field-by-field diff is the decision |
 

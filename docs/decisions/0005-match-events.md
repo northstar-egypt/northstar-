@@ -1,6 +1,7 @@
 # 0005. Match events tagged from video: their own table, types from the sport module
 
-Status: accepted 2026-10-23. Amended the same day: table tennis has event types too (points,
+Status: accepted 2026-10-23. Extended by decision 0007 (details on tags, and rates read
+from them). Amended the same day: table tennis has event types too (points,
 see "Table tennis"), and the seeded database has synthetic tagged events.
 Date: 2026-10-23
 

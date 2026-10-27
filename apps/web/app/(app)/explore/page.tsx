@@ -172,6 +172,13 @@ export default function ExplorePage() {
               {v === "plot" ? "Plot" : "Leaders"}
             </button>
           ))}
+          {/* Rates read from tagged events: its own page, with its own filters. */}
+          <Link
+            href="/explore/finishing"
+            className="rounded px-3 py-1 text-sm text-slate-400 hover:text-slate-200"
+          >
+            Finishing
+          </Link>
         </div>
       </div>
 

@@ -990,3 +990,46 @@ def test_a_coach_logs_a_measurement_from_the_profile(sign_in, page, identities):
     profile = api(f"/players/{row['player']['id']}/profile", coach)
     assert profile["latest"]["heightCm"] == height
     assert f"{height:g} cm" in text_of(page)
+
+
+def test_a_coach_adds_where_a_goal_went_and_a_scout_reads_finishing(sign_in, page, browser, identities):
+    """Decision 0007: after the outcome, the coach adds details from the sport module (where
+    in the goal on a goal mouth, the technique); a scout reads the rates by those details."""
+    label = f"vs E2E {uuid.uuid4().hex[:6]}"
+    sign_in("Coach", "/dashboard")
+    page.goto(f"{WEB_URL}/matches/tag", wait_until="load")
+    page.get_by_placeholder("vs ...").fill(label)
+    select = page.locator("label", has=page.get_by_text("Player", exact=True)).locator("select")
+    page.wait_for_function("document.querySelectorAll('select option').length > 1", timeout=20000)
+    player_id = select.locator("option").nth(1).get_attribute("value")
+    select.select_option(player_id)
+
+    pitch = page.locator("svg[aria-label^='Pitch']")
+    box = pitch.bounding_box()
+    pitch.click(position={"x": box["width"] * 0.9, "y": box["height"] * 0.5})
+    page.keyboard.press("s")
+    page.keyboard.press("1")  # goal
+    page.get_by_text("Add what you saw").wait_for(timeout=15000)
+    page.get_by_role("radio", name="Bottom left").click()
+    page.get_by_text("(Bottom left)").wait_for(timeout=15000)
+    page.get_by_text("Placed", exact=True).click()
+    page.get_by_text("(Bottom left, Placed)").wait_for(timeout=15000)
+
+    from datetime import date
+
+    query = urllib.parse.urlencode({"matchDate": date.today().isoformat(), "matchLabel": label})
+    (event,) = api(f"/events?{query}", identities["coach"]["email"])["events"]
+    assert event["details"] == {"placement": "bottom_left", "technique": "placed"}
+
+    scout = browser.new_context(viewport={"width": 1280, "height": 900}).new_page()
+    scout.goto(f"{WEB_URL}/login", wait_until="networkidle")
+    scout.get_by_role("button", name="Scout").click()
+    scout.wait_for_url("**/search", timeout=20000)
+    scout.goto(f"{WEB_URL}/explore", wait_until="load")
+    scout.get_by_role("link", name="Finishing").click()
+    scout.wait_for_url("**/explore/finishing", timeout=20000)
+    scout.get_by_text("Where in the goal").wait_for(timeout=30000)
+    body = scout.locator("main").inner_text().lower()
+    assert "scored" in body and "generated data" in body
+    assert "best rates, 10 attempts or more" in body
+    scout.context.close()

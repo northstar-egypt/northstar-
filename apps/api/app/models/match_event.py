@@ -24,6 +24,7 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Float, ForeignKey, Index, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -57,6 +58,10 @@ class MatchEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     y: Mapped[float | None] = mapped_column(Float)
     # Seconds into the coach's video, so the tag can be found and checked again.
     video_seconds: Mapped[float | None] = mapped_column(Float)
+    # What the coach added after the outcome, {detail: value}: where in the goal, technique,
+    # situation, keeper distance; a table tennis stroke. Which details exist is the sport
+    # module's (decision 0007). Null when none was added.
+    details: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # See enums.PerformanceSource; "coach_tagged" for everything tagged from video.
     source: Mapped[str] = mapped_column(Text)
     tagged_by: Mapped[uuid.UUID | None] = mapped_column(
