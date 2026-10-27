@@ -56,15 +56,32 @@ export default function SearchPage() {
     setPicked((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < 4 ? [...ids, id] : ids));
   const [parsed, setParsed] = useState<ParsedQuery>({ chips: [] });
   const [busy, setBusy] = useState(false);
+  // The filters in force, in words, for an empty result: "youth tier" was on by default and
+  // nothing said so, so a search for a pro player found nobody and said "widen the filters".
+  const activeFilters = [
+    usesTier && tier ? `${tier} tier` : null,
+    position ? `position ${position}` : null,
+    egyptOnly ? "Egypt eligible only" : null,
+    sport ? (sportModule?.label ?? sport) : null,
+    asksSex && sex ? (sex === "female" ? "girls" : "boys") : null,
+  ].filter((item): item is string => item !== null);
 
-  async function run(q: string) {
+  // `clear` re-runs with filters taken off, for the buttons in an empty result.
+  async function run(q: string, clear: { tier?: boolean; all?: boolean } = {}) {
     setBusy(true);
+    if (clear.tier || clear.all) setTier(null);
+    if (clear.all) {
+      setPosition("");
+      setEgyptOnly(false);
+      setSport(null);
+      setSex(null);
+    }
     const res = await search(q, {
-      tier: usesTier ? tier : null,
-      position,
-      egyptOnly,
-      sport,
-      sex: asksSex ? sex : null,
+      tier: usesTier && !clear.tier && !clear.all ? tier : null,
+      position: clear.all ? "" : position,
+      egyptOnly: clear.all ? false : egyptOnly,
+      sport: clear.all ? null : sport,
+      sex: asksSex && !clear.all ? sex : null,
     });
     setResults(res.results);
     setParsed(res.parsed);
@@ -126,10 +143,12 @@ export default function SearchPage() {
               </Chip>
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Amber means the system has no data for that part of the request rather than that
-            nothing matched. Without this strip you cannot tell those two apart.
-          </p>
+          {parsed.chips.some((c) => !c.understood) ? (
+            <p className="mt-2 text-xs text-slate-500">
+              Amber parts did not change the results: the platform has no data for them, or they
+              are not something search can do.
+            </p>
+          ) : null}
         </Card>
       ) : null}
 
@@ -196,7 +215,7 @@ export default function SearchPage() {
               <input
                 value={position}
                 onChange={(e) => setPosition(e.target.value)}
-                placeholder="ST"
+                placeholder="any, e.g. ST"
                 className={inputClass}
               />
             </div>
@@ -241,12 +260,30 @@ export default function SearchPage() {
               <Skeleton className="h-24" />
             </>
           ) : results.length === 0 ? (
-            <Empty>No players match. Try widening the filters.</Empty>
+            <Empty>
+              <p>No players match{submitted ? ` "${submitted}"` : ""}.</p>
+              {activeFilters.length ? (
+                <>
+                  <p className="mt-1">Filters on: {activeFilters.join(", ")}.</p>
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    {usesTier && tier ? (
+                      <Button size="sm" onClick={() => run(submitted, { tier: true })}>
+                        Search every tier
+                      </Button>
+                    ) : null}
+                    <Button size="sm" variant="ghost" onClick={() => run(submitted, { all: true })}>
+                      Clear all filters
+                    </Button>
+                  </div>
+                </>
+              ) : null}
+            </Empty>
           ) : (
             <>
               <div className="flex items-center justify-between">
                 <span className="text-xs uppercase tracking-[0.12em] text-slate-500">
-                  {results.length} players
+                  {results.length} {results.length === 1 ? "player" : "players"}
+                  {usesTier && tier ? `, ${tier} tier only` : ""}
                 </span>
                 <span className="text-xs text-slate-600">sorted by relevance</span>
               </div>
@@ -302,15 +339,24 @@ export default function SearchPage() {
                               compare
                             </label>
                           ) : null}
-                          <Chip tone={r.matchScore > 0.9 ? "brand" : "default"} title="Similarity score, not a probability.">
-                            {pct(r.matchScore)} match
-                          </Chip>
+                          {/* Every result of a filter-only search scores 100%, which says nothing. */}
+                          {r.matchScore < 0.995 ? (
+                            <Chip tone={r.matchScore > 0.9 ? "brand" : "default"} title="Similarity score, not a probability.">
+                              {pct(r.matchScore)} match
+                            </Chip>
+                          ) : null}
                         </span>
                       </div>
 
                       <span className="text-xs text-slate-500">
-                        {r.organizationName} &middot; {r.player.position} &middot; {r.ageLabel}
-                        {r.heightCm ? ` · ${r.heightCm} cm` : ""}
+                        {[
+                          r.organizationName,
+                          r.player.position,
+                          r.ageLabel,
+                          r.heightCm ? `${r.heightCm} cm` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </span>
 
                       {r.withheld ? (
