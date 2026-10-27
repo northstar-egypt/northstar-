@@ -162,6 +162,83 @@ def table_tennis_events_for(entry_id: str, metrics: dict, position: str | None =
 
 SPORTS = {"football": "football.match.v1", "table_tennis": "table_tennis.match.v1"}
 
+# The details a coach adds after the outcome (decision 0007), drawn per tag. Plausible, not
+# measured, and the finishing screen says its rates come from these. A coach does not always
+# add them, so some tags have none.
+DETAIL_SHARE = {"football": 0.8, "table_tennis": 0.85}
+SITUATION = {  # by shot outcome: one on one, open play, set piece, penalty
+    "goal": (0.22, 0.55, 0.15, 0.08),
+    "on_target": (0.12, 0.68, 0.17, 0.03),
+    "off_target": (0.07, 0.73, 0.18, 0.02),
+    "blocked": (0.04, 0.78, 0.18, 0.0),
+}
+SITUATIONS = ("one_on_one", "open_play", "set_piece", "penalty")
+PLACEMENTS = ("top_left", "top_middle", "top_right", "bottom_left", "bottom_middle", "bottom_right")
+# Goals go in more often low and wide; saves come more often from shots at the middle.
+PLACEMENT = {
+    "goal": (0.15, 0.10, 0.15, 0.22, 0.16, 0.22),
+    "on_target": (0.12, 0.25, 0.12, 0.13, 0.25, 0.13),
+}
+STROKE = {  # by point outcome: serve, forehand, backhand
+    "service_winner": (1.0, 0.0, 0.0),
+    "winner": (0.0, 0.6, 0.4),
+    "opponent_error": (0.1, 0.55, 0.35),
+    "unforced_error": (0.05, 0.45, 0.5),
+    "forced_error": (0.0, 0.5, 0.5),
+    "opponent_winner": (0.0, 0.5, 0.5),
+}
+
+
+def details_for(event_type: str, outcome: str, rng: random.Random) -> dict | None:
+    """What a coach might have added to one tag, or None when they added nothing."""
+    pick = lambda options, weights: rng.choices(options, weights)[0]  # noqa: E731
+    if event_type == "shot":
+        if rng.random() > DETAIL_SHARE["football"]:
+            return None
+        situation = pick(SITUATIONS, SITUATION[outcome])
+        if situation == "penalty":
+            technique = pick(("placed", "power"), (0.7, 0.3))
+        elif situation == "set_piece":
+            technique = pick(("header", "power", "placed", "volley"), (0.45, 0.25, 0.2, 0.1))
+        elif situation == "one_on_one":
+            technique = pick(("placed", "power", "chip"), (0.6, 0.25, 0.15))
+        else:
+            technique = pick(("placed", "power", "header", "volley", "chip"), (0.4, 0.35, 0.12, 0.1, 0.03))
+        out = {"situation": situation, "technique": technique}
+        if outcome in PLACEMENT:
+            out["placement"] = pick(PLACEMENTS, PLACEMENT[outcome])
+        if situation == "one_on_one":
+            out["keeper_distance"] = pick(("under_3", "from_3_to_6", "over_6"), (0.3, 0.45, 0.25))
+        return out
+    if event_type in ("point_won", "point_lost") and outcome in STROKE:
+        if rng.random() > DETAIL_SHARE["table_tennis"]:
+            return None
+        return {"stroke": pick(("serve", "forehand", "backhand"), STROKE[outcome])}
+    return None
+
+
+def add_details(db) -> int:
+    """Add details to generated tags that have none: tags made before details existed, and new
+    ones. Each tag's are drawn on a stream seeded by its id, so a database always gets the same.
+    A tag drawn to have none is marked {} so it is not drawn again. Coaches' own tags are never
+    touched."""
+    from sqlalchemy import select
+
+    from app.models.match_event import MatchEvent
+
+    rows = db.execute(
+        select(MatchEvent)
+        .where(MatchEvent.tagged_by.is_(None))
+        .where(MatchEvent.source == SOURCE)
+        .where(MatchEvent.details.is_(None))
+    ).scalars()
+    written = 0
+    for event in rows:
+        drawn = details_for(event.event_type, event.outcome, random.Random(f"tag-details:{event.id}"))
+        event.details = drawn or {}
+        written += bool(drawn)
+    return written
+
 
 def seed(database_url: str, matches_per_player: int = MATCHES_PER_PLAYER) -> int:
     """Add synthetic events once. Returns how many were written (0 when already present)."""
@@ -198,7 +275,11 @@ def seed(database_url: str, matches_per_player: int = MATCHES_PER_PLAYER) -> int
                 .order_by(PerformanceEntry.player_id, PerformanceEntry.period_start.desc())
             ).all()
             written += _seed_rows(db, sport, rows, clubs, modules, matches_per_player)
+        db.flush()
+        detailed = add_details(db)
         db.commit()
+        if detailed:
+            print(f"tagged events: added details to {detailed}")
         return written
 
 

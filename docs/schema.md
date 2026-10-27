@@ -217,8 +217,9 @@ sport's events share. See decision 0005.
 | outcome         | text          | One of that type's outcomes, e.g. `goal`.                      |
 | x, y            | float, null   | Where on the pitch, 0 to 100: x from own goal line to the opponent's, y from left touchline to right, as the team attacks. |
 | video_seconds   | float, null   | Time in the coach's video, so the tag can be checked again.    |
+| details         | JSONB, null   | What the coach added after the outcome, `{detail: value}`: where in the goal, technique, situation, keeper distance; a table tennis stroke. Which details exist is the sport module's (`events.types.<type>.details`). Decision 0007. |
 | source          | enum          | `coach_tagged`.                                                |
-| tagged_by       | UUID FK, null | To User.                                                       |
+| tagged_by       | UUID FK, null | To User. Null on tags made by the synthetic data generator.    |
 
 ## User
 

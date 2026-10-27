@@ -68,6 +68,12 @@
           "winner": { "label": "Winner", "counts": ["points_won"] },
           "service_winner": { "label": "Service winner", "counts": ["points_won", "service_winners"] },
           "opponent_error": { "label": "Opponent's error", "counts": ["points_won"] }
+        },
+        "details": {
+          "stroke": {
+            "label": "Stroke",
+            "values": { "serve": "Serve", "forehand": "Forehand", "backhand": "Backhand" }
+          }
         }
       },
       "point_lost": {
@@ -76,7 +82,19 @@
           "unforced_error": { "label": "Unforced error", "counts": ["points_lost", "unforced_errors"] },
           "forced_error": { "label": "Forced error", "counts": ["points_lost"] },
           "opponent_winner": { "label": "Opponent's winner", "counts": ["points_lost"] }
+        },
+        "details": {
+          "stroke": {
+            "label": "Stroke",
+            "values": { "serve": "Serve", "forehand": "Forehand", "backhand": "Backhand" }
+          }
         }
+      }
+    },
+    "analyses": {
+      "points": {
+        "label": "Points by stroke", "events": ["point_won", "point_lost"], "success": ["point_won"],
+        "rateLabel": "won", "minAttempts": 20
       }
     }
   }

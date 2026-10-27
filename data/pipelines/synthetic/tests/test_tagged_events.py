@@ -81,3 +81,35 @@ def test_table_tennis_points_add_up_to_the_logged_totals():
     assert all(1 <= e["x"] <= 99 for e in events)
     assert [e["video_seconds"] for e in events] == sorted(e["video_seconds"] for e in events)
     assert all(e["x"] >= 55 for e in events if e["outcome"] == "winner")
+
+
+def test_generated_details_are_what_the_modules_allow():
+    """Every value from the module, a place in the goal only on goals and saves, a keeper's
+    distance only on a one-on-one, and the same details for the same tag every time."""
+    import random
+
+    from app import sports
+
+    modules = sports.registry()
+    shot = modules["football"].events["shot"]
+    seen_none = False
+    for i in range(400):
+        outcome = ("goal", "on_target", "off_target", "blocked")[i % 4]
+        drawn = tagged_events.details_for("shot", outcome, random.Random(i))
+        assert drawn == tagged_events.details_for("shot", outcome, random.Random(i))
+        if drawn is None:
+            seen_none = True
+            continue
+        for key, value in drawn.items():
+            assert value in shot.details[key].values
+        assert ("placement" in drawn) == (outcome in ("goal", "on_target"))
+        assert ("keeper_distance" in drawn) == (drawn["situation"] == "one_on_one")
+    assert seen_none, "a coach does not always add details"
+
+    # A service winner's stroke is the serve; passes and tackles have no details.
+    strokes = {
+        (tagged_events.details_for("point_won", "service_winner", random.Random(i)) or {}).get("stroke")
+        for i in range(50)
+    }
+    assert strokes <= {"serve", None}
+    assert tagged_events.details_for("pass", "complete", random.Random(1)) is None

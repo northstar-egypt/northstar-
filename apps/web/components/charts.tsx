@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { GrowthSeries } from "@/lib/types";
-import { ordinal, shortDate } from "@/lib/format";
+import { cx, ordinal, shortDate } from "@/lib/format";
 
 /**
  * The width a chart is actually drawn at, in CSS pixels, so its SVG can use one unit per pixel.
@@ -852,5 +852,82 @@ export function TennisTable({
         </circle>
       ))}
     </svg>
+  );
+}
+
+/* ------------------------------------------------------------------ goal mouth */
+
+export interface GoalCell {
+  key: string;
+  label: string;
+  /** The big text in the cell (a rate), or nothing for a picker. */
+  value?: string;
+  /** A second line (counts). */
+  sub?: string;
+  /** 0 to 1: how strongly the cell is coloured. */
+  fill?: number;
+}
+
+/**
+ * A goal mouth seen from the shooter, as a grid of zones (a sport module's detail with a
+ * `grid`). With `onPick` it is a picker on the tagging screen; with values it shows a rate per
+ * zone. HTML rather than SVG so its text is the size it says on every screen.
+ */
+export function GoalMouth({
+  grid,
+  cells,
+  selected,
+  onPick,
+}: {
+  grid: [number, number];
+  cells: GoalCell[];
+  selected?: string | null;
+  onPick?: (key: string) => void;
+}) {
+  const [rows, cols] = grid;
+  return (
+    <div className="w-full">
+      {/* The frame: crossbar on top, posts at the sides, no line on the ground. */}
+      <div
+        className="grid border-x-4 border-t-4 border-slate-200/80"
+        style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}
+        role={onPick ? "radiogroup" : "img"}
+        aria-label="Where in the goal"
+      >
+        {cells.map((cell) => {
+          const active = selected === cell.key;
+          const body = (
+            <>
+              <span className="text-[0.7rem] text-slate-400">{cell.label}</span>
+              {cell.value ? <span className="text-base font-semibold tabular-nums">{cell.value}</span> : null}
+              {cell.sub ? <span className="text-[0.7rem] tabular-nums text-slate-400">{cell.sub}</span> : null}
+            </>
+          );
+          const style = cell.fill != null ? { background: `rgba(56, 189, 248, ${0.08 + cell.fill * 0.5})` } : undefined;
+          const className = cx(
+            "flex min-h-[3.5rem] flex-col items-center justify-center gap-0.5 border border-slate-700/60 p-1 text-center",
+            active && "bg-sky-600/40 ring-2 ring-inset ring-sky-400",
+          );
+          return onPick ? (
+            <button
+              key={cell.key}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              aria-label={cell.label}
+              className={cx(className, "hover:bg-slate-800")}
+              style={style}
+              onClick={() => onPick(cell.key)}
+            >
+              {body}
+            </button>
+          ) : (
+            <div key={cell.key} className={className} style={style}>
+              {body}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

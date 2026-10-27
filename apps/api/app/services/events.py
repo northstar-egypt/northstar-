@@ -88,6 +88,30 @@ def check(player: Player, payload: dict, today: date) -> list[str]:
         problems.append("The video time cannot be negative.")
     if len(payload.get("match_label") or "") > MAX_LABEL:
         problems.append(f"The match label is longer than {MAX_LABEL} characters.")
+    if kind is not None and payload["outcome"] in kind.outcomes:
+        problems += check_details(kind, payload["outcome"], payload.get("details") or {})
+    return problems
+
+
+def check_details(kind, outcome: str, details: dict) -> list[str]:
+    """Everything wrong with a tag's details, against its sport module (decision 0007)."""
+    problems = []
+    for key, value in details.items():
+        detail = kind.details.get(key)
+        if detail is None:
+            problems.append(
+                f"A {kind.label.lower()} has no detail \"{key}\""
+                + (f"; it has {', '.join(kind.details)}." if kind.details else ".")
+            )
+        elif value not in detail.values:
+            problems.append(
+                f"\"{value}\" is not a {detail.label.lower()}; choose one of {', '.join(detail.values)}."
+            )
+        elif detail.outcomes and outcome not in detail.outcomes:
+            problems.append(
+                f"{detail.label} is only recorded for "
+                f"{' or '.join(kind.outcomes[o].label.lower() for o in detail.outcomes)}."
+            )
     return problems
 
 
@@ -108,6 +132,7 @@ def tag(db: Session, caller: Caller, player: Player, payload: dict, today: date 
         x=payload.get("x"),
         y=payload.get("y"),
         video_seconds=payload.get("video_seconds"),
+        details=payload.get("details") or None,
         source=PerformanceSource.COACH_TAGGED.value,
         tagged_by=caller.user_id,
     )
@@ -121,6 +146,29 @@ def tag(db: Session, caller: Caller, player: Player, payload: dict, today: date 
             entity_id=player.id,
             event_metadata={"match_event_id": str(event.id), "match_date": event.match_date.isoformat(),
                             "event_type": event.event_type, "outcome": event.outcome},
+        )
+    )
+    return event
+
+
+def set_details(db: Session, caller: Caller, event: MatchEvent, details: dict) -> MatchEvent:
+    """Replace a tag's details: the tagging screen saves a tag at its outcome and the coach adds
+    the details after. Raises TagRejected, having changed nothing, if they do not fit."""
+    module = sports.registry().get(event.sport)
+    kind = module.events.get(event.event_type) if module else None
+    if kind is None:
+        raise TagRejected([f"{event.event_type} is no longer an event type of {event.sport}."])
+    problems = check_details(kind, event.outcome, details)
+    if problems:
+        raise TagRejected(problems)
+    event.details = dict(details) or None
+    db.add(
+        AuditLog(
+            actor_user_id=caller.user_id,
+            action="match_event.details",
+            entity_type="player",
+            entity_id=event.player_id,
+            event_metadata={"match_event_id": str(event.id), "details": event.details},
         )
     )
     return event
@@ -174,6 +222,7 @@ def event_out(event: MatchEvent, name: str | None = None) -> dict:
         "x": event.x,
         "y": event.y,
         "video_seconds": event.video_seconds,
+        "details": event.details or {},
     }
 
 

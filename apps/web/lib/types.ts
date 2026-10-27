@@ -258,6 +258,8 @@ export interface SportModule {
   genders: ("male" | "female")[];
   /** What a coach can tag from match video. Empty for a sport with none yet. */
   events: EventType[];
+  /** Rates read from the tags (GET /analysis/{sport}/{key}). */
+  analyses?: { key: string; label: string; rateLabel: string; minAttempts: number }[];
 }
 
 export interface EventType {
@@ -266,6 +268,67 @@ export interface EventType {
   /** The keyboard key the tagging screen binds to this type. */
   shortcut: string;
   outcomes: { key: string; label: string }[];
+  /** What a coach can add after the outcome (decision 0007). */
+  details?: EventDetail[];
+}
+
+export interface EventDetail {
+  key: string;
+  label: string;
+  values: { key: string; label: string }[];
+  /** The outcomes it applies to; empty means all. */
+  outcomes: string[];
+  /** [rows, cols] when the values are a grid (a goal mouth), row by row. */
+  grid: [number, number] | null;
+}
+
+/** GET /analysis/{sport}/{key}: a success rate from tagged events (decision 0007). */
+export interface EventAnalysis {
+  sport: string;
+  key: string;
+  label: string;
+  rateLabel: string;
+  minAttempts: number;
+  minForARate: number;
+  gender: string;
+  group: string | null;
+  ageFrom: number | null;
+  ageTo: number | null;
+  genders: string[];
+  groups: string[];
+  population: string;
+  attempts: number;
+  successes: number;
+  /** Null below minForARate attempts. */
+  rate: number | null;
+  breakdown: {
+    key: string;
+    label: string;
+    grid: [number, number] | null;
+    recorded: number;
+    among: string | null;
+    values: { key: string; label: string; attempts: number; successes: number; rate: number | null }[];
+  }[];
+  leaders: {
+    playerId: string;
+    fullName: string;
+    position: string | null;
+    ageLabel: string;
+    attempts: number;
+    successes: number;
+    rate: number;
+  }[];
+  qualifying: number;
+  player: {
+    playerId: string;
+    fullName: string;
+    attempts: number;
+    successes: number;
+    rate: number | null;
+    percentile: number | null;
+  } | null;
+  generated: number;
+  note: string;
 }
 
 /**
@@ -573,6 +636,8 @@ export interface MatchEvent {
   /** 0 to 100: left touchline to right. */
   y: number | null;
   videoSeconds: number | null;
+  /** {detail: value}, as the sport module defines them. */
+  details?: Record<string, string>;
 }
 
 /** GET /events: one match's tags for the coach's club. */

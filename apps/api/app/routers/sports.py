@@ -21,12 +21,36 @@ class EventOutcomeOut(CamelModel):
     label: str
 
 
+class DetailValueOut(CamelModel):
+    key: str
+    label: str
+
+
+class EventDetailOut(CamelModel):
+    key: str
+    label: str
+    values: list[DetailValueOut]
+    # The outcomes it applies to; empty means all.
+    outcomes: list[str] = []
+    # [rows, cols] when its values are drawn as a grid (a goal mouth), row by row.
+    grid: list[int] | None = None
+
+
 class EventTypeOut(CamelModel):
     key: str
     label: str
     # The keyboard key the tagging screen binds to it.
     shortcut: str
     outcomes: list[EventOutcomeOut]
+    # What a coach can add after the outcome (decision 0007).
+    details: list[EventDetailOut] = []
+
+
+class AnalysisOut(CamelModel):
+    key: str
+    label: str
+    rate_label: str
+    min_attempts: int
 
 
 class SportOut(CamelModel):
@@ -38,6 +62,8 @@ class SportOut(CamelModel):
     genders: list[str]
     # What a coach can tag from match video. Empty for a sport with none yet.
     events: list[EventTypeOut] = []
+    # Rates read from the tags (GET /analysis/{sport}/{key}).
+    analyses: list[AnalysisOut] = []
 
 
 @router.get("/sports", response_model=list[SportOut])
@@ -61,8 +87,22 @@ def list_sports(caller: Caller = Depends(current_user)) -> list[SportOut]:
                     label=kind.label,
                     shortcut=kind.shortcut,
                     outcomes=[EventOutcomeOut(key=o.key, label=o.label) for o in kind.outcomes.values()],
+                    details=[
+                        EventDetailOut(
+                            key=d.key,
+                            label=d.label,
+                            values=[DetailValueOut(key=k, label=v) for k, v in d.values.items()],
+                            outcomes=d.outcomes,
+                            grid=list(d.grid) if d.grid else None,
+                        )
+                        for d in kind.details.values()
+                    ],
                 )
                 for kind in module.events.values()
+            ],
+            analyses=[
+                AnalysisOut(key=a.key, label=a.label, rate_label=a.rate_label, min_attempts=a.min_attempts)
+                for a in module.analyses.values()
             ],
         )
         for module in sports.registry().values()
