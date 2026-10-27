@@ -291,6 +291,8 @@ export interface ProfileSummary {
   summary: string | null;
   note: string;
   model: string | null;
+  /** Still being written: ask again shortly. */
+  pending?: boolean;
 }
 
 export interface PlayerProfile {

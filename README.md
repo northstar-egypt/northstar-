@@ -166,7 +166,7 @@ docker volume rm docker_pgdata
 ```
 
 Not `down -v`: that also deletes `docker_ollama-data`, the downloaded language models (several
-GB to download again). A freshly loaded database is dated up to the day it is loaded, so its
+GB to download again). A freshly loaded database is dated up to the day before it is loaded, so its
 readings are recent; it then ages like real records would.
 
 ### What is not built

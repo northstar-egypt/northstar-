@@ -151,8 +151,12 @@ def player_summary(
             note="Analytics consent is not in effect for this player, so no summary is "
             "written about them.",
         )
-    result = summary.summarise(views.build_profile(db, caller, player))
-    return ProfileSummaryOut(summary=result.text, note=result.note, model=result.model)
+    # Waits a few seconds at most; a summary still being written comes back `pending` and the
+    # page asks again (services/summary.py, summarise_soon).
+    result = summary.summarise_soon(views.build_profile(db, caller, player))
+    return ProfileSummaryOut(
+        summary=result.text, note=result.note, model=result.model, pending=result.pending
+    )
 
 
 @router.get("/players/{player_id}/radar", response_model=RadarOut)

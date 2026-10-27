@@ -43,7 +43,8 @@ import threading
 import urllib.error
 import urllib.request
 from collections import OrderedDict
-from concurrent.futures import Future
+from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 from dataclasses import dataclass
 from datetime import date
 
@@ -60,6 +61,17 @@ log = logging.getLogger(__name__)
 # its own request, and the result is cached. So the limit is generous.
 _TIMEOUT_SECONDS = 300
 _CACHE_SIZE = 512
+
+# How the endpoint waits (summarise_soon). A request used to wait for the model, holding one of
+# the API's worker threads for up to _TIMEOUT_SECONDS; open enough new profiles at once (the
+# browser tests do, a demo can) and the threads ran out, so sign-in and search timed out too.
+# Now the model's work is a background job, one at a time (Ollama answers one at a time
+# anyway), and a request waits only this long before answering "being written".
+_WAIT_SECONDS = 3
+# Summaries queued or being written. Beyond this a new one is not queued, so a burst of
+# profiles cannot fill the machine with work for half an hour; the profile asks again later.
+_MAX_QUEUED = 3
+_worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="summary")
 
 _MONTHS = (
     "January February March April May June July August September October November December"
@@ -146,6 +158,8 @@ class Summary:
     # Why there is no text, or where the text came from. Shown on the profile either way.
     note: str
     model: str | None = None
+    # Still being written (or waiting its turn): the caller should ask again shortly.
+    pending: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -437,9 +451,49 @@ def summarise(profile: dict) -> Summary:
     if waiting is not None:
         return waiting.result()
 
+    return _produce(key, lines, model, url, settings.ollama_summary_num_gpu)
+
+
+def summarise_soon(profile: dict, wait: float = _WAIT_SECONDS) -> Summary:
+    """The summary if it is ready within `wait` seconds; otherwise `pending`, with the job
+    queued (or the queue full), so the caller asks again. Never holds the caller for long."""
+    settings = get_settings()
+    model, url = settings.ollama_model, settings.ollama_url
+    if not url:
+        return Summary(None, "No language model is configured (OLLAMA_URL is unset).")
+
+    lines = facts(profile)
+    key = hashlib.sha256(("\n".join([model, *lines])).encode("utf-8")).hexdigest()
+    with _lock:
+        if key in _cache:
+            _cache.move_to_end(key)
+            return _cache[key]
+        future = _pending.get(key)
+        if future is None:
+            if len(_pending) >= _MAX_QUEUED:
+                return Summary(
+                    None,
+                    "The local model is busy writing other summaries. This one is asked for "
+                    "again shortly.",
+                    pending=True,
+                )
+            future = _pending[key] = Future()
+            _worker.submit(_produce, key, lines, model, url, settings.ollama_summary_num_gpu)
+    try:
+        return future.result(timeout=wait)
+    except FutureTimeout:
+        return Summary(
+            None,
+            "A local model is writing this. The first time, it can take a minute or two.",
+            pending=True,
+        )
+
+
+def _produce(key: str, lines: list[str], model: str, url: str, num_gpu: int | None) -> Summary:
+    """Write the summary for `key`, cache it if it may be, and settle its pending Future."""
     future = _pending[key]
     try:
-        result, keep = _write(lines, model=model, url=url, num_gpu=settings.ollama_summary_num_gpu)
+        result, keep = _write(lines, model=model, url=url, num_gpu=num_gpu)
     except BaseException as exc:
         with _lock:
             _pending.pop(key, None)

@@ -723,12 +723,22 @@ function SummaryCard({ playerId }: { playerId: string }) {
 
   useEffect(() => {
     let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     setSummary("loading");
-    getSummary(playerId)
-      .then((s) => alive && setSummary(s ?? "failed"))
-      .catch(() => alive && setSummary("failed"));
+    // The API answers within seconds: the summary, or "still being written". Then ask again,
+    // while this page is open; leaving the page stops asking.
+    const ask = () =>
+      getSummary(playerId)
+        .then((s) => {
+          if (!alive) return;
+          if (s?.pending) timer = setTimeout(ask, 5000);
+          else setSummary(s ?? "failed");
+        })
+        .catch(() => alive && setSummary("failed"));
+    ask();
     return () => {
       alive = false;
+      if (timer) clearTimeout(timer);
     };
   }, [playerId]);
 
