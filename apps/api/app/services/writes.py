@@ -52,6 +52,11 @@ class MetricSpec:
     # A reading outside this range is a question, not an error.
     plausible_low: float
     plausible_high: float
+    # A reading outside this range cannot be a person's: a dropped digit (15 for 150 cm), not
+    # an unusual child. Refused, because "save anyway" on it would store a number nobody
+    # measured.
+    possible_low: float
+    possible_high: float
 
 
 # The controlled vocabulary for Measurement.metric (`docs/schema.md`), with the units the
@@ -59,10 +64,16 @@ class MetricSpec:
 # deliberately wide: they exist to catch a slipped decimal point or a height typed into the
 # weight box, not to judge a child.
 METRICS: dict[str, MetricSpec] = {
-    "height_cm": MetricSpec(unit="cm", plausible_low=100, plausible_high=220),
-    "weight_kg": MetricSpec(unit="kg", plausible_low=20, plausible_high=150),
-    "sprint_10m_s": MetricSpec(unit="s", plausible_low=1.4, plausible_high=3.5),
+    "height_cm": MetricSpec(unit="cm", plausible_low=100, plausible_high=220,
+                            possible_low=50, possible_high=260),
+    "weight_kg": MetricSpec(unit="kg", plausible_low=20, plausible_high=150,
+                            possible_low=10, possible_high=350),
+    "sprint_10m_s": MetricSpec(unit="s", plausible_low=1.4, plausible_high=3.5,
+                               possible_low=0.8, possible_high=10),
 }
+
+# How a metric reads in a sentence a coach sees.
+METRIC_WORDS = {"height_cm": "height", "weight_kg": "weight", "sprint_10m_s": "10 m sprint time"}
 
 # Peak adolescent growth is around 10 cm a year, so 2.5 cm a month is already a fast spurt
 # sustained. Matches the ceiling the add player screen uses on the client.
@@ -180,6 +191,12 @@ def check_measurements(
             problems.append(f"{item.metric} is recorded in {spec.unit}, not {item.unit!r}.")
         if item.value <= 0:
             problems.append(f"{item.metric} must be greater than zero.")
+        elif not spec.possible_low <= item.value <= spec.possible_high:
+            problems.append(
+                f"{item.value:g} {spec.unit} cannot be a {METRIC_WORDS.get(item.metric, item.metric)}"
+                f" (possible: {spec.possible_low:g} to {spec.possible_high:g} {spec.unit}). "
+                f"Check for a missing or extra digit."
+            )
         if item.metric in seen:
             problems.append(f"{item.metric} appears twice in one visit.")
         seen.add(item.metric)

@@ -176,11 +176,13 @@ merge, or undoes it, leaves the second entry active, and the check moves on to t
 player. If all three are used up, reset the data:
 
 ```bash
-docker compose -f docker/docker-compose.yml down -v
+docker compose -f docker/docker-compose.yml down
+docker volume rm docker_pgdata
 docker compose -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml --profile llm up -d --build
 ```
 
-`down -v` deletes the database volume; the seed container rebuilds it from the generator.
+This deletes the database volume only, and the seed container rebuilds it from the generator,
+dated up to today. Do not use `down -v`: it also deletes the downloaded language models.
 
 ## If there is time
 

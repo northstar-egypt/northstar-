@@ -967,3 +967,26 @@ def test_the_demo_flow_on_one_player(sign_in, page, browser, identities):
     assert api(f"/players/{new_id}/profile", federation)["player"]["id"] == new_id
     assert api(f"/players/{original['id']}/profile", federation)["latest"]["heightCm"] == last
     assert case["id"] in {f["id"] for f in api("/integrity/flags", federation)}
+
+
+def test_a_coach_logs_a_measurement_from_the_profile(sign_in, page, identities):
+    """The button was there and did nothing. Log a reading just above the last one, and the
+    profile reloads with it as the latest; an impossible one is refused with the reason."""
+    coach = identities["coach"]["email"]
+    row = next(r for r in api("/players", coach) if r["heightCm"])
+    sign_in("Coach", "/dashboard")
+    open_profile(page, row["player"]["id"])
+    page.get_by_role("button", name="Log measurement").click()
+
+    page.get_by_label("Height in centimetres").fill("15")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.get_by_text("cannot be a height").wait_for(timeout=15000)
+
+    height = round(row["heightCm"] + 0.5, 1)
+    page.get_by_label("Height in centimetres").fill(str(height))
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.get_by_role("button", name="Log measurement").wait_for(timeout=15000)
+    page.wait_for_timeout(SETTLE_MS)
+    profile = api(f"/players/{row['player']['id']}/profile", coach)
+    assert profile["latest"]["heightCm"] == height
+    assert f"{height:g} cm" in text_of(page)

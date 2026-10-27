@@ -46,7 +46,8 @@ def test_the_sport_style_and_gender_are_read_from_plain_words(query, expected):
 def test_football_searches_read_as_they_did_before():
     """"defender" is a football position and a table tennis style. Unless the scout names table
     tennis, it stays the football position it always was."""
-    assert parse_query("defender under 17")[0] == {"max_age": 16.0, "position": "CB"}
+    # Every football defender, not centre-backs only (it was CB until 2026-10-27).
+    assert parse_query("defender under 17")[0] == {"max_age": 16.0, "positions": ["CB", "LB", "RB"]}
     assert parse_query("football striker u17")[0] == {
         "max_age": 16.0,
         "sport": "football",
@@ -230,3 +231,41 @@ def test_the_screens_default_tier_does_not_hide_table_tennis(client, auth, table
         headers=auth("admin"),
     ).json()
     assert {r["player"]["tier"] for r in football["results"]} == {"youth"}
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("winger", {"positions": ["LW", "RW"]}),
+        ("wingers under 15", {"positions": ["LW", "RW"], "max_age": 14.0}),
+        ("fullbacks", {"positions": ["LB", "RB"]}),
+        ("midfielders", {"positions": ["CDM", "CM", "CAM"]}),
+        ("forwards", {"positions": ["ST", "LW", "RW"]}),
+        ("strikers", {"position": "ST"}),
+        ("RW", {"position": "RW"}),
+    ],
+)
+def test_a_kind_of_player_means_every_position_of_that_kind(query, expected):
+    """"winger" meant left wingers only, so a scout asking for wingers never saw a right
+    winger. Plurals are position words too: "defenders" used to be searched as a name."""
+    filters, chips, names = parse_query(query)
+    assert filters == expected and names == []
+
+
+def test_a_group_filters_on_any_of_its_positions(client, auth, world, db):
+    from app.models.player import Player
+
+    world["players"]["adult_a"].position = "LW"
+    world["players"]["adult_b"].position = "RW"
+    db.flush()
+    found = {
+        r["player"]["fullName"]
+        for r in client.post(
+            "/search", json={"query": "wingers", "limit": 200}, headers=auth("admin")
+        ).json()["results"]
+    }
+    assert {"Adult A", "Adult B"} <= found
+    assert all(
+        db.query(Player).filter(Player.full_name == name).first().position in ("LW", "RW")
+        for name in found
+    )

@@ -69,19 +69,46 @@ export default function NewPlayerPage() {
   // Previous reading is unknown for a brand new player, so the check here is against an
   // absolute range. On an existing player the same control compares against the last value.
   const heightNum = Number(height);
+  // Outside this no person's height can be: a dropped or extra digit. The server refuses it
+  // too (apps/api/app/services/writes.py, METRICS), so "save anyway" is not offered.
+  const impossible = height !== "" && !Number.isNaN(heightNum) && (heightNum < 50 || heightNum > 260);
   const implausible =
-    height !== "" && (Number.isNaN(heightNum) || heightNum < 100 || heightNum > 220);
+    height !== "" &&
+    !impossible &&
+    (Number.isNaN(heightNum) || heightNum < 100 || heightNum > 220);
+
+  // The server's own rule for a date of birth (writes.check_player), said here at once rather
+  // than after the second step.
+  const dobProblem = useMemo(() => {
+    if (!dob) return null;
+    const born = new Date(dob);
+    if (Number.isNaN(born.getTime())) return "That is not a date.";
+    if (born > new Date()) return "The date of birth is in the future.";
+    const years = (Date.now() - born.getTime()) / (365.25 * 24 * 3600 * 1000);
+    if (years < 5 || years > 60) return "Players are between 5 and 60 years old. Check the year.";
+    return null;
+  }, [dob]);
 
   const consentComplete =
     consentSigned && (minor !== true || guardianName.trim().length > 1);
   const asksSex = (sportModule?.genders.length ?? 0) > 1;
+  // What still stops Continue, said under the button instead of leaving it silently disabled.
+  const missing = [
+    fullName.trim().length > 1 ? null : "the full name",
+    dob !== "" && !dobProblem ? null : "a valid date of birth",
+    !asksSex || sex !== "" ? null : "the gender",
+    position !== "" ? null : "a position",
+    consentComplete ? null : minor === true ? "the guardian's name and signature" : "the signed consent form",
+  ].filter((item): item is string => item !== null);
   const canContinue =
+    missing.length === 0 &&
     fullName.trim().length > 1 &&
     dob !== "" &&
+    !dobProblem &&
     (!asksSex || sex !== "") &&
     position !== "" &&
     consentComplete;
-  const canSave = height !== "" && (!implausible || acknowledged);
+  const canSave = height !== "" && !impossible && (!implausible || acknowledged);
 
   async function save(confirmWarnings = acknowledged) {
     setBusy(true);
@@ -163,11 +190,15 @@ export default function NewPlayerPage() {
               }}
               className={inputClass}
             />
-            {age ? <span className="text-xs text-slate-500">{age} old today</span> : null}
+            {dobProblem ? (
+              <span className="text-xs text-rose-300">{dobProblem}</span>
+            ) : age ? (
+              <span className="text-xs text-slate-500">{age} old today</span>
+            ) : null}
           </div>
 
 
-          {minor === true ? (
+          {minor === true && !dobProblem ? (
             <Banner tone="info" title={`This player is a minor${age ? `, ${age}` : ""}`}>
               Their guardian signs the sign-up consent form below, on their behalf.
             </Banner>
@@ -297,6 +328,9 @@ export default function NewPlayerPage() {
           <Button variant="primary" disabled={!canContinue} onClick={() => setStep(2)}>
             Continue
           </Button>
+          {missing.length ? (
+            <p className="text-center text-xs text-slate-500">Still needed: {missing.join(", ")}.</p>
+          ) : null}
         </Card>
       ) : (
         <Card className="flex flex-col gap-4">
@@ -375,6 +409,12 @@ export default function NewPlayerPage() {
               The maturity models treat these differently, so it is worth one tap.
             </span>
           </div>
+
+          {impossible ? (
+            <Banner tone="warn" title="That cannot be right">
+              {heightNum} cm cannot be a person&rsquo;s height. Check for a missing or extra digit.
+            </Banner>
+          ) : null}
 
           {implausible ? (
             <Banner tone="warn" title="Check this">

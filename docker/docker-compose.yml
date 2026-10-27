@@ -62,8 +62,9 @@ services:
   # dataset, and a detector run that fills the integrity board. Runs once and exits.
   #
   # It will not overwrite a database that already has players, so restarting the stack does
-  # not throw away a reviewer's decisions. To start over, take the volume with it:
-  #   docker compose -f docker/docker-compose.yml down -v
+  # not throw away a reviewer's decisions. To start over, delete the database volume only:
+  #   docker compose -f docker/docker-compose.yml down && docker volume rm docker_pgdata
+  # (not `down -v`, which also deletes the downloaded language models)
   seed:
     build:
       context: ..

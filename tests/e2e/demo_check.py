@@ -107,6 +107,13 @@ def main() -> int:
     squad = get(f"{API}/players", signed_in(coach["email"], coach["demoPassword"]))
     leftovers = [r for r in squad if r["player"]["fullName"].startswith("E2E ")
                  or r["player"]["fullName"] == "مروان فؤاد"]
+    # Data loaded long ago has aged: every player looks unmeasured for months.
+    federation = signed_in(identities["federation"]["email"], identities["federation"]["demoPassword"])
+    stale = get(f"{API}/oversight", federation)["stalePct"]
+    report(None if stale > 75 else True,
+           f"{stale:.0f}% of players not measured in 90 days",
+           "the data was loaded a while ago; reset it so the readings are recent "
+           "(docs/demo.md, After a rehearsal)")
     report(None if leftovers else True,
            f"{len(leftovers)} test players in the coach's squad of {len(squad)}"
            if leftovers else f"no test players in the coach's squad ({len(squad)} players)",
