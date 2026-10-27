@@ -21,6 +21,7 @@ from app.schemas.core import MeasurementOut, PlayerOut
 from app.schemas.views import (
     PlayerProfileOut,
     ProfileSummaryOut,
+    ProSeasonsOut,
     RadarOut,
     SimilarPlayersOut,
     SquadRowOut,
@@ -36,7 +37,7 @@ from app.schemas.writes import (
     PlayerImportIn,
     PlayerImportOut,
 )
-from app.services import imports, radar, similar, summary, views, writes
+from app.services import imports, pro, radar, similar, summary, views, writes
 from app.services.access import (
     Caller,
     consent_state,
@@ -169,6 +170,17 @@ def player_radar(
     app/services/radar.py."""
     player = _viewable_player(db, caller, player_id)
     return RadarOut.model_validate(radar.player_radar(db, player))
+
+
+@router.get("/players/{player_id}/pro-seasons", response_model=ProSeasonsOut)
+def player_pro_seasons(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> ProSeasonsOut:
+    """League seasons judged: finishing against xG, trends, breakouts. See app/services/pro.py."""
+    player = _viewable_player(db, caller, player_id)
+    return ProSeasonsOut.model_validate(pro.player_seasons(db, player))
 
 
 @router.get("/players/{player_id}/similar", response_model=SimilarPlayersOut)

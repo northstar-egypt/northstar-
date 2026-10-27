@@ -44,6 +44,7 @@ import type {
   SquadRow,
   PlayerImport,
   PlayerRadar,
+  ProSeasons,
 } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -217,6 +218,15 @@ export async function getSummary(playerId: string): Promise<ProfileSummary | nul
 }
 
 /** Percentiles of a player's match statistics among comparable players. Null on 404. */
+export async function getProSeasons(playerId: string): Promise<ProSeasons | null> {
+  try {
+    return await request<ProSeasons>(`/players/${encodeURIComponent(playerId)}/pro-seasons`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
 export async function getRadar(playerId: string): Promise<PlayerRadar | null> {
   try {
     return await request<PlayerRadar>(`/players/${encodeURIComponent(playerId)}/radar`);

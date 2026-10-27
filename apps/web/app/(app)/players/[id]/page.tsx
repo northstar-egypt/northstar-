@@ -35,6 +35,7 @@ import {
   getPlayerEvents,
   getProfile,
   getEventAnalysis,
+  getProSeasons,
   getRadar,
   getSports,
   getSimilar,
@@ -55,6 +56,7 @@ import type {
   PlayerEvents,
   PlayerProfile,
   PlayerRadar,
+  ProSeasons,
   ProfileSummary,
   Rating,
   SimilarPlayers,
@@ -306,6 +308,7 @@ export default function PlayerProfilePage() {
 
       <RadarCard playerId={playerId} />
 
+      {data.player.primarySport === "football" ? <LeagueSeasonsCard playerId={playerId} /> : null}
       {data.player.primarySport === "football" ? <ShotMapCard playerId={playerId} /> : null}
       {data.player.primarySport === "table_tennis" ? <PointsCard playerId={playerId} /> : null}
       <TaggedRateCard playerId={playerId} sport={data.player.primarySport} gender={data.player.sex ?? null} />
@@ -837,6 +840,158 @@ function RadarCard({ playerId }: { playerId: string }) {
               </Link>
             ) : null}
           </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+const FINISHING_WORDS: Record<string, { label: string; tone: "good" | "warn" | "default" }> = {
+  above: { label: "Above expected", tone: "good" },
+  below: { label: "Below expected", tone: "warn" },
+  "in line": { label: "In line", tone: "default" },
+  "too few chances": { label: "Too few chances", tone: "default" },
+};
+
+/**
+ * League seasons judged (apps/api/app/services/pro.py, running ml/pro): goals against the
+ * chances' expected goals with the range chance makes, the breakout detector's view of each
+ * season, and how the player's rates moved. Shown only to players with league seasons.
+ */
+function LeagueSeasonsCard({ playerId }: { playerId: string }) {
+  const [data, setData] = useState<ProSeasons | null | "loading">("loading");
+  useEffect(() => {
+    let alive = true;
+    getProSeasons(playerId)
+      .then((d) => alive && setData(d))
+      .catch(() => alive && setData(null));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (data === "loading" || data === null) return null;
+  // A youth or table tennis record has no league seasons: say nothing rather than "none".
+  if (data.seasons.length === 0 && data.note === "No league seasons on record.") return null;
+  const career = data.career;
+  const trend = data.trends[0];
+  return (
+    <Card>
+      <SectionTitle>League seasons, judged</SectionTitle>
+      {data.seasons.length === 0 ? (
+        <p className="text-sm text-slate-500">{data.note}</p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <Table>
+            <thead>
+              <tr>
+                <Th>Season</Th>
+                <Th>Club</Th>
+                <Th className="text-right">Minutes</Th>
+                <Th className="text-right">Goals (no pens)</Th>
+                <Th className="text-right">Expected</Th>
+                <Th>Finishing</Th>
+                <Th>Breakout</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.seasons.map((s) => {
+                const f = s.finishing;
+                const words = FINISHING_WORDS[f.verdict];
+                return (
+                  <tr key={`${s.season}-${s.competition}`}>
+                    <Td>
+                      {s.season}
+                      {s.competition !== "Egyptian Premier League" ? (
+                        <span className="block text-xs text-slate-500">{s.competition}</span>
+                      ) : null}
+                    </Td>
+                    <Td>{s.club ?? "not known"}</Td>
+                    <Td className="text-right tabular-nums">{s.minutes}</Td>
+                    <Td className="text-right tabular-nums">{f.npGoals}</Td>
+                    <Td className="text-right tabular-nums">
+                      {f.npxg.toFixed(1)}
+                      {f.low != null && f.high != null ? (
+                        <span className="block text-xs text-slate-500">
+                          {f.low} to {f.high} by chance
+                        </span>
+                      ) : null}
+                    </Td>
+                    <Td>
+                      <Chip tone={words.tone}>{words.label}</Chip>
+                    </Td>
+                    <Td>
+                      {s.breakout == null ? (
+                        <span className="text-xs text-slate-500">first season on record</span>
+                      ) : s.breakout.flagged ? (
+                        <span title={s.breakout.reason}>
+                          <Chip tone="brand">Breakout</Chip>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-500">{s.breakout.considered ? "no" : "not judged"}</span>
+                      )}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+          {data.seasons
+            .filter((s) => s.breakout?.flagged)
+            .map((s) => (
+              <p key={s.season} className="text-sm text-slate-300">
+                <span className="font-semibold">Breakout, {s.season}:</span> {s.breakout?.reason}.
+              </p>
+            ))}
+          {career ? (
+            <p className="text-sm text-slate-300">
+              {career.seasons > 1 ? `Over ${career.seasons} seasons` : "So far"}: {career.npGoals} non-penalty
+              goals from chances worth {career.npxg.toFixed(1)}.{" "}
+              {career.low != null && career.high != null
+                ? `An ordinary finisher scores ${career.low} to ${career.high} from those, so this is ${
+                    career.verdict === "in line" ? "within what chance makes" : `${career.verdict} expected`
+                  }.`
+                : "Too few chances to judge the finishing."}
+            </p>
+          ) : null}
+          <p className="text-xs text-slate-500">
+            Expected goals (xG) are what the chances were worth to an ordinary finisher. One season
+            above expected is mostly chance and rarely lasts, so a finishing call needs a gap
+            bigger than chance usually makes; several seasons together say more than one. A
+            breakout is a player aged 18 to 23 whose share of their team&apos;s chances clearly rose on
+            the season before. Both are claims for a scout to check, not verdicts.
+          </p>
+          {trend ? (
+            <div>
+              <Label>
+                {trend.previous} to {trend.season} ({trend.minutesBefore} and {trend.minutesAfter} minutes)
+              </Label>
+              <ul className="mt-1 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+                {trend.changes.map((c) => (
+                  <li key={c.key} className="flex items-baseline justify-between gap-3">
+                    <span className="text-slate-300">{c.label}</span>
+                    <span className="tabular-nums text-slate-400">
+                      {c.before}
+                      {c.unit === "%" ? "%" : ""} to{" "}
+                      <span
+                        className={cx(
+                          "font-semibold",
+                          c.after > c.before ? "text-emerald-400" : c.after < c.before ? "text-amber-400" : "text-slate-200",
+                        )}
+                      >
+                        {c.after}
+                        {c.unit === "%" ? "%" : ""}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-xs text-slate-500">
+                Rates per 90 minutes unless a percentage. Seasons are compared only when both have
+                900 minutes or more.
+              </p>
+            </div>
+          ) : null}
         </div>
       )}
     </Card>
