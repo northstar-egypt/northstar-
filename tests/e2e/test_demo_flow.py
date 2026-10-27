@@ -820,6 +820,12 @@ def test_a_scout_picks_players_to_compare_and_changes_the_set(sign_in, page):
     """Tick two search results, compare them, add a third by name on the compare screen, then
     remove one: the page address follows each change."""
     sign_in("Scout", "/search")
+    # Strikers: football, so all boys. Compare refuses to mix genders, and the first results of
+    # an empty search can be anyone (a table tennis girl added by another test made this fail).
+    page.get_by_placeholder("left footed").fill("striker")
+    page.keyboard.press("Enter")
+    page.get_by_text("position: ST").wait_for(timeout=20000)
+    page.wait_for_timeout(SETTLE_MS)
     boxes = page.get_by_role("checkbox", name=re.compile("^Pick .* to compare"))
     boxes.first.wait_for(timeout=20000)
     if boxes.count() < 3:

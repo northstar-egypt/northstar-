@@ -286,6 +286,29 @@ def test_dev_identities_lists_one_account_per_role(client, world):
         assert row["demoPassword"]
 
 
+def test_the_demo_coach_has_the_largest_egyptian_squad(client, db, world):
+    """The coach's own screen is a squad, so the demo coach is the active coach whose Egyptian
+    club or academy has the most players, not the first by email (whose squad was three)."""
+    from sqlalchemy import func, select
+
+    from app.models.organization import Organization
+    from app.models.player_organization import PlayerOrganization
+    from app.models.user import User
+
+    sizes = dict(
+        db.execute(
+            select(User.email, func.count(PlayerOrganization.id))
+            .join(Organization, Organization.id == User.organization_id)
+            .join(PlayerOrganization, PlayerOrganization.organization_id == Organization.id)
+            .where(User.role == "coach", User.is_active.is_(True), Organization.country == "EG")
+            .where(PlayerOrganization.end_date.is_(None))
+            .group_by(User.email)
+        ).all()
+    )
+    coach = next(row for row in client.get("/dev/identities").json() if row["role"] == "coach")
+    assert sizes[coach["email"]] == max(sizes.values())
+
+
 def test_dev_identities_is_refused_outside_development(client, monkeypatch):
     """It lists accounts and the demo password, so nowhere but development may serve it."""
     from app.config import get_settings
