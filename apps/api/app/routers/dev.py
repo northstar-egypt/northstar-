@@ -20,6 +20,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.models.enums import UserRole
 from app.models.organization import Organization
+from app.models.player import Player
 from app.models.player_organization import PlayerOrganization
 from app.models.user import User
 from app.schemas.core import CamelModel
@@ -48,13 +49,16 @@ def identities(db: Session = Depends(get_db)) -> list[DevIdentityOut]:
             detail="Not available outside development.",
         )
 
-    # How many players each organization has now. The demo coach is the one with the largest
-    # squad at an Egyptian club or academy: the first coach by email had a squad of three, and
-    # the coach's own screen is a squad.
+    # How many youth players each organization has now. The demo coach is the one with the
+    # largest youth squad at an Egyptian club or academy: the first coach by email had a squad of
+    # three, and the coach's screen and the demo are about logging children's growth. (Counting
+    # every player picked a professional club once the league filled squads with adults.)
     squad_size = (
         select(func.count(PlayerOrganization.player_id))
+        .join(Player, Player.id == PlayerOrganization.player_id)
         .where(PlayerOrganization.organization_id == User.organization_id)
         .where(PlayerOrganization.end_date.is_(None))
+        .where(Player.tier == "youth")
         .correlate(User)
         .scalar_subquery()
     )

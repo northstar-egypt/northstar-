@@ -112,11 +112,15 @@ Negative / trade-offs:
 
 ## Open decisions (ask before building)
 
-1. **Where team season stats are stored.** Proposed: one new table,
-   `organization_season_stat` (organization, sport, competition, season, source, `metrics`
-   JSONB, `schema_ref`), mirroring `PerformanceEntry` so team metrics are validated by the
-   sport module (`football.team_season.v1`) like player metrics are. This is a schema change
-   and a migration, so it needs the team's approval.
+1. **Where team season stats are stored.** Answered 2026-10-27: a new table,
+   `team_season_stat` (organization, sport, competition, season, period dates, source,
+   `metrics` JSONB, `schema_ref`; migration 0008), mirroring `PerformanceEntry` so team
+   metrics are validated by the sport module's `teamPeriods` (`football.team_season.v1`) like
+   player metrics are. Approved as a schema change. Player seasons use
+   `football.season_aggregate.v2`. Until the FootyStats subscription is live, both are filled by
+   a synthetic Egyptian league (`data/pipelines/synthetic/pro_league.py`), which the analyses
+   are built and scored on; the FootyStats adapter will write real seasons into the same
+   records.
 2. **Who sees it.** Proposed: scouts and federation staff, with no new role. A club analyst
    role can come later if needed.
 

@@ -91,6 +91,121 @@
         { "key": "goals_per_90", "label": "Goals per 90", "numerator": ["goals"], "denominator": ["minutes_played"], "scale": 90, "format": "number", "search": { "better": "higher", "minBasis": 1 } },
         { "key": "shot_conversion", "label": "Shot conversion", "numerator": ["goals"], "denominator": ["shots"], "format": "percent", "search": { "better": "higher", "minBasis": 1 } }
       ]
+    },
+    "football.season_aggregate.v2": {
+      "periodType": "season_aggregate",
+      "label": "League seasons",
+      "schema": {
+        "type": "object",
+        "required": [
+          "appearances", "starts", "minutes_played", "goals", "penalty_goals", "xg", "npxg", "assists", "xa",
+          "shots", "shots_on_target", "key_passes", "passes_attempted", "passes_completed", "crosses",
+          "dribbles_attempted", "dribbles_completed", "tackles", "interceptions", "duels", "duels_won",
+          "aerial_duels", "aerial_duels_won", "clearances", "yellow_cards", "red_cards"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "appearances": { "type": "integer", "minimum": 0, "maximum": 70, "title": "Apps" },
+          "starts": { "type": "integer", "minimum": 0, "maximum": 70, "title": "Starts" },
+          "minutes_played": { "type": "integer", "minimum": 0, "maximum": 6300, "title": "Minutes", "x-unit": "min" },
+          "goals": { "type": "integer", "minimum": 0, "title": "Goals" },
+          "penalty_goals": { "type": "integer", "minimum": 0, "title": "Pen goals" },
+          "xg": { "type": "number", "minimum": 0, "title": "xG" },
+          "npxg": { "type": "number", "minimum": 0, "title": "npxG" },
+          "assists": { "type": "integer", "minimum": 0, "title": "Assists" },
+          "xa": { "type": "number", "minimum": 0, "title": "xA" },
+          "shots": { "type": "integer", "minimum": 0, "title": "Shots" },
+          "shots_on_target": { "type": "integer", "minimum": 0, "title": "On target" },
+          "key_passes": { "type": "integer", "minimum": 0, "title": "Key passes" },
+          "passes_attempted": { "type": "integer", "minimum": 0, "title": "Passes" },
+          "passes_completed": { "type": "integer", "minimum": 0, "title": "Completed" },
+          "crosses": { "type": "integer", "minimum": 0, "title": "Crosses" },
+          "dribbles_attempted": { "type": "integer", "minimum": 0, "title": "Dribbles" },
+          "dribbles_completed": { "type": "integer", "minimum": 0, "title": "Dribbles won" },
+          "tackles": { "type": "integer", "minimum": 0, "title": "Tackles" },
+          "interceptions": { "type": "integer", "minimum": 0, "title": "Interceptions" },
+          "duels": { "type": "integer", "minimum": 0, "title": "Duels" },
+          "duels_won": { "type": "integer", "minimum": 0, "title": "Duels won" },
+          "aerial_duels": { "type": "integer", "minimum": 0, "title": "Aerials" },
+          "aerial_duels_won": { "type": "integer", "minimum": 0, "title": "Aerials won" },
+          "clearances": { "type": "integer", "minimum": 0, "title": "Clearances" },
+          "yellow_cards": { "type": "integer", "minimum": 0, "title": "Yellow" },
+          "red_cards": { "type": "integer", "minimum": 0, "title": "Red" }
+        }
+      },
+      "invariants": [
+        { "lte": ["starts", "appearances"], "message": "more starts than appearances" },
+        { "lte": ["goals", "shots"], "message": "more goals than shots" },
+        { "lte": ["goals", "shots_on_target"], "message": "more goals than shots on target" },
+        { "lte": ["shots_on_target", "shots"], "message": "more shots on target than shots" },
+        { "lte": ["penalty_goals", "goals"], "message": "more penalty goals than goals" },
+        { "lte": ["npxg", "xg"], "message": "more non-penalty xG than xG" },
+        { "lte": ["passes_completed", "passes_attempted"], "message": "more passes completed than attempted" },
+        { "lte": ["dribbles_completed", "dribbles_attempted"], "message": "more dribbles completed than attempted" },
+        { "lte": ["duels_won", "duels"], "message": "more duels won than duels" },
+        { "lte": ["aerial_duels_won", "aerial_duels"], "message": "more aerial duels won than aerial duels" },
+        { "lte": ["aerial_duels", "duels"], "message": "more aerial duels than duels" },
+        { "ifZero": "minutes_played", "thenZero": ["appearances", "goals", "shots", "passes_attempted", "tackles"], "message": "match actions with no minutes played" }
+      ],
+      "derived": [
+        { "key": "goals_per_90", "label": "Goals per 90", "numerator": ["goals"], "denominator": ["minutes_played"], "scale": 90, "format": "number" },
+        { "key": "npxg_per_90", "label": "npxG per 90", "numerator": ["npxg"], "denominator": ["minutes_played"], "scale": 90, "format": "number" },
+        { "key": "xa_per_90", "label": "xA per 90", "numerator": ["xa"], "denominator": ["minutes_played"], "scale": 90, "format": "number" },
+        { "key": "pass_completion", "label": "Pass completion", "numerator": ["passes_completed"], "denominator": ["passes_attempted"], "format": "percent" },
+        { "key": "duels_won_share", "label": "Duels won", "numerator": ["duels_won"], "denominator": ["duels"], "format": "percent" }
+      ]
+    }
+  },
+  "teamPeriods": {
+    "football.team_season.v1": {
+      "periodType": "team_season",
+      "label": "Team seasons",
+      "schema": {
+        "type": "object",
+        "required": [
+          "matches", "wins", "draws", "losses", "points", "goals_for", "goals_against", "xg_for", "xg_against",
+          "shots_for", "shots_against", "possession_pct", "clean_sheets", "home_points", "away_points",
+          "goals_for_first_half", "goals_against_first_half", "goals_against_last_15", "set_piece_goals_for",
+          "set_piece_goals_against"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "matches": { "type": "integer", "minimum": 0, "maximum": 60, "title": "Matches" },
+          "wins": { "type": "integer", "minimum": 0, "title": "Won" },
+          "draws": { "type": "integer", "minimum": 0, "title": "Drawn" },
+          "losses": { "type": "integer", "minimum": 0, "title": "Lost" },
+          "points": { "type": "integer", "minimum": 0, "title": "Points" },
+          "goals_for": { "type": "integer", "minimum": 0, "title": "Goals for" },
+          "goals_against": { "type": "integer", "minimum": 0, "title": "Goals against" },
+          "xg_for": { "type": "number", "minimum": 0, "title": "xG for" },
+          "xg_against": { "type": "number", "minimum": 0, "title": "xG against" },
+          "shots_for": { "type": "integer", "minimum": 0, "title": "Shots for" },
+          "shots_against": { "type": "integer", "minimum": 0, "title": "Shots against" },
+          "possession_pct": { "type": "number", "minimum": 0, "maximum": 100, "title": "Possession", "x-unit": "%" },
+          "clean_sheets": { "type": "integer", "minimum": 0, "title": "Clean sheets" },
+          "home_points": { "type": "integer", "minimum": 0, "title": "Home points" },
+          "away_points": { "type": "integer", "minimum": 0, "title": "Away points" },
+          "goals_for_first_half": { "type": "integer", "minimum": 0, "title": "Scored, 1st half" },
+          "goals_against_first_half": { "type": "integer", "minimum": 0, "title": "Conceded, 1st half" },
+          "goals_against_last_15": { "type": "integer", "minimum": 0, "title": "Conceded, last 15 min" },
+          "set_piece_goals_for": { "type": "integer", "minimum": 0, "title": "Set piece goals" },
+          "set_piece_goals_against": { "type": "integer", "minimum": 0, "title": "Set piece goals conceded" }
+        }
+      },
+      "invariants": [
+        { "lte": ["wins", "matches"], "message": "more wins than matches" },
+        { "lte": ["clean_sheets", "matches"], "message": "more clean sheets than matches" },
+        { "lte": ["goals_for_first_half", "goals_for"], "message": "more first-half goals than goals" },
+        { "lte": ["goals_against_first_half", "goals_against"], "message": "more first-half goals conceded than conceded" },
+        { "lte": ["goals_against_last_15", "goals_against"], "message": "more late goals conceded than conceded" },
+        { "lte": ["set_piece_goals_for", "goals_for"], "message": "more set piece goals than goals" },
+        { "lte": ["set_piece_goals_against", "goals_against"], "message": "more set piece goals conceded than conceded" }
+      ],
+      "derived": [
+        { "key": "points_per_game", "label": "Points per game", "numerator": ["points"], "denominator": ["matches"], "format": "number" },
+        { "key": "xg_for_per_game", "label": "xG for per game", "numerator": ["xg_for"], "denominator": ["matches"], "format": "number" },
+        { "key": "xg_against_per_game", "label": "xG against per game", "numerator": ["xg_against"], "denominator": ["matches"], "format": "number" }
+      ]
     }
   },
   "events": {

@@ -221,6 +221,29 @@ sport's events share. See decision 0005.
 | source          | enum          | `coach_tagged`.                                                |
 | tagged_by       | UUID FK, null | To User. Null on tags made by the synthetic data generator.    |
 
+## TeamSeasonStat
+
+A team's season in one competition, as a professional data provider (FootyStats) publishes it:
+results, goals and xG for and against, possession, goal timing, set pieces. Team gap analysis
+reads it (decision 0003). The statistics are a JSON payload validated by the sport module's
+`teamPeriods`, so a new team statistic is a config change, as for players.
+
+| Field           | Type          | Notes                                                          |
+| --------------- | ------------- | -------------------------------------------------------------- |
+| id              | UUID PK       |                                                                |
+| organization_id | UUID FK       | To Organization: the club or national team.                    |
+| sport           | enum          | Whose module validates `metrics`.                              |
+| competition     | text          | As published, e.g. "Egyptian Premier League".                  |
+| season          | text          | e.g. "2025/26".                                                |
+| period_start, period_end | date |                                                                |
+| schema_ref      | text          | The module's team period, e.g. `football.team_season.v1`.      |
+| metrics         | JSONB         | The statistics.                                                |
+| source          | enum          | `api` for a data provider's feed.                              |
+
+Unique on (organization, competition, season, schema_ref). A player's season in the same
+competition is a `PerformanceEntry` with `football.season_aggregate.v2` and `event` set to the
+competition and season.
+
 ## User
 
 An account that logs into the platform. Distinct from Player: a player may or may not have a
