@@ -272,6 +272,8 @@ class ProfileSummaryOut(CamelModel):
     summary: str | None = None
     note: str
     model: str | None = None
+    # Still being written: ask again shortly. The request does not wait for the model.
+    pending: bool = False
 
 
 class SearchResultOut(CamelModel):

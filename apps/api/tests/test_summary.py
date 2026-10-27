@@ -525,3 +525,70 @@ def test_the_summary_model_is_kept_off_the_gpu_and_loaded_when_configured(monkey
     monkeypatch.setattr(get_settings(), "ollama_summary_num_gpu", 0)
     summary.warm_model()
     assert sent[-1]["options"] == {"num_gpu": 0} and sent[-1]["keep_alive"] == "1h"
+
+
+# ---------------------------------------------------------------------------
+# The endpoint does not wait for the model (summarise_soon)
+# ---------------------------------------------------------------------------
+
+
+def _slow_model(monkeypatch, release):
+    """A model that answers only once `release` is set, on any fact sheet."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "ollama_url", "http://ollama")
+    calls = []
+
+    def slow(lines, *, model, url, num_gpu=None):
+        calls.append(lines)
+        release.wait(10)
+        return lines[1]
+
+    monkeypatch.setattr(summary, "ask_ollama", slow)
+    return calls
+
+
+def test_a_slow_summary_answers_pending_at_once_and_is_ready_later(monkeypatch):
+    """Each request used to hold an API worker thread until the model answered, up to 300 s;
+    open enough new profiles and every request timed out. Now it waits a few seconds."""
+    import threading
+    import time
+
+    release = threading.Event()
+    _slow_model(monkeypatch, release)
+    monkeypatch.setattr(summary, "facts", lambda profile: SHEET)
+    started = time.monotonic()
+    first = summary.summarise_soon({}, wait=0.2)
+    assert time.monotonic() - started < 2
+    assert first.pending and first.text is None and "writing" in first.note
+
+    release.set()
+    for _ in range(50):
+        if summary.summarise_soon({}, wait=0.2).text:
+            break
+        time.sleep(0.1)
+    ready = summary.summarise_soon({}, wait=0.2)
+    assert ready.text == SHEET[1] and not ready.pending
+
+
+def test_a_full_queue_takes_no_more_work(monkeypatch):
+    """A burst of new profiles must not fill the machine with model work for half an hour."""
+    import threading
+
+    release = threading.Event()
+    calls = _slow_model(monkeypatch, release)
+    sheets = [[f"Player {i}.", f"Line {i}."] for i in range(summary._MAX_QUEUED + 2)]
+    try:
+        for sheet in sheets:
+            monkeypatch.setattr(summary, "facts", lambda profile, sheet=sheet: sheet)
+            result = summary.summarise_soon({}, wait=0.05)
+            assert result.pending
+        assert len(summary._pending) == summary._MAX_QUEUED
+        assert "busy" in result.note
+    finally:
+        release.set()
+    for _ in range(100):
+        if not summary._pending:
+            break
+        threading.Event().wait(0.1)
+    assert len(calls) == summary._MAX_QUEUED

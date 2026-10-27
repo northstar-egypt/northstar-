@@ -4,7 +4,7 @@ Runs once when the stack starts, then exits. Five steps:
 
   1. `alembic upgrade head`, so the schema matches the models.
   2. Generate the synthetic dataset and load it, **only if the database has no players**,
-     dated up to the day it is loaded (`--reference-date`), so its readings are recent.
+     dated up to the day before it is loaded (`--reference-date`), so its readings are recent.
   3. Run the detectors on the database and write their findings to the flag table.
   4. Add synthetic tagged match events from the match records, once (for the shot map).
   5. Set the governorate of synthetic clubs that have none (coverage by governorate).
@@ -23,13 +23,14 @@ To deliberately start over, delete the database volume only:
 
 (`down -v` also deletes `docker_ollama-data`, the downloaded language models, several GB.)
 
-Why the data is dated to the day it is loaded
----------------------------------------------
+Why the data is dated to the day before it is loaded
+----------------------------------------------------
 The generator dates everything relative to a reference day so its runs reproduce, and the
 evaluation datasets keep the default (2026-06-30). The demo database used it too, so months
 later every player looked unmeasured and the oversight screen read 100% stale. Loaded with
-today as the reference, the readings are as recent as the generator makes them on its own
-reference day, and they age from then on, as real records would.
+yesterday as the reference, the readings are as recent as the generator makes them on its own
+reference day, and they age from then on, as real records would. Yesterday rather than today,
+so nothing generated shares a day with a reading a coach enters on the day of loading.
 
 Why step 3 runs every time
 --------------------------
@@ -47,7 +48,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -92,11 +93,14 @@ def main() -> int:
         log("to start over: docker compose -f docker/docker-compose.yml down, "
             "then docker volume rm docker_pgdata")
     else:
-        today = date.today().isoformat()
-        log(f"empty database, generating and loading the synthetic dataset, dated up to {today}")
+        # Up to yesterday, not today: a reading a coach enters on the day of loading (the
+        # demo does) must be the newest, not share a day with a generated one. Two readings of
+        # one measure on one day are a conflict a merge settles in the kept record's favour.
+        reference = (date.today() - timedelta(days=1)).isoformat()
+        log(f"empty database, generating and loading the synthetic dataset, dated up to {reference}")
         run(
             [sys.executable, "-m", "data.pipelines.synthetic.generate",
-             "--database-url", DATABASE_URL, "--truncate", "--reference-date", today],
+             "--database-url", DATABASE_URL, "--truncate", "--reference-date", reference],
             cwd=REPO,
         )
 

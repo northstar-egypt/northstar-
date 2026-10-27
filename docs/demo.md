@@ -182,7 +182,7 @@ docker compose -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml --p
 ```
 
 This deletes the database volume only, and the seed container rebuilds it from the generator,
-dated up to today. Do not use `down -v`: it also deletes the downloaded language models.
+dated up to yesterday. Do not use `down -v`: it also deletes the downloaded language models.
 
 ## If there is time
 
