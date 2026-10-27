@@ -143,9 +143,12 @@ export default function PlayerProfilePage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link href={`/compare?players=${p.id}`}>
-                <Button variant="ghost">Compare</Button>
-              </Link>
+              {/* A player on their own record has no search to find someone to compare with. */}
+              {!isOwnProfile ? (
+                <Link href={`/compare?players=${p.id}`}>
+                  <Button variant="ghost">Compare</Button>
+                </Link>
+              ) : null}
               {data.permissions.canLog ? (
                 <Button onClick={() => setLogging((open) => !open)} aria-expanded={logging}>
                   Log measurement
@@ -198,7 +201,7 @@ export default function PlayerProfilePage() {
           </div>
           {data.flagReason ? <p className="text-slate-300">{data.flagReason}</p> : null}
           <p className="mt-1 text-xs text-slate-500">
-            A flag is a claim, not a verdict. It is generated from the measurements below.
+            A flag is a claim, not a verdict. Staff at the federation look at each one and decide.
           </p>
         </Banner>
       ) : null}
@@ -267,6 +270,13 @@ export default function PlayerProfilePage() {
         {data.percentilesNote ? (
           <p className="text-sm text-slate-500">{data.percentilesNote}</p>
         ) : null}
+        {data.percentiles.length ? (
+          <p className="mb-3 text-xs text-slate-500">
+            <span className="text-emerald-400">Green</span>: in the best 30% on that measure.{" "}
+            <span className="text-amber-400">Amber</span>: in the bottom 30%. For a time, lower is
+            better.
+          </p>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           {data.percentiles.map((pc) => (
             <div key={pc.metric} className="flex flex-col gap-1.5">
@@ -280,7 +290,9 @@ export default function PlayerProfilePage() {
                 </span>
               </div>
               <PercentileBar percentile={pc.percentile} higherIsBetter={pc.higherIsBetter} />
-              <span className="text-[0.7rem] text-slate-600">vs {pc.population}</span>
+              <span className="text-[0.7rem] text-slate-500">
+                {inWords(pc.metric, pc.percentile, pc.higherIsBetter)} {pc.population}
+              </span>
             </div>
           ))}
         </div>
@@ -1128,7 +1140,7 @@ function PerformanceCard({ section }: { section: PerformanceSection }) {
   const hidden = section.entries.length - shown.length;
   return (
     <Card>
-      <SectionTitle action={<Chip tone="brand">{section.schemaRef}</Chip>}>
+      <SectionTitle>
         {`Performance: ${section.label.toLowerCase()}`}
       </SectionTitle>
 
@@ -1192,7 +1204,7 @@ function PerformanceCard({ section }: { section: PerformanceSection }) {
                   {String(e.metrics[c.key] ?? "-")}
                 </Td>
               ))}
-              <Td className="whitespace-nowrap text-slate-500">{e.source.replace(/_/g, " ")}</Td>
+              <Td className="whitespace-nowrap text-slate-500">{sourceLabel(e.source)}</Td>
             </tr>
           ))}
         </tbody>
@@ -1216,4 +1228,32 @@ function PerformanceCard({ section }: { section: PerformanceSection }) {
 
 function formatStat(stat: SummaryStat): string {
   return stat.format === "percent" ? `${Math.round(stat.value * 100)}%` : stat.value.toFixed(2);
+}
+
+/** Where a record came from, in words a coach uses. The codes are the database's. */
+const SOURCE_LABELS: Record<string, string> = {
+  coach_logged: "coach logged",
+  self_submitted: "self submitted",
+  import: "imported results",
+  api: "league data feed",
+  scrape: "published results",
+};
+
+function sourceLabel(source: string): string {
+  return SOURCE_LABELS[source] ?? source.replace(/_/g, " ");
+}
+
+/**
+ * A percentile in a sentence. A bare "95th" on a sprint time reads as good and means slow:
+ * the percentile is of the time, so 95th is slower than 95% of the group.
+ */
+function inWords(metric: string, percentile: number, higherIsBetter: boolean): string {
+  const verbs: Record<string, string> = {
+    height_cm: "taller than",
+    weight_kg: "heavier than",
+    sprint_10m_s: "faster than",
+  };
+  // Where lower is better the percentile is turned round, so the sentence says the good way.
+  const share = higherIsBetter ? percentile : 100 - percentile;
+  return `${verbs[metric] ?? "better than"} ${Math.round(share)}% of`;
 }

@@ -187,9 +187,11 @@ def score_pair(
         "within_days": "recorded dates of birth a few days apart",
         "day_month_transposed": "a date of birth with the day and month transposed",
     }[relation]
+    # Read by coaches and reviewers on the profile and the board, so in words. The containment
+    # figure was in it, and it is 1.00 for every pair that gets this far (the threshold is 0.99).
     return True, (
-        f"Name matches after normalising Arabic spelling (containment "
-        f"{containment:.2f}) and {detail}. Likely the same player entered twice."
+        f"The names match once Arabic spelling differences are set aside, and {detail}. "
+        f"Likely the same player entered twice."
     )
 
 

@@ -182,7 +182,7 @@ def similar_players(db: Session, caller: Caller, player: Player) -> dict:
         "items": items,
         "note": (
             f"Compared on their match record only ({sport}), with players of the same sport and "
-            "gender. It finds players of the same kind of role well, and level only in part; "
-            "see ml/README.md, Player similarity."
+            "gender, at any age. It finds players who play a similar role well, and players of "
+            "a similar level only in part."
         ),
     }

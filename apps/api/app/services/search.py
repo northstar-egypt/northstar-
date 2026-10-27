@@ -101,7 +101,15 @@ _GENDER_WORDS = (
 _STOPWORDS = {
     "a", "an", "and", "the", "with", "who", "that", "for", "of", "in", "at",
     "players", "player", "show", "me", "find", "years", "year", "old", "yo",
+    "لاعب", "لاعبين", "لاعبة", "لاعبات",
 }
+
+# Words that ask for a ranking. Search filters and does not rank, so read as a name ("best
+# players" searched for a player called Best) they returned nothing and said nothing. Only
+# words left over for name search are checked, so a phrase the model reads ("best passers")
+# still reads as it did.
+_RANKING_WORDS = {"best", "top", "greatest", "أحسن", "احسن", "أفضل", "افضل"}
+RANKING_HINT = "search filters but does not rank: for the best on a statistic, use Explore (Leaders) or Ask"
 
 # Where one phrase ends and the next begins: punctuation, and joining words standing alone.
 _PHRASE_BREAK = re.compile(
@@ -278,6 +286,9 @@ def parse_query(
             # Part of a phrase already read as a concept; it did not narrow anything.
             chips.append({"label": f"{word}: not used", "understood": False})
         for word in reading.leftover:
+            if word.lower() in _RANKING_WORDS:
+                chips.append({"label": f"{word}: {RANKING_HINT}", "understood": False})
+                continue
             # Treated as part of a name, in either script and any common spelling
             # (app/names.py). It does change the results, so the chip says how.
             name_terms.append(word)

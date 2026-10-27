@@ -102,14 +102,15 @@ export default function DashboardPage() {
               label={`Not measured in ${STALE_DAYS} days`}
               value={counts.overdue}
               tone={counts.overdue > 0 ? "warn" : "good"}
-              hint="drives the default sort"
+              hint="listed first below"
             />
             <Stat
               label="Consent missing"
               value={counts.consent}
               tone={counts.consent > 0 ? "warn" : "good"}
             />
-            <Stat label="Flags to review" value={counts.flagged} />
+            {/* A coach cannot review flags; the federation does (the integrity board). */}
+            <Stat label="Open flags" value={counts.flagged} hint="reviewed by the federation" />
           </>
         ) : (
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[5.5rem]" />)

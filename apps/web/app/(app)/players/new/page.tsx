@@ -406,7 +406,7 @@ export default function NewPlayerPage() {
               </Chip>
             </div>
             <span className="text-xs text-slate-500">
-              The maturity models treat these differently, so it is worth one tap.
+              Kept with the reading, so anyone looking at it later knows how it was taken.
             </span>
           </div>
 

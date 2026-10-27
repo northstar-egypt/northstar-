@@ -269,3 +269,12 @@ def test_a_group_filters_on_any_of_its_positions(client, auth, world, db):
         db.query(Player).filter(Player.full_name == name).first().position in ("LW", "RW")
         for name in found
     )
+
+
+@pytest.mark.parametrize("query", ["best players", "top", "أحسن لاعب"])
+def test_asking_for_the_best_says_search_does_not_rank(query):
+    """"best players" searched for a player called Best: nothing came back and nothing said
+    why. The word now changes nothing, and its chip says where ranking is."""
+    filters, chips, names = parse_query(query)
+    assert names == []
+    assert any("does not rank" in c["label"] and not c["understood"] for c in chips)
