@@ -138,7 +138,7 @@ export default function ComparePage() {
                 >
                   ×
                 </button>
-                <Avatar size={40} />
+                <Avatar size={40} name={entry.player.fullName} />
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{entry.player.fullName}</p>
                   <p className="text-xs text-slate-500">
@@ -249,19 +249,6 @@ export default function ComparePage() {
             ) : null}
           </Card>
 
-          <Card className="border-dashed">
-            <SectionTitle>Not built</SectionTitle>
-            <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-slate-500">
-              <li>
-                Metric direction is carried in the response. It should come from metric
-                definitions in packages/shared so every screen agrees.
-              </li>
-              <li>
-                Comparison is desktop only by design. Three columns of numbers do not survive a
-                phone, and pretending otherwise makes a worse tool.
-              </li>
-            </ul>
-          </Card>
         </>
       )}
     </div>

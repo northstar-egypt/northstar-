@@ -20,6 +20,11 @@ working on data that just arrived, and a human deciding with a reason that is ke
 
 ## Before you present
 
+If the browser tests (`pytest tests/e2e`) have run on this machine, reset the data first (see
+"After a rehearsal"). Each run adds test players named "E2E ..." to the demo coach's squad and
+duplicate cases to the integrity queue, and an audience would see them. The check below warns
+when they are there.
+
 1. Start the full stack, with the models:
 
    ```bash
@@ -56,7 +61,8 @@ same.
 
 ### 1. Log a player (coach)
 
-Sign in with the **Coach** button on the login screen. That is an academy coach at المصري.
+Sign in with the **Coach** button on the login screen: the coach at the club `demo_check.py`
+named (إنبي on freshly seeded data, the Egyptian club with the largest squad).
 
 - **Squad** shows the coach's own players, with how stale each one's readings are.
 - **Add player.** Full name `منير حجازي`, date of birth `2010-06-09`, position **ST**.
@@ -92,7 +98,7 @@ Sign out, then sign in with **Scout**: a scout at a different academy.
 
 ### 4. Find them (scout)
 
-Two players: the one the coach just added at المصري (one reading) and منير عصام فارس
+Two players: the one the coach just added at their club (one reading) and منير عصام فارس
 حجازي at البنك الأهلي with years of history. Same boy, two records.
 
 Say: nothing has flagged this yet. A person might spot it in a search; the platform should

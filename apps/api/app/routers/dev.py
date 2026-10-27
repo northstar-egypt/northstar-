@@ -13,12 +13,14 @@ for anything else. It is in its own router so removing it is one file and one li
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
 from app.models.enums import UserRole
+from app.models.organization import Organization
+from app.models.player_organization import PlayerOrganization
 from app.models.user import User
 from app.schemas.core import CamelModel
 from app.security import DEMO_PASSWORD
@@ -46,17 +48,36 @@ def identities(db: Session = Depends(get_db)) -> list[DevIdentityOut]:
             detail="Not available outside development.",
         )
 
+    # How many players each organization has now. The demo coach is the one with the largest
+    # squad at an Egyptian club or academy: the first coach by email had a squad of three, and
+    # the coach's own screen is a squad.
+    squad_size = (
+        select(func.count(PlayerOrganization.player_id))
+        .where(PlayerOrganization.organization_id == User.organization_id)
+        .where(PlayerOrganization.end_date.is_(None))
+        .correlate(User)
+        .scalar_subquery()
+    )
     out: list[DevIdentityOut] = []
     for role in UserRole:
-        user = db.execute(
+        query = (
             select(User)
+            .outerjoin(Organization, Organization.id == User.organization_id)
             .where(User.role == role.value)
             .where(User.is_active.is_(True))
-            # A coach with no organization sees nobody, which makes a confusing demo. Prefer
-            # an account that is actually attached to something.
-            .order_by(User.organization_id.is_(None), User.email)
-            .limit(1)
-        ).scalar_one_or_none()
+        )
+        # A coach with no organization sees nobody, which makes a confusing demo. Prefer
+        # an account that is actually attached to something.
+        if role == UserRole.COACH:
+            query = query.order_by(
+                User.organization_id.is_(None),
+                func.coalesce(Organization.country, "") != "EG",
+                squad_size.desc(),
+                User.email,
+            )
+        else:
+            query = query.order_by(User.organization_id.is_(None), User.email)
+        user = db.execute(query.limit(1)).scalar_one_or_none()
         if user is None:
             continue
         out.append(

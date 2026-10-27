@@ -42,7 +42,7 @@ import {
   writeRefusal,
 } from "@/lib/api";
 import { canAccess, useAuth } from "@/lib/auth";
-import { num, ordinal, shortDate } from "@/lib/format";
+import { cx, flagsByType, num, ordinal, shortDate, times } from "@/lib/format";
 import type {
   MergedRecord,
   Opponent,
@@ -124,7 +124,7 @@ export default function PlayerProfilePage() {
     <div className="flex flex-col gap-5">
       {/* identity */}
       <div className="flex flex-wrap items-start gap-4">
-        <Avatar size={72} />
+        <Avatar size={72} name={p.fullName} />
         <div className="flex min-w-[16rem] flex-1 flex-col gap-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
@@ -166,9 +166,10 @@ export default function PlayerProfilePage() {
       {showFlags && data.flags.length > 0 ? (
         <Banner tone="info" title="What the models are saying">
           <div className="mb-2 flex flex-wrap gap-1.5">
-            {data.flags.map((f) => (
+            {flagsByType(data.flags).map((f) => (
               <Chip key={f.type} tone="brand">
                 {f.label}
+                {times(f.count)}
                 {f.confidence != null ? (
                   <span className="ml-1 tabular-nums text-slate-400">
                     {f.confidence.toFixed(2)}
@@ -191,8 +192,9 @@ export default function PlayerProfilePage() {
       {/* written summary, loaded after the profile because a local model takes seconds */}
       <SummaryCard playerId={playerId} />
 
-      {/* growth and maturity */}
-      <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+      {/* growth and maturity. No maturity estimate is computed yet (README, "What is not
+          built"), so the growth chart takes the row rather than sitting beside an empty card. */}
+      <div className={cx("grid gap-4", data.maturity && "lg:grid-cols-[3fr_2fr]")}>
         <Card>
           <SectionTitle
             action={<span className="text-xs text-slate-500">{measuredSpan(data.growth.measured)}</span>}
@@ -206,9 +208,9 @@ export default function PlayerProfilePage() {
           ) : null}
         </Card>
 
-        <Card>
-          <SectionTitle>Maturity</SectionTitle>
-          {data.maturity ? (
+        {data.maturity ? (
+          <Card>
+            <SectionTitle>Maturity</SectionTitle>
             <div className="flex flex-col gap-3">
               <div>
                 <Label>Offset against peers</Label>
@@ -237,10 +239,8 @@ export default function PlayerProfilePage() {
                 number as a placeholder for a real estimate.
               </p>
             </div>
-          ) : (
-            <p className="text-sm text-slate-500">No maturity estimate for this player.</p>
-          )}
-        </Card>
+          </Card>
+        ) : null}
       </div>
 
       {/* percentiles */}

@@ -250,16 +250,34 @@ export function Td({
   );
 }
 
-export function Avatar({ size = 40 }: { size?: number }) {
+/**
+ * A player's initials in a circle. There are no photos of players (minors' photos are not
+ * collected), so a placeholder that says "photo" only advertised something missing.
+ */
+export function Avatar({ size = 40, name }: { size?: number; name?: string | null }) {
+  const letters = initials(name);
   return (
     <div
-      className="flex flex-none items-center justify-center rounded-full border border-dashed border-slate-700 bg-slate-800/60 text-[0.6rem] text-slate-600"
-      style={{ width: size, height: size }}
+      className="flex flex-none select-none items-center justify-center rounded-full border border-slate-700 bg-slate-800 font-semibold text-slate-300"
+      style={{ width: size, height: size, fontSize: Math.max(10, Math.round(size * 0.36)) }}
       aria-hidden
+      dir="auto"
     >
-      {size >= 40 ? "photo" : ""}
+      {letters}
     </div>
   );
+}
+
+/** First letters of the first and last names. In Arabic a zero-width non-joiner keeps the two
+ * letters apart, as initials, instead of joining them into a word. */
+export function initials(name: string | null | undefined): string {
+  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "";
+  const first = Array.from(words[0])[0];
+  const last = words.length > 1 ? Array.from(words[words.length - 1])[0] : "";
+  const arabic = [first, last].some((c) => c && c.charCodeAt(0) >= 0x0600 && c.charCodeAt(0) <= 0x06ff);
+  const zeroWidthNonJoiner = String.fromCharCode(0x200c);
+  return arabic ? [first, last].filter(Boolean).join(zeroWidthNonJoiner) : (first + last).toUpperCase();
 }
 
 export function Skeleton({ className }: { className?: string }) {

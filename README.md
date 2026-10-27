@@ -167,8 +167,22 @@ docker compose -f docker/docker-compose.yml down -v
 ### What is not built
 
 Every screen reads from and writes to the real API, behind a real sign-in. What is still
-missing on them: an existing player cannot be edited yet, and there is no password reset or
-sign-in rate limiting (see "Known gaps" in `docs/threat-model.md`).
+missing on them (these notes used to sit on the screens themselves, and were moved here so the
+screens show the product):
+
+- **Editing an existing player.** The add-player form, loaded with the player's values, once
+  the API serves one.
+- **Offline saving on the add-player form.** Drawn in the wireframe. It needs a service
+  worker, a local queue and a way to settle conflicts, so it is a decision, not a detail.
+- **Maturity.** No maturity estimate is computed, because the method is not settled: the
+  standard ones need sitting height or parents' heights, which are not recorded. The profile
+  leaves the maturity card out, and Compare's "by maturity" falls back to age.
+- **A national data export on Oversight.** An export of minors' data is the highest risk
+  action in the product, so it is left out on purpose rather than built without a policy.
+- **Compare on a phone.** Desktop only by design: columns of numbers side by side do not
+  survive a phone screen. Its metric directions (is higher better?) come with the response
+  and should come from the metric definitions in `packages/shared`.
+- **Password reset and sign-in rate limiting.** See "Known gaps" in `docs/threat-model.md`.
 
 ### Running pieces outside Docker
 

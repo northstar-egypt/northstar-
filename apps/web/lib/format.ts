@@ -73,3 +73,29 @@ export function shortDate(iso: string): string {
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
 }
+
+/**
+ * Flags grouped by type, one chip each, with how many cases. A record can be in several
+ * duplicate cases at once (one per other record it matches), and a chip per case repeated
+ * the same label and the same React key.
+ */
+export function flagsByType<F extends { type: string; label: string; confidence?: number | null }>(
+  flags: F[],
+): (F & { count: number })[] {
+  const out = new Map<string, F & { count: number }>();
+  for (const flag of flags) {
+    const seen = out.get(flag.type);
+    if (!seen) out.set(flag.type, { ...flag, count: 1 });
+    else {
+      seen.count += 1;
+      // The highest confidence among the cases, when any has one.
+      if ((flag.confidence ?? -1) > (seen.confidence ?? -1)) seen.confidence = flag.confidence;
+    }
+  }
+  return [...out.values()];
+}
+
+/** " ×3" after a grouped chip's label, nothing for one. */
+export function times(count: number): string {
+  return count > 1 ? ` ×${count}` : "";
+}

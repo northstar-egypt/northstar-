@@ -59,6 +59,10 @@ function flagTitle(flag: IntegrityFlag): string {
   return "Measurement anomaly";
 }
 
+function measurements(n: number): string {
+  return `${n} ${n === 1 ? "measurement" : "measurements"}`;
+}
+
 /** "A" or "B", whichever record has more measurements, or null on a tie. */
 function richer(fields: { field: string; a: string; b: string }[]): "A" | "B" | null {
   const row = fields.find((f) => f.field === "Measurements");
@@ -73,10 +77,10 @@ function moreHistory(fields: { field: string; a: string; b: string }[]): string 
   const a = Number(row.a);
   const b = Number(row.b);
   if (a === b) {
-    return `Both records hold ${a} measurements, so neither is the obvious one to keep.`;
+    return `Both records hold ${measurements(a)}, so neither is the obvious one to keep.`;
   }
   const [more, many, few] = a > b ? ["A", a, b] : ["B", b, a];
-  return `Record ${more} has more history (${many} measurements against ${few}), so it is kept unless you choose otherwise.`;
+  return `Record ${more} has more history (${measurements(many)} against ${few}), so it is kept unless you choose otherwise.`;
 }
 
 export default function IntegrityPage() {
