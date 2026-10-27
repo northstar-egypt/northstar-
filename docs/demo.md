@@ -62,7 +62,7 @@ same.
 ### 1. Log a player (coach)
 
 Sign in with the **Coach** button on the login screen: the coach at the club `demo_check.py`
-named (إنبي on freshly seeded data, the Egyptian club with the largest squad).
+named: the Egyptian club or academy with the most youth players.
 
 - **Squad** shows the coach's own players, with how stale each one's readings are.
 - **Add player.** Full name `منير حجازي`, date of birth `2010-06-09`, position **ST**.

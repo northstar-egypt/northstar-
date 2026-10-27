@@ -287,21 +287,25 @@ def test_dev_identities_lists_one_account_per_role(client, world):
 
 
 def test_the_demo_coach_has_the_largest_egyptian_squad(client, db, world):
-    """The coach's own screen is a squad, so the demo coach is the active coach whose Egyptian
-    club or academy has the most players, not the first by email (whose squad was three)."""
+    """The coach's own screen is a squad of children, so the demo coach is the active coach whose
+    Egyptian club or academy has the most youth players, not the first by email (whose squad was
+    three) and not a professional club full of adults."""
     from sqlalchemy import func, select
 
     from app.models.organization import Organization
     from app.models.player_organization import PlayerOrganization
     from app.models.user import User
 
+    from app.models.player import Player
+
     sizes = dict(
         db.execute(
             select(User.email, func.count(PlayerOrganization.id))
             .join(Organization, Organization.id == User.organization_id)
             .join(PlayerOrganization, PlayerOrganization.organization_id == Organization.id)
+            .join(Player, Player.id == PlayerOrganization.player_id)
             .where(User.role == "coach", User.is_active.is_(True), Organization.country == "EG")
-            .where(PlayerOrganization.end_date.is_(None))
+            .where(PlayerOrganization.end_date.is_(None), Player.tier == "youth")
             .group_by(User.email)
         ).all()
     )

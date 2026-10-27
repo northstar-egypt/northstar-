@@ -176,6 +176,9 @@ class SportModule:
     # (percentiles, growth curves, forecasts), so a sport open to both keeps them apart.
     genders: list[str] = field(default_factory=lambda: ["male", "female"])
     periods: dict[str, Period] = field(default_factory=dict)
+    # A team's records, by schema_ref (models/team_season_stat.py): kept apart from `periods`,
+    # which are a player's, so nothing that lists a player's records meets a team's.
+    team_periods: dict[str, Period] = field(default_factory=dict)
     # What a coach can tag from match video (models/match_event.py). Empty for a sport with no
     # event types yet, whose tagging screen says so.
     events: dict[str, EventType] = field(default_factory=dict)
@@ -268,18 +271,11 @@ def _check_rules(ref: str, schema: dict, invariants: list[dict], derived: list[d
 def load_module(path: Path) -> SportModule:
     raw = json.loads(path.read_text(encoding="utf-8"))
     try:
-        periods = {}
-        for ref, spec in raw["periods"].items():
-            _check_schema(ref, spec["schema"])
-            _check_rules(ref, spec["schema"], spec.get("invariants", []), spec.get("derived", []))
-            periods[ref] = Period(
-                schema_ref=ref,
-                period_type=spec["periodType"],
-                label=spec["label"],
-                schema=spec["schema"],
-                invariants=spec.get("invariants", []),
-                derived=spec.get("derived", []),
-            )
+        periods = {ref: _period(ref, spec) for ref, spec in raw["periods"].items()}
+        team_periods = {ref: _period(ref, spec) for ref, spec in raw.get("teamPeriods", {}).items()}
+        clash = set(periods) & set(team_periods)
+        if clash:
+            raise ModuleError(f"{path.name}: {sorted(clash)} is both a player and a team period")
         described = {
             stat["key"]
             for period in periods.values()
@@ -304,11 +300,25 @@ def load_module(path: Path) -> SportModule:
             genders=_genders(path.name, raw.get("genders", ["male", "female"])),
             periods=periods,
             events=events,
+            team_periods=team_periods,
             events_period=(raw.get("events") or {}).get("matchPeriod"),
             analyses=_analyses(path.name, (raw.get("events") or {}).get("analyses"), events),
         )
     except KeyError as exc:
         raise ModuleError(f"{path.name}: missing {exc}") from exc
+
+
+def _period(ref: str, spec: dict) -> Period:
+    _check_schema(ref, spec["schema"])
+    _check_rules(ref, spec["schema"], spec.get("invariants", []), spec.get("derived", []))
+    return Period(
+        schema_ref=ref,
+        period_type=spec["periodType"],
+        label=spec["label"],
+        schema=spec["schema"],
+        invariants=spec.get("invariants", []),
+        derived=spec.get("derived", []),
+    )
 
 
 def _events(name: str, raw: dict | None, periods: dict[str, Period]) -> dict[str, EventType]:
@@ -422,6 +432,8 @@ def period_for(schema_ref: str, modules: dict[str, SportModule] | None = None) -
     for module in (modules or registry()).values():
         if schema_ref in module.periods:
             return module.periods[schema_ref]
+        if schema_ref in module.team_periods:
+            return module.team_periods[schema_ref]
     return None
 
 

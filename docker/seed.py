@@ -8,6 +8,7 @@ Runs once when the stack starts, then exits. Five steps:
   3. Run the detectors on the database and write their findings to the flag table.
   4. Add synthetic tagged match events from the match records, once (for the shot map).
   5. Set the governorate of synthetic clubs that have none (coverage by governorate).
+  6. Add three seasons of a synthetic Egyptian league, once (the pro tier, decision 0003).
 
 Why step 2 is conditional
 -------------------------
@@ -118,6 +119,15 @@ def main() -> int:
     log("adding synthetic tagged match events, once")
     run(
         [sys.executable, "-m", "data.pipelines.synthetic.tagged_events", "--database-url", DATABASE_URL],
+        cwd=REPO,
+    )
+
+    # 6 (before 5, so the league's new clubs get a governorate too). Three seasons of a
+    #    synthetic Egyptian league, shaped like FootyStats' data: the pro tier's records until
+    #    the subscription is live (data/pipelines/synthetic/pro_league.py). Once.
+    log("adding a synthetic Egyptian league, once")
+    run(
+        [sys.executable, "-m", "data.pipelines.synthetic.pro_league", "--database-url", DATABASE_URL],
         cwd=REPO,
     )
 

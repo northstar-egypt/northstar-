@@ -470,3 +470,37 @@ def test_a_boy_and_a_girl_are_not_compared_side_by_side(client, auth, world, db)
     response = client.get(f"/compare?players={boy.id},{girl.id}", headers=auth("admin"))
     assert response.status_code == 400
     assert "compared separately" in response.json()["detail"]
+
+
+def test_a_team_season_is_a_team_period_not_a_players():
+    """Team records (team_season_stat) are validated by the module like players' records, and
+    kept apart, so nothing that lists a player's records meets a team's."""
+    football = sports.registry()["football"]
+    assert "football.team_season.v1" in football.team_periods
+    assert "football.team_season.v1" not in football.periods
+    assert sports.period_for("football.team_season.v1").label == "Team seasons"
+
+
+def test_a_pro_season_that_cannot_be_true_is_caught():
+    season = {
+        "appearances": 30, "starts": 28, "minutes_played": 2500, "goals": 10, "penalty_goals": 12,
+        "xg": 9.0, "npxg": 9.5, "assists": 4, "xa": 3.0, "shots": 60, "shots_on_target": 25,
+        "key_passes": 30, "passes_attempted": 900, "passes_completed": 700, "crosses": 20,
+        "dribbles_attempted": 40, "dribbles_completed": 20, "tackles": 30, "interceptions": 15,
+        "duels": 200, "duels_won": 100, "aerial_duels": 50, "aerial_duels_won": 25,
+        "clearances": 20, "yellow_cards": 4, "red_cards": 0,
+    }
+    problems = sports.validate(season, "football.season_aggregate.v2")
+    assert "more penalty goals than goals" in problems
+    assert "more non-penalty xG than xG" in problems
+
+
+def test_a_module_naming_one_period_for_players_and_teams_does_not_load(tmp_path):
+    import json
+
+    raw = json.loads(sports.default_modules_dir().joinpath("football.json").read_text(encoding="utf-8"))
+    raw["teamPeriods"]["football.match.v1"] = raw["teamPeriods"]["football.team_season.v1"]
+    bad = tmp_path / "football.json"
+    bad.write_text(json.dumps(raw), encoding="utf-8")
+    with pytest.raises(sports.ModuleError, match="both a player and a team period"):
+        sports.load_module(bad)
