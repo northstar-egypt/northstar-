@@ -338,9 +338,27 @@ def _implausible_new_player() -> dict:
         fullName="Implausible Height",
         measurements={
             "measuredAt": TODAY.isoformat(),
-            "metrics": [{"metric": "height_cm", "value": 15.2, "unit": "cm"}],
+            # Unusual for a youth player, but a person can be 95 cm: a question, not an error.
+            "metrics": [{"metric": "height_cm", "value": 95, "unit": "cm"}],
         },
     )
+
+
+def test_a_reading_no_person_could_have_is_refused_not_asked_about(client, auth, world, db):
+    """15.2 cm is a dropped digit, not an unusual child: "save anyway" would store a number
+    nobody measured, so it is refused, and confirming does not change that."""
+    body = new_player(
+        fullName="Impossible Height",
+        measurements={
+            "measuredAt": TODAY.isoformat(),
+            "metrics": [{"metric": "height_cm", "value": 15.2, "unit": "cm"}],
+            "acknowledgeWarnings": True,
+        },
+    )
+    response = client.post("/players", json=body, headers=auth("coach_a"))
+    assert response.status_code == 422
+    assert "cannot be a height" in " ".join(response.json()["detail"]["problems"])
+    assert players_named(db, body["fullName"]) == 0
 
 
 def test_implausible_reading_is_asked_about_and_not_saved(client, auth, world, db):

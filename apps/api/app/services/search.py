@@ -51,6 +51,26 @@ _POSITIONS = {
     "st": "ST", "striker": "ST", "forward": "ST",
 }
 
+# Words that name a kind of player rather than one position. "winger" used to mean LW only,
+# so a scout asking for wingers never saw a right winger. The groups are the assistant's
+# (services/assistant.py, GROUPS), so search and Ask agree on what a defender is.
+_POSITION_GROUPS = {
+    "defender": ("CB", "LB", "RB"),
+    "fullback": ("LB", "RB"),
+    "midfielder": ("CDM", "CM", "CAM"),
+    "winger": ("LW", "RW"),
+    "forward": ("ST", "LW", "RW"),
+}
+
+
+def _position_word(word: str) -> str | None:
+    """The position word this is, singular: "wingers" is "winger". None when it is not one."""
+    if word in _POSITIONS:
+        return word
+    if word.endswith("s") and word[:-1] in _POSITIONS and len(word) > 3:
+        return word[:-1]
+    return None
+
 # The sport and the gender, as a scout would type them. Matched on the whole text before it
 # is split into words, because "table tennis" read word by word is two name terms, and so is
 # "تنس طاولة". Arabic has no \b, so its words are bounded by whitespace.
@@ -218,9 +238,16 @@ def parse_query(
             lowered = token.lower()
             if lowered in _STOPWORDS:
                 continue
-            if lowered in _POSITIONS:
-                filters["position"] = _POSITIONS[lowered]
-                chips.append({"label": f"position: {_POSITIONS[lowered]}", "understood": True})
+            position = _position_word(lowered)
+            if position in _POSITION_GROUPS:
+                group = _POSITION_GROUPS[position]
+                filters.pop("position", None)
+                filters["positions"] = list(group)
+                chips.append({"label": f"position: {' or '.join(group)}", "understood": True})
+            elif position is not None:
+                filters.pop("positions", None)
+                filters["position"] = _POSITIONS[position]
+                chips.append({"label": f"position: {_POSITIONS[position]}", "understood": True})
             elif lowered in {tier.value for tier in FootballTier}:
                 filters["tier"] = lowered
                 chips.append({"label": f"tier: {lowered}", "understood": True})
@@ -299,6 +326,8 @@ def apply_filters(
         stmt = stmt.where(or_(Player.tier == merged["tier"], Player.primary_sport.in_(tierless)))
     if merged["position"]:
         stmt = stmt.where(Player.position == merged["position"])
+    elif extra.get("positions"):
+        stmt = stmt.where(Player.position.in_(extra["positions"]))
     if merged["sex"]:
         stmt = stmt.where(Player.sex == merged["sex"])
     if merged["egypt_eligible_only"]:

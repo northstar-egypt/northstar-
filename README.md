@@ -158,11 +158,16 @@ rules in [CLAUDE.md](CLAUDE.md).
 
 Re-running `up` will not overwrite a database that already has players in it, so restarting
 the stack does not throw away decisions made on the integrity board. To start over from
-scratch, take the volume with it:
+scratch, delete the database volume only:
 
 ```bash
-docker compose -f docker/docker-compose.yml down -v
+docker compose -f docker/docker-compose.yml down
+docker volume rm docker_pgdata
 ```
+
+Not `down -v`: that also deletes `docker_ollama-data`, the downloaded language models (several
+GB to download again). A freshly loaded database is dated up to the day it is loaded, so its
+readings are recent; it then ages like real records would.
 
 ### What is not built
 

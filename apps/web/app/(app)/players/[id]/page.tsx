@@ -37,9 +37,11 @@ import {
   getRadar,
   getSimilar,
   getSummary,
+  logMeasurement,
   undoMerge,
   withdrawConsent,
   writeRefusal,
+  type MeasurementWarning,
 } from "@/lib/api";
 import { canAccess, useAuth } from "@/lib/auth";
 import { cx, flagsByType, num, ordinal, shortDate, times } from "@/lib/format";
@@ -79,6 +81,7 @@ export default function PlayerProfilePage() {
   // Bumped after a write, so the whole profile is fetched again and every part of it that
   // depends on consent (percentiles, forecast, flags) shows the new state.
   const [version, setVersion] = useState(0);
+  const [logging, setLogging] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -143,7 +146,11 @@ export default function PlayerProfilePage() {
               <Link href={`/compare?players=${p.id}`}>
                 <Button variant="ghost">Compare</Button>
               </Link>
-              {data.permissions.canLog ? <Button>Log measurement</Button> : null}
+              {data.permissions.canLog ? (
+                <Button onClick={() => setLogging((open) => !open)} aria-expanded={logging}>
+                  Log measurement
+                </Button>
+              ) : null}
             </div>
           </div>
 
@@ -161,6 +168,17 @@ export default function PlayerProfilePage() {
           </div>
         </div>
       </div>
+
+      {logging ? (
+        <LogMeasurementCard
+          playerId={p.id}
+          onCancel={() => setLogging(false)}
+          onSaved={() => {
+            setLogging(false);
+            setVersion((v) => v + 1);
+          }}
+        />
+      ) : null}
 
       {/* flags */}
       {showFlags && data.flags.length > 0 ? (
@@ -445,6 +463,148 @@ function WithdrawConsent({
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * One visit's readings for a player already on the platform. The server checks every reading
+ * against the player's own previous one and the usual ranges: a surprising reading comes back
+ * as a question, saved only if the coach confirms it, and an impossible one is refused with
+ * the reason. Nothing is checked here that the server does not also check.
+ */
+function LogMeasurementCard({
+  playerId,
+  onCancel,
+  onSaved,
+}: {
+  playerId: string;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [measuredAt, setMeasuredAt] = useState(today);
+  const [height, setHeight] = useState("");
+  const [weight, setWeight] = useState("");
+  const [confidence, setConfidence] = useState<"measured" | "estimated">("measured");
+  const [busy, setBusy] = useState(false);
+  const [warnings, setWarnings] = useState<MeasurementWarning[] | null>(null);
+  const [problems, setProblems] = useState<string[]>([]);
+
+  const metrics = [
+    ...(height ? [{ metric: "height_cm", value: Number(height), unit: "cm", confidence }] : []),
+    ...(weight ? [{ metric: "weight_kg", value: Number(weight), unit: "kg", confidence }] : []),
+  ];
+
+  async function save(acknowledgeWarnings: boolean) {
+    setBusy(true);
+    setProblems([]);
+    try {
+      await logMeasurement(playerId, { measuredAt, metrics, acknowledgeWarnings });
+      onSaved();
+    } catch (error) {
+      const refusal = writeRefusal(error);
+      if (refusal?.kind === "confirm") setWarnings(refusal.warnings);
+      else if (refusal?.kind === "fix") setProblems(refusal.problems.length ? refusal.problems : [refusal.message]);
+      else setProblems(["Not saved: the server could not be reached. Try again."]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-4">
+      <SectionTitle>Log a measurement</SectionTitle>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <label className="flex flex-col gap-1">
+          <Label>Measured on</Label>
+          <input
+            type="date"
+            value={measuredAt}
+            max={today}
+            onChange={(e) => setMeasuredAt(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <Label>Height (cm)</Label>
+          <input
+            inputMode="decimal"
+            value={height}
+            onChange={(e) => {
+              setHeight(e.target.value);
+              setWarnings(null);
+            }}
+            className={inputClass}
+            aria-label="Height in centimetres"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <Label>Weight (kg)</Label>
+          <input
+            inputMode="decimal"
+            value={weight}
+            onChange={(e) => {
+              setWeight(e.target.value);
+              setWarnings(null);
+            }}
+            className={inputClass}
+            aria-label="Weight in kilograms"
+          />
+        </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 text-sm">
+        <Label>How</Label>
+        <Chip active={confidence === "measured"} onClick={() => setConfidence("measured")}>
+          measured
+        </Chip>
+        <Chip active={confidence === "estimated"} onClick={() => setConfidence("estimated")}>
+          estimated
+        </Chip>
+      </div>
+
+      {warnings ? (
+        <Banner tone="warn" title="Check this">
+          <ul className="mb-2 list-disc pl-4">
+            {warnings.map((w) => (
+              <li key={`${w.metric}-${w.message}`}>{w.message}</li>
+            ))}
+          </ul>
+          <p className="mb-2">
+            Nothing has been saved yet. If you measured it, save it anyway and the entry will be
+            recorded as confirmed by you.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setWarnings(null)}>
+              Correct it
+            </Button>
+            <Button size="sm" disabled={busy} onClick={() => save(true)}>
+              Save anyway
+            </Button>
+          </div>
+        </Banner>
+      ) : null}
+      {problems.length ? (
+        <Banner tone="warn" title="Not saved">
+          <ul className="list-disc pl-4">
+            {problems.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        </Banner>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="primary" disabled={busy || metrics.length === 0 || warnings !== null} onClick={() => save(false)}>
+          {busy ? "Saving" : "Save"}
+        </Button>
+        <Button variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+        {metrics.length === 0 ? (
+          <span className="text-xs text-slate-500">Enter a height, a weight, or both.</span>
+        ) : null}
+      </div>
+    </Card>
   );
 }
 

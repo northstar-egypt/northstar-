@@ -61,6 +61,22 @@ def test_same_seed_produces_identical_data():
     assert a.ground_truth["labels"] == b.ground_truth["labels"]
 
 
+def test_a_later_reference_date_moves_the_dates_and_keeps_the_people(ds):
+    """The demo database is loaded with today as the reference (docker/seed.py), so its
+    readings are recent. The same seed must give the same people, the same ages and the same
+    newest-reading gap, only later."""
+    from dataclasses import replace
+
+    later = date(2026, 10, 27)
+    moved = build_dataset(
+        replace(CONFIG, population=replace(CONFIG.population, reference_date=later))
+    )
+    assert [p.full_name for p in moved.players] == [p.full_name for p in ds.players]
+    assert max(m.measured_at for m in moved.measurements) == later
+    assert max(m.measured_at for m in ds.measurements) == REFERENCE
+    assert sum(p.is_minor for p in moved.players) == sum(p.is_minor for p in ds.players)
+
+
 def test_different_seeds_produce_different_data():
     a = build_dataset(GeneratorConfig(seed=1))
     b = build_dataset(GeneratorConfig(seed=2))

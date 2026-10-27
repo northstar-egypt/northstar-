@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import replace
+from datetime import date
 from pathlib import Path
 
 from .config import DEFAULT_SEED, GeneratorConfig
@@ -67,6 +69,14 @@ def build_parser() -> argparse.ArgumentParser:
         "do not load into the demo database). See attrition.py.",
     )
     parser.add_argument(
+        "--reference-date",
+        type=date.fromisoformat,
+        default=None,
+        help="The 'today' the data is generated up to, YYYY-MM-DD (default: the config's, "
+        "2026-06-30). The demo database passes the day it is loaded, so its readings are "
+        "recent; evaluation datasets keep the default so every published number reproduces.",
+    )
+    parser.add_argument(
         "--name-locale",
         default="ar_EG",
         help="Faker locale for player names (default: ar_EG).",
@@ -82,6 +92,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.players:
         config = config.scaled(args.players)
+    if args.reference_date:
+        config = replace(
+            config, population=replace(config.population, reference_date=args.reference_date)
+        )
 
     dataset = build_dataset(config)
     verify_round_trip(dataset)

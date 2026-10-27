@@ -3,8 +3,9 @@
 Runs once when the stack starts, then exits. Five steps:
 
   1. `alembic upgrade head`, so the schema matches the models.
-  2. Generate the synthetic dataset and load it, **only if the database has no players**.
-  3. Run the detectors and write their findings to the flag table.
+  2. Generate the synthetic dataset and load it, **only if the database has no players**,
+     dated up to the day it is loaded (`--reference-date`), so its readings are recent.
+  3. Run the detectors on the database and write their findings to the flag table.
   4. Add synthetic tagged match events from the match records, once (for the shot map).
   5. Set the governorate of synthetic clubs that have none (coverage by governorate).
 
@@ -15,9 +16,20 @@ decision a reviewer had made on the integrity board, every flag they had dismiss
 data a coach had entered, on nothing more than a restart. Seeding an empty database is
 helpful; wiping a populated one because a container restarted is not.
 
-To deliberately start over, take the volume with it:
+To deliberately start over, delete the database volume only:
 
-    docker compose -f docker/docker-compose.yml down -v
+    docker compose -f docker/docker-compose.yml down
+    docker volume rm docker_pgdata
+
+(`down -v` also deletes `docker_ollama-data`, the downloaded language models, several GB.)
+
+Why the data is dated to the day it is loaded
+---------------------------------------------
+The generator dates everything relative to a reference day so its runs reproduce, and the
+evaluation datasets keep the default (2026-06-30). The demo database used it too, so months
+later every player looked unmeasured and the oversight screen read 100% stale. Loaded with
+today as the reference, the readings are as recent as the generator makes them on its own
+reference day, and they age from then on, as real records would.
 
 Why step 3 runs every time
 --------------------------
@@ -35,6 +47,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -72,26 +85,26 @@ def main() -> int:
     # 1. Schema.
     run([sys.executable, "-m", "alembic", "upgrade", "head"], cwd=API_DIR)
 
-    # 2. Data. The generator always writes its JSON export, because step 3 reads it, and it
-    #    only writes to the database when there is nothing there to lose.
-    #
-    #    Running it either way is free: the same seed produces byte-identical output, so the
-    #    export written on a later boot describes exactly the rows already in the database.
+    # 2. Data, only when there is nothing there to lose.
     existing = player_count()
-    generate = [sys.executable, "-m", "data.pipelines.synthetic.generate"]
     if existing:
         log(f"{existing} players already present, leaving the database alone")
-        log("to start over: docker compose -f docker/docker-compose.yml down -v")
-        log("writing the JSON export anyway, because the detector run reads it")
+        log("to start over: docker compose -f docker/docker-compose.yml down, "
+            "then docker volume rm docker_pgdata")
     else:
-        log("empty database, generating and loading the synthetic dataset")
-        generate += ["--database-url", DATABASE_URL, "--truncate"]
-    run(generate, cwd=REPO)
+        today = date.today().isoformat()
+        log(f"empty database, generating and loading the synthetic dataset, dated up to {today}")
+        run(
+            [sys.executable, "-m", "data.pipelines.synthetic.generate",
+             "--database-url", DATABASE_URL, "--truncate", "--reference-date", today],
+            cwd=REPO,
+        )
 
-    # 3. Flags. Idempotent, so it runs whatever happened above.
-    log("running the detectors and writing flags")
+    # 3. Flags, from the database itself, so they cover whatever is there now (players added
+    #    since, and data loaded on another day). Idempotent, so it runs on every boot.
+    log("running the detectors on the database and writing flags")
     run(
-        [sys.executable, "-m", "ml.write_flags", "--database-url", DATABASE_URL],
+        [sys.executable, "-m", "ml.write_flags", "--from-database", "--database-url", DATABASE_URL],
         cwd=REPO,
     )
 
