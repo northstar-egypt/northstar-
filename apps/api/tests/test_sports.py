@@ -504,3 +504,30 @@ def test_a_module_naming_one_period_for_players_and_teams_does_not_load(tmp_path
     bad.write_text(json.dumps(raw), encoding="utf-8")
     with pytest.raises(sports.ModuleError, match="both a player and a team period"):
         sports.load_module(bad)
+
+
+def test_football_declares_team_gap_analysis_and_table_tennis_does_not():
+    registry = sports.registry()
+    gaps = registry["football"].team_gaps
+    assert gaps is not None and registry["table_tennis"].team_gaps is None
+    assert gaps.group_of("LB") == "full_backs" and gaps.group_of("GK") is None
+    assert {m.better for m in gaps.metrics} == {"higher", "lower"}
+
+
+@pytest.mark.parametrize(
+    ("change", "match"),
+    [
+        (lambda g: g["metrics"][1]["links"][0].update(group="goalkeepers"), "unknown group"),
+        (lambda g: g["metrics"][1]["links"][0]["attributes"].append("saves_per_90"), "unknown attribute"),
+        (lambda g: g["metrics"][0].pop("noPlayerLink"), "links or noPlayerLink"),
+        (lambda g: g["metrics"][1].update(better="more"), "higher or lower"),
+        (lambda g: g["attributes"][0].update(numerator=["saves"]), "unknown field"),
+        (lambda g: g["groups"]["strikers"]["roles"].append("CB"), "repeated role"),
+    ],
+)
+def test_a_broken_team_gap_config_is_refused(tmp_path, change, match):
+    module = json.loads((sports.default_modules_dir() / "football.json").read_text("utf-8"))
+    change(module["teamGaps"])
+    (tmp_path / "football.json").write_text(json.dumps(module), encoding="utf-8")
+    with pytest.raises(sports.ModuleError, match=match):
+        sports.load_module(tmp_path / "football.json")

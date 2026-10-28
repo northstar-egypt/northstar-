@@ -715,3 +715,76 @@ export interface ResultsImport {
   saved: boolean;
   recordsWritten: number;
 }
+
+/** Team gap analysis (decision 0003); GET /gaps, /gaps/club/{id}, /gaps/national. */
+export interface GapOptions {
+  clubs: { id: string; name: string; competition: string; seasons: string[] }[];
+  groups: { key: string; label: string; attributes: string[] }[];
+  attributes: { key: string; label: string; lowReliability: boolean; percent: boolean }[];
+  minMinutes: number;
+  minCohort: number;
+}
+
+export interface GapCandidate {
+  playerId: string;
+  fullName: string;
+  position: string | null;
+  club: string | null;
+  competition: string;
+  season: string;
+  minutes: number;
+  /** A rate per 90, or a share from 0 to 1. */
+  values: Record<string, number | null>;
+  /** Null for a statistic with too few players to compare with. */
+  percentiles: Record<string, number | null>;
+  /** The mean of the percentiles: the ranking rule. Null when unranked. */
+  mean: number | null;
+  population: number;
+  abroad: boolean;
+}
+
+export interface GapNeed {
+  group: string;
+  label: string;
+  attributes: string[];
+  candidates: GapCandidate[];
+  unranked: GapCandidate[];
+}
+
+export interface ClubGaps {
+  club: { id: string; name: string | null; competition: string; season: string };
+  profile: {
+    key: string;
+    label: string;
+    value: number | null;
+    rank: number | null;
+    of: number;
+    better: "higher" | "lower";
+    weak: boolean;
+    bottomUnstable: boolean;
+    percent: boolean;
+    noPlayerLink: string | null;
+    needs: GapNeed[];
+  }[];
+  coverage: {
+    group: string;
+    label: string;
+    attributes: string[];
+    population: number;
+    players: {
+      playerId: string;
+      fullName: string;
+      position: string | null;
+      minutes: number;
+      share: number;
+      percentiles: Record<string, number | null>;
+      ranked: boolean;
+    }[];
+  }[];
+  minMinutes: number;
+}
+
+export interface NationalGaps {
+  needs: GapNeed[];
+  minMinutes: number;
+}
