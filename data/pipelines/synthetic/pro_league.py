@@ -213,12 +213,8 @@ def _growth(age: float) -> float:
     return -0.2
 
 
-def build_league(seed: int, clubs: list[Club], players: list[Pro], reference: date) -> League:
-    """The league's three seasons for these clubs and players. Deterministic in `seed`."""
-    rng = random.Random(f"pro-league:{seed}")
-    seasons = seasons_before(reference)
-    league = League(clubs=clubs, seasons=seasons, player_seasons=[], team_seasons=[])
-
+def _people(seed: int, players: list[Pro]) -> dict[uuid.UUID, _Person]:
+    """Each player's latent quality, attributes and finishing, from their own seeded stream."""
     people = {}
     for pro in sorted(players, key=lambda p: str(p.id)):
         prng = random.Random(f"pro-player:{seed}:{pro.id}")
@@ -228,7 +224,18 @@ def build_league(seed: int, clubs: list[Club], players: list[Pro], reference: da
         # Attack, creativity, defending, passing, dribbling, aerial: each partly the player's quality.
         attributes = [0.6 * quality + 0.8 * prng.gauss(0, 1) for _ in range(6)]
         people[pro.id] = _Person(pro, quality, *attributes, finishing)
-        league.finishing[str(pro.id)] = round(finishing, 3)
+    return people
+
+
+def build_league(seed: int, clubs: list[Club], players: list[Pro], reference: date) -> League:
+    """The league's three seasons for these clubs and players. Deterministic in `seed`."""
+    rng = random.Random(f"pro-league:{seed}")
+    seasons = seasons_before(reference)
+    league = League(clubs=clubs, seasons=seasons, player_seasons=[], team_seasons=[])
+
+    people = _people(seed, players)
+    for pid, person in people.items():
+        league.finishing[str(pid)] = round(person.finishing, 3)
 
     clubs_by_id = {c.id: c for c in clubs}
     club_strength = {c.id: rng.gauss(0, 0.25) for c in clubs}
@@ -271,6 +278,46 @@ def build_league(seed: int, clubs: list[Club], players: list[Pro], reference: da
     return league
 
 
+def build_halves(seed: int, clubs: list[Club], players: list[Pro], reference: date) -> tuple[League, League]:
+    """One season played as two halves of 17 matches, each half's totals kept apart: what the
+    split-half reliability check reads (ml/pro/gap_eval.py). Each club meets every other once a
+    half, at home in one half and away in the other, alternating so no club is at home all
+    half. The players are the league's own (same quality, attributes and finishing); the
+    matches are drawn from a stream of their own, so this never changes `build_league`."""
+    rng = random.Random(f"pro-league-halves:{seed}")
+    season = seasons_before(reference)[-1]
+    people = _people(seed, players)
+    clubs_by_id = {c.id: c for c in clubs}
+    home = [p for p in people.values() if p.pro.competition == COMPETITION and p.pro.club_id in clubs_by_id]
+    minutes = _minutes(rng, people, season)
+    # A player's minutes split between the halves around even: injuries and form move them.
+    first_minutes = {pid: int(m * min(0.9, max(0.1, rng.gauss(0.5, 0.08)))) for pid, m in minutes.items()}
+    halves_minutes = (first_minutes, {pid: m - first_minutes[pid] for pid, m in minutes.items()})
+    club_strength = {c.id: rng.gauss(0, 0.25) for c in clubs}
+    strength = {}
+    for club in clubs:
+        played = sorted((p for p in home if p.pro.club_id == club.id), key=lambda p: -minutes[p.pro.id])[:11]
+        strength[club.id] = club_strength[club.id] + sum(p.quality for p in played) / max(1, len(played)) * 0.35
+    legs: tuple[list, list] = ([], [])
+    for i, a in enumerate(clubs):
+        for j, b in enumerate(clubs[i + 1:], start=i + 1):
+            first = (a, b) if (i + j) % 2 == 0 else (b, a)
+            legs[0].append(first)
+            legs[1].append((first[1], first[0]))
+    out = []
+    for label, fixtures, half_minutes in zip(("first half", "second half"), legs, halves_minutes):
+        half = Season(f"{season.label} {label}", season.start, season.end)
+        league = League(clubs=clubs, seasons=[half], player_seasons=[], team_seasons=[])
+        teams = _simulate(rng, clubs, strength, fixtures)
+        for club in clubs:
+            league.team_seasons.append(TeamSeason(club.id, COMPETITION, half, teams[club.id]))
+            squad = [p for p in home if p.pro.club_id == club.id]
+            for pro_id, metrics in _allocate(rng, squad, half_minutes, teams[club.id], half).items():
+                league.player_seasons.append(PlayerSeason(pro_id, club.id, COMPETITION, half, metrics))
+        out.append(league)
+    return out[0], out[1]
+
+
 def _minutes(rng: random.Random, people: dict, season: Season) -> dict[uuid.UUID, int]:
     """Minutes by squad role: within a club and position, the better players start."""
     out = {}
@@ -292,50 +339,53 @@ def _minutes(rng: random.Random, people: dict, season: Season) -> dict[uuid.UUID
     return out
 
 
-def _simulate(rng: random.Random, clubs: list[Club], strength: dict) -> dict[uuid.UUID, dict]:
-    """A double round robin; each team's season totals."""
+def _fixtures(clubs: list[Club]) -> list[tuple[Club, Club]]:
+    """A double round robin: every club at home to every other."""
+    return [(home, away) for home in clubs for away in clubs if home.id != away.id]
+
+
+def _simulate(rng: random.Random, clubs: list[Club], strength: dict,
+              fixtures: list[tuple[Club, Club]] | None = None) -> dict[uuid.UUID, dict]:
+    """Each team's totals over `fixtures` (by default a double round robin)."""
     fields = ("matches wins draws losses points goals_for goals_against shots_for shots_against "
               "clean_sheets home_points away_points goals_for_first_half goals_against_first_half "
               "goals_against_last_15 set_piece_goals_for set_piece_goals_against").split()
     totals = {c.id: {f: 0 for f in fields} | {"xg_for": 0.0, "xg_against": 0.0, "possession_sum": 0.0}
               for c in clubs}
-    for home in clubs:
-        for away in clubs:
-            if home.id == away.id:
-                continue
-            gap = strength[home.id] - strength[away.id]
-            sides = {}
-            for team, sign, edge in ((home.id, 1, 0.12), (away.id, -1, -0.12)):
-                xg = math.exp(math.log(1.2) + 0.45 * sign * gap + edge) * rng.lognormvariate(0, 0.25)
-                goals = _poisson(rng, xg)
-                sides[team] = (round(xg, 2), goals, _poisson(rng, xg / 0.105))
-            possession = min(80.0, max(20.0, 50 + 12 * math.tanh(gap) + rng.gauss(0, 4)))
-            for team, other, own_possession, is_home in (
-                (home.id, away.id, possession, True), (away.id, home.id, 100 - possession, False),
-            ):
-                xg, goals, shots = sides[team]
-                xg_a, conceded, shots_a = sides[other]
-                row = totals[team]
-                row["matches"] += 1
-                row["goals_for"] += goals
-                row["goals_against"] += conceded
-                row["xg_for"] += xg
-                row["xg_against"] += xg_a
-                row["shots_for"] += max(shots, goals)
-                row["shots_against"] += max(shots_a, conceded)
-                row["possession_sum"] += own_possession
-                row["clean_sheets"] += conceded == 0
-                row["goals_for_first_half"] += _binomial(rng, goals, 0.45)
-                row["goals_against_first_half"] += _binomial(rng, conceded, 0.45)
-                row["goals_against_last_15"] += _binomial(rng, conceded, 0.22)
-                row["set_piece_goals_for"] += _binomial(rng, goals, 0.25)
-                row["set_piece_goals_against"] += _binomial(rng, conceded, 0.25)
-                points = 3 if goals > conceded else 1 if goals == conceded else 0
-                row["wins"] += points == 3
-                row["draws"] += points == 1
-                row["losses"] += points == 0
-                row["points"] += points
-                row["home_points" if is_home else "away_points"] += points
+    for home, away in fixtures if fixtures is not None else _fixtures(clubs):
+        gap = strength[home.id] - strength[away.id]
+        sides = {}
+        for team, sign, edge in ((home.id, 1, 0.12), (away.id, -1, -0.12)):
+            xg = math.exp(math.log(1.2) + 0.45 * sign * gap + edge) * rng.lognormvariate(0, 0.25)
+            goals = _poisson(rng, xg)
+            sides[team] = (round(xg, 2), goals, _poisson(rng, xg / 0.105))
+        possession = min(80.0, max(20.0, 50 + 12 * math.tanh(gap) + rng.gauss(0, 4)))
+        for team, other, own_possession, is_home in (
+            (home.id, away.id, possession, True), (away.id, home.id, 100 - possession, False),
+        ):
+            xg, goals, shots = sides[team]
+            xg_a, conceded, shots_a = sides[other]
+            row = totals[team]
+            row["matches"] += 1
+            row["goals_for"] += goals
+            row["goals_against"] += conceded
+            row["xg_for"] += xg
+            row["xg_against"] += xg_a
+            row["shots_for"] += max(shots, goals)
+            row["shots_against"] += max(shots_a, conceded)
+            row["possession_sum"] += own_possession
+            row["clean_sheets"] += conceded == 0
+            row["goals_for_first_half"] += _binomial(rng, goals, 0.45)
+            row["goals_against_first_half"] += _binomial(rng, conceded, 0.45)
+            row["goals_against_last_15"] += _binomial(rng, conceded, 0.22)
+            row["set_piece_goals_for"] += _binomial(rng, goals, 0.25)
+            row["set_piece_goals_against"] += _binomial(rng, conceded, 0.25)
+            points = 3 if goals > conceded else 1 if goals == conceded else 0
+            row["wins"] += points == 3
+            row["draws"] += points == 1
+            row["losses"] += points == 0
+            row["points"] += points
+            row["home_points" if is_home else "away_points"] += points
     out = {}
     for team, row in totals.items():
         matches = row["matches"] or 1

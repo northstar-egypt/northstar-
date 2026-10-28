@@ -163,6 +163,85 @@ class Analysis:
 
 
 @dataclass(frozen=True)
+class GapAttribute:
+    """A player statistic team gap analysis reads: a sum of fields per 90 minutes, or a share."""
+
+    key: str
+    label: str
+    numerator: list[str]
+    denominator: list[str] = field(default_factory=list)
+    per90: bool = False
+    # Measured: its season figure repeats poorly between half seasons (ml/README.md, "Team gap
+    # analysis"), so a percentile on it deserves less weight.
+    low_reliability: bool = False
+
+    def value(self, metrics: dict) -> float | None:
+        top = sum(float(metrics.get(k, 0)) for k in self.numerator)
+        if self.per90:
+            minutes = float(metrics.get("minutes_played", 0))
+            return top * 90 / minutes if minutes else None
+        bottom = sum(float(metrics.get(k, 0)) for k in self.denominator)
+        return top / bottom if bottom else None
+
+
+@dataclass(frozen=True)
+class GapGroup:
+    key: str
+    label: str
+    roles: list[str]
+    # What the squad coverage shows for this group, in order.
+    attributes: list[str]
+
+
+@dataclass(frozen=True)
+class GapLink:
+    group: str
+    attributes: list[str]
+
+
+@dataclass(frozen=True)
+class GapMetric:
+    """A team statistic, its direction, and the player statistics a weakness in it maps to."""
+
+    key: str
+    label: str
+    numerator: list[str]
+    better: str
+    minus: list[str] = field(default_factory=list)
+    denominator: list[str] = field(default_factory=list)
+    percent: bool = False
+    links: list[GapLink] = field(default_factory=list)
+    # Why a weakness here proposes no players; set exactly when `links` is empty.
+    no_player_link: str | None = None
+    # Measured: a team's figure repeats between half seasons (ml/README.md, "Team gap
+    # analysis"). A bottom-third rank on an unstable statistic is not called a weakness.
+    stable: bool = True
+
+    def value(self, metrics: dict) -> float | None:
+        top = sum(float(metrics.get(k, 0)) for k in self.numerator) - sum(
+            float(metrics.get(k, 0)) for k in self.minus)
+        if not self.denominator:
+            return top
+        bottom = sum(float(metrics.get(k, 0)) for k in self.denominator)
+        return top / bottom if bottom else None
+
+
+@dataclass(frozen=True)
+class TeamGaps:
+    """Team gap analysis (decision 0003): which team statistics to rank, which player
+    statistics answer a weakness in each, and the position groups players are compared in."""
+
+    team_period: str
+    player_period: str
+    attributes: dict[str, GapAttribute]
+    groups: dict[str, GapGroup]
+    metrics: list[GapMetric]
+
+    def group_of(self, role: str | None) -> str | None:
+        return next((g.key for g in self.groups.values() if role in g.roles), None)
+
+
+@dataclass(frozen=True)
 class SportModule:
     sport: str
     label: str
@@ -186,6 +265,8 @@ class SportModule:
     events_period: str | None = None
     # Rates worth reading from the tagged events, by key.
     analyses: dict[str, Analysis] = field(default_factory=dict)
+    # Team gap analysis, for a sport with team season records; None otherwise.
+    team_gaps: TeamGaps | None = None
 
 
 def default_modules_dir() -> Path:
@@ -303,6 +384,8 @@ def load_module(path: Path) -> SportModule:
             team_periods=team_periods,
             events_period=(raw.get("events") or {}).get("matchPeriod"),
             analyses=_analyses(path.name, (raw.get("events") or {}).get("analyses"), events),
+            team_gaps=_team_gaps(path.name, raw.get("teamGaps"), periods, team_periods,
+                                 list(raw["roles"]["values"])),
         )
     except KeyError as exc:
         raise ModuleError(f"{path.name}: missing {exc}") from exc
@@ -372,6 +455,65 @@ def _details(name: str, kind: str, raw: dict, outcomes: dict) -> dict[str, Event
             grid = (int(grid[0]), int(grid[1]))
         details[key] = EventDetail(key, spec["label"], dict(values), applies, grid)
     return details
+
+
+def _team_gaps(name: str, raw: dict | None, periods: dict[str, Period],
+               team_periods: dict[str, Period], roles: list[str]) -> TeamGaps | None:
+    if raw is None:
+        return None
+    team = team_periods.get(raw["teamPeriod"])
+    player = periods.get(raw["playerPeriod"])
+    if team is None or player is None:
+        raise ModuleError(f"{name}: teamGaps names a period the module does not define")
+    team_fields, player_fields = team.schema["properties"], player.schema["properties"]
+
+    attributes = {}
+    for spec in raw["attributes"]:
+        attr = GapAttribute(spec["key"], spec["label"], list(spec["numerator"]),
+                            list(spec.get("denominator", [])), bool(spec.get("per90", False)),
+                            bool(spec.get("lowReliability", False)))
+        if attr.per90 == bool(attr.denominator):
+            raise ModuleError(f"{name}: teamGaps attribute {attr.key} needs per90 or a denominator, not both")
+        for f in [*attr.numerator, *attr.denominator]:
+            if f not in player_fields:
+                raise ModuleError(f"{name}: teamGaps attribute {attr.key} reads unknown field {f!r}")
+        attributes[attr.key] = attr
+
+    groups = {}
+    taken: set[str] = set()
+    for key, spec in raw["groups"].items():
+        group = GapGroup(key, spec["label"], list(spec["roles"]), list(spec["attributes"]))
+        for role in group.roles:
+            if role not in roles or role in taken:
+                raise ModuleError(f"{name}: teamGaps group {key} has unknown or repeated role {role!r}")
+            taken.add(role)
+        for a in group.attributes:
+            if a not in attributes:
+                raise ModuleError(f"{name}: teamGaps group {key} shows unknown attribute {a!r}")
+        groups[key] = group
+
+    metrics = []
+    for spec in raw["metrics"]:
+        links = [GapLink(link["group"], list(link["attributes"])) for link in spec.get("links", [])]
+        metric = GapMetric(spec["key"], spec["label"], list(spec["numerator"]), spec["better"],
+                           list(spec.get("minus", [])), list(spec.get("denominator", [])),
+                           bool(spec.get("percent", False)), links, spec.get("noPlayerLink"),
+                           bool(spec.get("stable", True)))
+        if metric.better not in ("higher", "lower"):
+            raise ModuleError(f"{name}: teamGaps metric {metric.key}: better must be higher or lower")
+        for f in [*metric.numerator, *metric.minus, *metric.denominator]:
+            if f not in team_fields:
+                raise ModuleError(f"{name}: teamGaps metric {metric.key} reads unknown field {f!r}")
+        if bool(links) == bool(metric.no_player_link):
+            raise ModuleError(f"{name}: teamGaps metric {metric.key} needs links or noPlayerLink, exactly one")
+        for link in links:
+            if link.group not in groups or not link.attributes:
+                raise ModuleError(f"{name}: teamGaps metric {metric.key} links to unknown group {link.group!r}")
+            for a in link.attributes:
+                if a not in attributes:
+                    raise ModuleError(f"{name}: teamGaps metric {metric.key} links to unknown attribute {a!r}")
+        metrics.append(metric)
+    return TeamGaps(raw["teamPeriod"], raw["playerPeriod"], attributes, groups, metrics)
 
 
 def _analyses(name: str, raw: dict | None, events: dict[str, EventType]) -> dict[str, Analysis]:

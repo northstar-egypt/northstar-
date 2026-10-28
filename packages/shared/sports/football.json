@@ -156,6 +156,73 @@
       ]
     }
   },
+  "teamGaps": {
+    "teamPeriod": "football.team_season.v1",
+    "playerPeriod": "football.season_aggregate.v2",
+    "attributes": [
+      { "key": "npxg_per_90", "label": "npxG per 90", "numerator": ["npxg"], "per90": true },
+      { "key": "shots_per_90", "label": "Shots per 90", "numerator": ["shots"], "per90": true },
+      { "key": "xa_per_90", "label": "xA per 90", "numerator": ["xa"], "per90": true },
+      { "key": "key_passes_per_90", "label": "Key passes per 90", "numerator": ["key_passes"], "per90": true },
+      { "key": "crosses_per_90", "label": "Crosses per 90", "numerator": ["crosses"], "per90": true },
+      { "key": "dribbles_per_90", "label": "Dribbles won per 90", "numerator": ["dribbles_completed"], "per90": true },
+      { "key": "tackles_per_90", "label": "Tackles per 90", "numerator": ["tackles"], "per90": true, "lowReliability": true },
+      { "key": "interceptions_per_90", "label": "Interceptions per 90", "numerator": ["interceptions"], "per90": true, "lowReliability": true },
+      { "key": "clearances_per_90", "label": "Clearances per 90", "numerator": ["clearances"], "per90": true, "lowReliability": true },
+      { "key": "passes_per_90", "label": "Passes per 90", "numerator": ["passes_attempted"], "per90": true },
+      { "key": "pass_completion", "label": "Pass completion", "numerator": ["passes_completed"], "denominator": ["passes_attempted"] },
+      { "key": "duels_won_share", "label": "Duels won", "numerator": ["duels_won"], "denominator": ["duels"], "lowReliability": true },
+      { "key": "aerials_won_share", "label": "Aerial duels won", "numerator": ["aerial_duels_won"], "denominator": ["aerial_duels"], "lowReliability": true }
+    ],
+    "groups": {
+      "centre_backs": { "label": "Centre backs", "roles": ["CB"], "attributes": ["tackles_per_90", "interceptions_per_90", "clearances_per_90", "aerials_won_share", "duels_won_share", "pass_completion"] },
+      "full_backs": { "label": "Full backs", "roles": ["LB", "RB"], "attributes": ["tackles_per_90", "interceptions_per_90", "crosses_per_90", "xa_per_90", "duels_won_share"] },
+      "holding_midfielders": { "label": "Holding midfielders", "roles": ["CDM"], "attributes": ["tackles_per_90", "interceptions_per_90", "passes_per_90", "pass_completion", "duels_won_share"] },
+      "central_midfielders": { "label": "Central midfielders", "roles": ["CM", "CAM"], "attributes": ["passes_per_90", "pass_completion", "key_passes_per_90", "xa_per_90", "npxg_per_90"] },
+      "wingers": { "label": "Wingers", "roles": ["LW", "RW"], "attributes": ["npxg_per_90", "xa_per_90", "key_passes_per_90", "dribbles_per_90", "crosses_per_90"] },
+      "strikers": { "label": "Strikers", "roles": ["ST"], "attributes": ["npxg_per_90", "shots_per_90", "xa_per_90", "aerials_won_share"] }
+    },
+    "metrics": [
+      { "key": "points_per_game", "stable": false, "label": "Points per game", "numerator": ["points"], "denominator": ["matches"], "better": "higher",
+        "noPlayerLink": "the result of everything else; read the rows below for where it comes from" },
+      { "key": "xg_for_per_game", "label": "Chances made (xG per game)", "numerator": ["xg_for"], "denominator": ["matches"], "better": "higher",
+        "links": [
+          { "group": "strikers", "attributes": ["npxg_per_90", "shots_per_90"] },
+          { "group": "wingers", "attributes": ["npxg_per_90", "xa_per_90", "key_passes_per_90"] },
+          { "group": "central_midfielders", "attributes": ["xa_per_90", "key_passes_per_90"] }
+        ] },
+      { "key": "xg_against_per_game", "label": "Chances allowed (xG against per game)", "numerator": ["xg_against"], "denominator": ["matches"], "better": "lower",
+        "links": [
+          { "group": "centre_backs", "attributes": ["tackles_per_90", "interceptions_per_90", "duels_won_share"] },
+          { "group": "holding_midfielders", "attributes": ["tackles_per_90", "interceptions_per_90", "duels_won_share"] }
+        ] },
+      { "key": "shots_against_per_game", "label": "Shots allowed per game", "numerator": ["shots_against"], "denominator": ["matches"], "better": "lower",
+        "links": [
+          { "group": "holding_midfielders", "attributes": ["tackles_per_90", "interceptions_per_90"] },
+          { "group": "full_backs", "attributes": ["tackles_per_90", "interceptions_per_90"] }
+        ] },
+      { "key": "possession_pct", "label": "Possession", "numerator": ["possession_pct"], "better": "higher", "percent": true,
+        "links": [
+          { "group": "holding_midfielders", "attributes": ["passes_per_90", "pass_completion"] },
+          { "group": "central_midfielders", "attributes": ["passes_per_90", "pass_completion"] }
+        ] },
+      { "key": "finishing_per_game", "stable": false, "label": "Goals above xG per game", "numerator": ["goals_for"], "minus": ["xg_for"], "denominator": ["matches"], "better": "higher",
+        "noPlayerLink": "scoring above or below xG over a season is mostly chance and rarely lasts (ml/README.md, Pro tier), so no player is proposed for it" },
+      { "key": "keeping_per_game", "stable": false, "label": "Goals conceded above xG per game", "numerator": ["goals_against"], "minus": ["xg_against"], "denominator": ["matches"], "better": "lower",
+        "noPlayerLink": "this is mostly goalkeeping and chance, and the data has no goalkeeping statistics" },
+      { "key": "set_pieces_for_per_game", "stable": false, "label": "Set piece goals per game", "numerator": ["set_piece_goals_for"], "denominator": ["matches"], "better": "higher",
+        "links": [
+          { "group": "centre_backs", "attributes": ["aerials_won_share"] },
+          { "group": "strikers", "attributes": ["aerials_won_share"] }
+        ] },
+      { "key": "set_pieces_against_per_game", "stable": false, "label": "Set piece goals conceded per game", "numerator": ["set_piece_goals_against"], "denominator": ["matches"], "better": "lower",
+        "links": [
+          { "group": "centre_backs", "attributes": ["aerials_won_share", "clearances_per_90"] }
+        ] },
+      { "key": "late_conceded_per_game", "stable": false, "label": "Goals conceded in the last 15 minutes per game", "numerator": ["goals_against_last_15"], "denominator": ["matches"], "better": "lower",
+        "noPlayerLink": "season totals say nothing about who is on the pitch late in games" }
+    ]
+  },
   "teamPeriods": {
     "football.team_season.v1": {
       "periodType": "team_season",

@@ -796,6 +796,105 @@ rates rather than a percentage change.
 - **Not yet a flag.** A breakout shows on the profile's league seasons card, not on the
   integrity board or in the "What the models are saying" banner.
 
+## Team gap analysis
+
+```bash
+python -m ml.run_gap_eval            # the reporting seeds, the numbers below
+python -m ml.run_gap_eval --tune     # the tuning seeds 101, 202 and 303; chooses the minimum minutes
+```
+
+Decision 0003. Where a club is weak against its league, and which players from other clubs are
+strong exactly there; or, in national team mode, needs the federation names, answered from every
+Egypt-eligible player, each ranked only within their own league. Code in `ml/pro/gaps.py`; the
+team statistics, their direction, the position groups and the links from a team weakness to
+player statistics are config (`teamGaps` in `packages/shared/sports/football.json`). The screen
+is `/gaps`, for scouts and federation staff.
+
+There is no answer key for "the right signing", so this is not scored like a detector. What is
+measured is whether its numbers are stable enough to act on: one season of the synthetic league
+(`pro_league.build_halves`) is played as two halves of 17 matches, and every statistic is
+computed from each half. Measured on 2026-10-28.
+
+### Team statistics
+
+Correlation across the 18 teams between the first and second half (mean over seeds), and how
+often a bottom-third team in one half is bottom third in the other (chance alone: a third):
+
+| | tuning r | reporting r | reporting, bottom third kept | treated as |
+|---|---|---|---|---|
+| Chances made (xG per game) | 0.78 | 0.85 | 73% | stable |
+| Chances allowed (xG against per game) | 0.83 | 0.83 | 77% | stable |
+| Shots allowed per game | 0.71 | 0.64 | 67% | stable |
+| Possession | 0.90 | 0.90 | 93% | stable |
+| Points per game | 0.17 | 0.28 | 33% | not stable |
+| Goals above xG per game | -0.07 | 0.03 | 43% | not stable |
+| Goals conceded above xG per game | 0.01 | -0.02 | 40% | not stable |
+| Set piece goals per game | 0.13 | 0.24 | 47% | not stable |
+| Set piece goals conceded per game | -0.01 | 0.17 | 43% | not stable |
+| Goals conceded in the last 15 minutes | 0.03 | 0.17 | 40% | not stable |
+
+A statistic is stable when its season figure's reliability (Spearman-Brown, 2r / (1 + r), from
+the tuning seeds' r) is 0.7 or more. A club in the bottom third on an unstable statistic is
+shown that rank, with a sentence saying it barely repeats, and no players are proposed for it.
+The flags live in the config (`"stable": false`), and `ml/tests/test_gaps.py` fails if they stop
+matching the measurement.
+
+What this says: the **underlying** numbers (chances made and allowed, possession) are what a
+weakness can be built on. **Results and finishing are not**: points, goals against xG at both
+ends and late goals are mostly chance over half a season. Set pieces are unstable here partly
+because the synthetic league has no set-piece skill at all (a set-piece goal is a random share
+of goals); on real data they may repeat better, and the check must be rerun there.
+
+### Player statistics and the minimum minutes
+
+Within position group, the season reliability of each player statistic, for players with half
+the threshold or more in each half (reporting seeds):
+
+| minutes in the season | 300 | 450 | 900 | 1800 |
+|---|---|---|---|---|
+| npxG per 90 | 0.93 | 0.93 | 0.93 | 0.93 |
+| xA per 90 | 0.94 | 0.94 | 0.93 | 0.93 |
+| Passes per 90 | 0.96 | 0.96 | 0.97 | 0.98 |
+| Pass completion | 0.80 | 0.81 | 0.83 | 0.83 |
+| Dribbles won per 90 | 0.74 | 0.74 | 0.81 | 0.83 |
+| Shots per 90 | 0.72 | 0.74 | 0.77 | 0.73 |
+| Key passes per 90 | 0.70 | 0.72 | 0.74 | 0.73 |
+| Crosses per 90 | 0.62 | 0.63 | 0.68 | 0.75 |
+| Tackles per 90 | 0.53 | 0.55 | 0.64 | 0.67 |
+| Interceptions per 90 | 0.48 | 0.47 | 0.53 | 0.62 |
+| Clearances per 90 | 0.37 | 0.46 | 0.60 | 0.64 |
+| Aerial duels won | 0.35 | 0.38 | 0.47 | 0.52 |
+| Duels won | 0.32 | 0.36 | 0.39 | 0.35 |
+| **median** | 0.70 | 0.72 | 0.74 | 0.73 |
+
+- **The minimum is 450 minutes**, not the 900 decision 0003 started from. The rule, fixed before
+  measuring, is the smallest threshold at which the median statistic's season reliability
+  reaches 0.7, on the tuning seeds (0.73 at 450 there; 300 on the reporting seeds). The median
+  barely moves with minutes, because a higher threshold also keeps only regulars, who are more
+  alike.
+- **The defensive statistics are the weak ones**: tackles, interceptions, clearances, duels won
+  and aerial duels won are below 0.6 at 450 minutes on the tuning seeds, so they are marked
+  (`"lowReliability": true`) and the screen stars them with "weigh it less". Duels won never
+  reaches 0.4 at any minutes.
+- **The attacking statistics are too reliable to believe.** npxG and xA per 90 at 0.93 reflect
+  how the synthetic league shares out a team's chances (by role, minutes and one attribute),
+  which is cleaner than real football. Expect lower numbers on real data, where the check must
+  be rerun before the minimum is trusted.
+
+### Limits
+
+- **One team strength.** The synthetic league draws each match from a single strength per team,
+  so a team weak at making chances is usually weak at preventing them too. Real teams have
+  shapes; the analysis handles them, but this data does not test that it finds them.
+- **Players abroad are not ranked.** Their leagues have one or two players of a group on record,
+  so there is no population to place them in; national team mode lists them with their raw
+  numbers and says why. Ranking them needs league-wide data for those leagues.
+- **Not validated against what a player is really good at.** The league knows every player's true
+  attributes, so whether a high tackles percentile means a good defender could be measured; that
+  is a next step, not done here.
+- **Candidates come from the club's own league** in club mode, so every percentile is among the
+  same players.
+
 ## Player similarity
 
 ```bash
@@ -1193,7 +1292,8 @@ export_db.py   database to JSON export, for running any harness on real data  do
 rating/        table tennis ratings: Glicko-2 and the point rating          done
 run_rating_eval.py  grades both against hidden ability                       done
 similarity.py  player similarity, run_similarity_eval.py grades it             done
-pro/          pro tier: breakouts, finishing vs xG, trends; run_pro_eval.py   done
+pro/          pro tier: breakouts, finishing vs xG, trends, team gaps;
+              run_pro_eval.py and run_gap_eval.py grade them                 done
 assistant/     Ollama prompt + retrieval grounding                        TODO
 artifacts/     trained models (gitignored)
 ```

@@ -45,6 +45,9 @@ import type {
   PlayerImport,
   PlayerRadar,
   ProSeasons,
+  ClubGaps,
+  GapOptions,
+  NationalGaps,
 } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -218,6 +221,21 @@ export async function getSummary(playerId: string): Promise<ProfileSummary | nul
 }
 
 /** Percentiles of a player's match statistics among comparable players. Null on 404. */
+export async function getGapOptions(): Promise<GapOptions> {
+  return request<GapOptions>("/gaps");
+}
+
+export async function getClubGaps(clubId: string, season?: string | null): Promise<ClubGaps> {
+  const query = season ? `?season=${encodeURIComponent(season)}` : "";
+  return request<ClubGaps>(`/gaps/club/${encodeURIComponent(clubId)}${query}`);
+}
+
+/** Needs as group:attribute,attribute, e.g. "full_backs:crosses_per_90,tackles_per_90". */
+export async function getNationalGaps(needs: string[]): Promise<NationalGaps> {
+  const query = needs.map((n) => `need=${encodeURIComponent(n)}`).join("&");
+  return request<NationalGaps>(`/gaps/national?${query}`);
+}
+
 export async function getProSeasons(playerId: string): Promise<ProSeasons | null> {
   try {
     return await request<ProSeasons>(`/players/${encodeURIComponent(playerId)}/pro-seasons`);

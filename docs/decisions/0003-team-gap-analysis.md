@@ -1,6 +1,7 @@
 # 0003. Team gap analysis: what a team lacks, and which players fill it
 
-Status: accepted (design). One schema question is open, see "Open decisions".
+Status: built (2026-10-28). Code in `ml/pro/gaps.py`, the screen at `/gaps`; the reliability
+check and its numbers are in `ml/README.md`, "Team gap analysis".
 Date: 2026-09-29
 
 ## Context
@@ -121,8 +122,21 @@ Negative / trade-offs:
    a synthetic Egyptian league (`data/pipelines/synthetic/pro_league.py`), which the analyses
    are built and scored on; the FootyStats adapter will write real seasons into the same
    records.
-2. **Who sees it.** Proposed: scouts and federation staff, with no new role. A club analyst
-   role can come later if needed.
+2. **Who sees it.** Built as proposed (2026-10-28): scouts and federation staff, with no new
+   role; coaches, players and admins get 403. A club analyst role can come later if needed.
+
+## What the build changed (2026-10-28)
+
+- **The minimum is 450 minutes, not 900.** The split-half check sets it, as this decision said
+  it would; see `ml/README.md`.
+- **Unstable team statistics are not weaknesses.** Points, finishing and goals conceded against
+  xG, set pieces and late goals barely repeat from one half season to the next, so a bottom-third
+  rank on them is shown with that sentence and proposes no players. The config marks them
+  (`"stable": false`).
+- **Less reliable player statistics are starred.** Tackles, interceptions, clearances, duels and
+  aerial duels (`"lowReliability": true`).
+- **Players abroad are listed unranked** in national team mode: their leagues have too few
+  players on record to give a percentile, so their numbers are shown as they are.
 
 ## Alternatives considered
 
