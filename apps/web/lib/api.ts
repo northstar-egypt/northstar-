@@ -45,6 +45,7 @@ import type {
   PlayerImport,
   PlayerRadar,
   ProSeasons,
+  ScoutHome,
   ClubGaps,
   GapOptions,
   NationalGaps,
@@ -221,6 +222,31 @@ export async function getSummary(playerId: string): Promise<ProfileSummary | nul
 }
 
 /** Percentiles of a player's match statistics among comparable players. Null on 404. */
+export async function getScoutHome(): Promise<ScoutHome> {
+  return request<ScoutHome>("/home/scout");
+}
+
+/** The ids on the caller's shortlist; null when the caller has no shortlist (not a scout). */
+export async function getShortlistIds(): Promise<string[] | null> {
+  try {
+    return (await request<{ playerIds: string[] }>("/shortlist")).playerIds;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 403) return null;
+    throw error;
+  }
+}
+
+export async function saveToShortlist(playerId: string, note = ""): Promise<void> {
+  await request<void>(`/shortlist/${encodeURIComponent(playerId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ note }),
+  });
+}
+
+export async function removeFromShortlist(playerId: string): Promise<void> {
+  await request<void>(`/shortlist/${encodeURIComponent(playerId)}`, { method: "DELETE" });
+}
+
 export async function getGapOptions(): Promise<GapOptions> {
   return request<GapOptions>("/gaps");
 }

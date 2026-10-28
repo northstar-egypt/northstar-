@@ -788,3 +788,25 @@ export interface NationalGaps {
   needs: GapNeed[];
   minMinutes: number;
 }
+
+/** A player as a home page lists them. */
+export interface PlayerCard {
+  playerId: string;
+  fullName: string;
+  position: string | null;
+  tier: string | null;
+  ageLabel: string;
+  club: string | null;
+  isMinor: boolean;
+}
+
+/** GET /home/scout. */
+export interface ScoutHome {
+  firstName: string | null;
+  shortlist: (PlayerCard & { note: string; savedAt: string })[];
+  /** Saved players the scout can no longer see. */
+  withheld: number;
+  breakouts: (PlayerCard & { season: string; reason: string; minutesBefore: number; minutesAfter: number })[];
+  breakoutSeason: string | null;
+  lateBloomers: (PlayerCard & { reason: string; status: string })[];
+}

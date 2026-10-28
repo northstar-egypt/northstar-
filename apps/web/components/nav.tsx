@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ROUTE_ROLES, homeFor, useAuth } from "@/lib/auth";
 import { cx } from "@/lib/format";
+import { ROLE_IDENTITY } from "@/lib/roles";
 import type { UserRole } from "@/lib/types";
 
 const LINKS: { href: string; label: string }[] = [
+  { href: "/scout", label: "Home" },
   { href: "/dashboard", label: "Squad" },
   { href: "/search", label: "Search" },
   { href: "/compare", label: "Compare" },
@@ -25,6 +27,7 @@ export function Nav() {
   const router = useRouter();
 
   if (!user) return null;
+  const identity = ROLE_IDENTITY[user.role];
 
   const visible = LINKS.filter((l) => {
     const allowed = ROUTE_ROLES[l.href];
@@ -35,8 +38,9 @@ export function Nav() {
     <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5">
         <Link href={homeFor(user.role, user.linkedPlayerId)} className="flex items-center gap-2 font-bold tracking-tight">
-          <span className="inline-block h-2.5 w-2.5 rotate-45 bg-sky-400" aria-hidden />
+          <span className={cx("inline-block h-2.5 w-2.5 rotate-45", identity.mark)} aria-hidden />
           NorthStar
+          <span className={cx("text-xs font-medium uppercase tracking-wide", identity.text)}>{identity.title}</span>
         </Link>
 
         <nav className="flex flex-wrap items-center gap-1" aria-label="Main">
@@ -51,7 +55,7 @@ export function Nav() {
                   "rounded-md px-2.5 py-1 text-sm transition",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400",
                   active
-                    ? "bg-slate-800 font-semibold text-slate-100"
+                    ? identity.active
                     : "text-slate-400 hover:bg-slate-900 hover:text-slate-200",
                 )}
               >
@@ -110,6 +114,7 @@ export function Nav() {
         </div>
       </div>
 
+      <div className={cx("h-0.5", identity.bar)} aria-hidden />
       <div className="border-t border-amber-900/40 bg-amber-950/30 px-4 py-1 text-center text-[0.7rem] text-amber-300/90">
         Prototype. All player data is synthetic.
       </div>
