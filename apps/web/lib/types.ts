@@ -498,6 +498,39 @@ export interface PlayerImport {
 }
 
 /** GET /players/{id}/radar. See apps/api/app/services/radar.py. */
+/** Non-penalty goals against non-penalty xG; GET /players/{id}/pro-seasons. */
+export interface Finishing {
+  npGoals: number;
+  npxg: number;
+  /** 10th to 90th percentile of goals an ordinary finisher scores from these chances. */
+  low: number | null;
+  high: number | null;
+  verdict: "above" | "below" | "in line" | "too few chances";
+  seasons: number;
+}
+
+export interface ProSeasons {
+  /** Newest first. */
+  seasons: {
+    season: string;
+    competition: string;
+    club: string | null;
+    minutes: number;
+    finishing: Finishing;
+    /** Null for the first season the league data covers. */
+    breakout: { flagged: boolean; score: number | null; reason: string; considered: boolean } | null;
+  }[];
+  career: Finishing | null;
+  trends: {
+    season: string;
+    previous: string;
+    minutesBefore: number;
+    minutesAfter: number;
+    changes: { key: string; label: string; before: number; after: number; unit: string }[];
+  }[];
+  note: string | null;
+}
+
 export interface PlayerRadar {
   axes: {
     key: string;

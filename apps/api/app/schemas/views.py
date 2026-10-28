@@ -245,6 +245,65 @@ class RadarOut(CamelModel):
     note: str
 
 
+class FinishingOut(CamelModel):
+    """Non-penalty goals against non-penalty xG (ml/pro/sustainability.py)."""
+
+    np_goals: int
+    npxg: float
+    # The 10th to 90th percentile of goals an ordinary finisher scores from these chances;
+    # null when there are too few chances to judge.
+    low: int | None = None
+    high: int | None = None
+    # "above", "below", "in line" or "too few chances".
+    verdict: str
+    seasons: int
+
+
+class BreakoutOut(CamelModel):
+    """The breakout detector's view of one season (ml/pro/breakout.py)."""
+
+    flagged: bool
+    score: float | None = None
+    reason: str
+    # False when the season could not be scored; `reason` says why.
+    considered: bool
+
+
+class ProSeasonOut(CamelModel):
+    season: str
+    competition: str
+    club: str | None = None
+    minutes: int
+    finishing: FinishingOut
+    # Null for the first season the league data covers: nothing before it to compare with.
+    breakout: BreakoutOut | None = None
+
+
+class TrendChangeOut(CamelModel):
+    key: str
+    label: str
+    before: float
+    after: float
+    unit: str
+
+
+class TrendOut(CamelModel):
+    season: str
+    previous: str
+    minutes_before: int
+    minutes_after: int
+    changes: list[TrendChangeOut]
+
+
+class ProSeasonsOut(CamelModel):
+    """GET /players/{id}/pro-seasons. Newest season first. `note` says why there is nothing."""
+
+    seasons: list[ProSeasonOut] = []
+    career: FinishingOut | None = None
+    trends: list[TrendOut] = []
+    note: str | None = None
+
+
 class SimilarPlayerOut(CamelModel):
     player_id: uuid.UUID
     full_name: str

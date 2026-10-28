@@ -12,7 +12,8 @@ results (forecasts, flags, similarity, embeddings) back to it.
   points they won, with a range. Graded against hidden ability, see "Table tennis rating".
 - **Detectors**: late-bloomer, fraud, duplicate. Measured with precision / recall / F1
   against the **planted ground truth** in the synthetic dataset. Built, see below.
-- **Sustainability flags**: xG vs actual for football.
+- **Pro tier**: finishing against expected goals, season trends, and a breakout detector
+  scored against a synthetic league's answer key. Built, see "Pro tier".
 - **Similarity**: player embeddings via sentence-transformers.
 - **Anomaly detection**: crosses over with the security workstream (self-submission fraud).
 - **LLM assistant**: grounded natural-language queries via a local Ollama model. It phrases
@@ -675,6 +676,126 @@ nearer is unknown until the ITTF and WTT results are ingested.
 - **Settings were tuned on seeds 101, 202 and 303**: Glicko-2 tau 0.5 (no setting tried made
   a difference), point rating prior 0.15, display range 0.07, baseline slopes 3 and 20.
 
+## Pro tier
+
+```bash
+python -m ml.run_pro_eval            # the reporting seeds, the numbers below
+python -m ml.run_pro_eval --tune     # the grid, on the tuning seeds 101, 202 and 303 only
+```
+
+Measured on 2026-10-27 against the synthetic Egyptian Premier League
+(`data/pipelines/synthetic/pro_league.py`): 18 clubs of 24 players, three seasons of simulated
+matches, with an answer key. The league is built in memory from the seed, so there is no
+export to go stale. Code in `ml/pro`; the profile runs the same code
+(`apps/api/app/services/pro.py`, `GET /players/{id}/pro-seasons`).
+
+### Breakouts
+
+The answer key: in each season after the first, about 8% of players aged 18 to 23 get a large
+jump in quality (planted, 118 cases over the five reporting seeds). The detector is told
+nothing about them. It compares each young player's season with their previous one.
+
+**v1** measures a player's share of their team's chances: non-penalty expected goals plus
+expected assists (npxG + xA) per 90 minutes, divided by the team's per match, and flags a log
+rise of at least 0.11. The **first version**, kept as a comparison, used the bare per-90 rate
+plus a little weight on the rise in minutes. The **baseline** flags a young player whose
+minutes rose by a quarter of a season or more. Every setting was chosen on seeds 101, 202 and
+303:
+
+| Tuning seeds, pooled | F1 |
+|---|---|
+| v1, team share, threshold 0.11 | 0.833 |
+| first version, per 90 rate, threshold 0.15, minutes weight 0.1 | 0.686 |
+| minutes only, rise of 0.25 of a season | 0.298 |
+
+The team share was the change that mattered. When a whole club gets better, every player's
+per-90 rate rises with it; their share of the team's chances does not.
+
+Reporting seeds 20260827, 7, 99, 404 and 555 (pooled; 95% Wilson intervals):
+
+| | TP | FP | FN | precision | recall | F1 |
+|---|---|---|---|---|---|---|
+| **v1** | 81 | 45 | 37 | 0.643 [0.56, 0.72] | 0.686 [0.60, 0.76] | **0.664** |
+| v1 without the age window | 81 | 107 | 37 | 0.431 [0.36, 0.50] | 0.686 [0.60, 0.76] | 0.529 |
+| first version, per 90 rate | 70 | 50 | 48 | 0.583 [0.49, 0.67] | 0.593 [0.50, 0.68] | 0.588 |
+| minutes only | 44 | 136 | 74 | 0.244 [0.19, 0.31] | 0.373 [0.29, 0.46] | 0.295 |
+
+What this says, including the parts that are not flattering:
+
+- **v1 beats both comparisons out of sample**, by 0.08 F1 over the first version and more than
+  double the minutes-only baseline. The F1 drops from 0.833 on the tuning seeds to 0.664 on the
+  reporting seeds, which is the honest number.
+- **It swings a lot by seed**: F1 0.826, 0.392, 0.809, 0.471 and 0.857. Seeds 7 and 404 each
+  have 18 false alarms. Looking at them (error analysis only; nothing was changed because of
+  it): they are ordinary young players growing at the normal yearly rate, often in a season
+  where their minutes fell, so their share is measured on fewer minutes and is noisier. A
+  minimum on minutes, or a rule that minutes must not fall, is the obvious next thing to try,
+  and it must be tried on the tuning seeds, not these.
+- **The age window does a lot of the work.** Without it precision falls from 0.64 to 0.43.
+  The window is the scouting meaning of a breakout, but it is also exactly where the answer
+  key plants them, so on real data the gain from it will be smaller.
+- **What v1 cannot see**: 11 of the 118 breakouts came after a season with fewer than 270
+  minutes, so there was nothing to compare against, and 1 had fewer than 270 minutes in the
+  breakout season itself. Breakouts from the bench are missed by design.
+
+### Finishing against expected goals
+
+A season's non-penalty goals are judged against its npxG: "above" or "below" only outside the
+10th to 90th percentile of what an ordinary finisher scores from those chances (a Poisson
+range), and no verdict at all below 2.0 npxG. The answer key is each player's true finishing,
+planted in the league: about 4% are genuinely better finishers, 4% worse, and the rest
+ordinary. Reporting seeds, summed:
+
+| | count | truly better finishers among them |
+|---|---|---|
+| one season called "above" | 129 | 9 (7%) |
+| all seasons pooled, called "above" | 105 | 10 (10%) |
+
+- **One season above expected is nearly always luck.** Of 129 seasons called "above", 9
+  belonged to a genuinely better finisher, against about 4% in the population. Pooling three
+  seasons helps a little (10%) but not much: 3 seasons of chances is still too few.
+- **Real finishers are hard to find from season totals**: of 58 genuinely better finishers
+  with enough chances to judge over all their seasons, 10 were called "above".
+- **The range is conservative**: ordinary finishers' seasons were called above or below 13% of
+  the time (199 of 1,506), less than the 20% a 10th to 90th percentile range implies, because
+  goals are whole numbers.
+
+So the screen says "above expected" as a fact about the season and explains that it rarely
+lasts; it never calls a player a good finisher.
+
+**What predicts next season's goals?** For 2,636 consecutive seasons with 900 minutes or more
+each, in the same competition, next season's non-penalty goals per 90 predicted from this
+season's numbers (mean absolute error, mean over the five seeds):
+
+| predicted by this season's | MAE |
+|---|---|
+| **npxG per 90** | **0.0461** |
+| position average | 0.0584 |
+| goals per 90 | 0.0623 |
+
+Expected goals predict next season's goals 26% better than goals do, and goals do worse than
+simply assuming the position's average. This is the published finding on real leagues
+reproduced in the synthetic one, which is what the league was built to do; it is a check on the
+league as much as a result.
+
+### Trends
+
+Not scored, since there is nothing to score them against: season-on-season changes in nine
+rates (npxG, goals, xA, key passes, dribbles won, tackles and interceptions per 90; pass
+completion and duels won), shown only when both seasons have 900 minutes, and always as the two
+rates rather than a percentage change.
+
+### Limits
+
+- **It is a synthetic league.** Breakouts are a single jump in quality, planted where the
+  detector looks. Real breakouts are slower, and real minutes depend on transfers, injuries
+  and managers, none of which the league has. Stage 5 of the pro tier checks the analyses
+  against StatsBomb's open event data.
+- **Players abroad are not scored for breakouts**: their clubs' other players are not in the
+  data, so there is no team share. The reason on the profile says so.
+- **Not yet a flag.** A breakout shows on the profile's league seasons card, not on the
+  integrity board or in the "What the models are saying" banner.
+
 ## Player similarity
 
 ```bash
@@ -1072,6 +1193,7 @@ export_db.py   database to JSON export, for running any harness on real data  do
 rating/        table tennis ratings: Glicko-2 and the point rating          done
 run_rating_eval.py  grades both against hidden ability                       done
 similarity.py  player similarity, run_similarity_eval.py grades it             done
+pro/          pro tier: breakouts, finishing vs xG, trends; run_pro_eval.py   done
 assistant/     Ollama prompt + retrieval grounding                        TODO
 artifacts/     trained models (gitignored)
 ```
