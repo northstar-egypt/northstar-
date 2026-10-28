@@ -131,6 +131,27 @@ def height_readings_needed(
     return max(0, LATE_BLOOMER.min_measurements - readings)
 
 
+# A growth rate needs two readings far enough apart that half a centimetre of measuring error
+# does not dominate it, and recent enough to say how the player is growing now.
+GROWTH_MIN_DAYS = 180
+GROWTH_WINDOW_DAYS = 400
+
+
+def growth_cm_per_year(series: list[tuple[date, float]], dob: date | None, today: date) -> float | None:
+    """Height gained per year between the latest reading and the earliest one in the last
+    GROWTH_WINDOW_DAYS that is at least GROWTH_MIN_DAYS before it. None for an adult (growth
+    has stopped, so the number would only be measuring error) or without two such readings."""
+    if dob is None or not series or cohort.age_years(dob, today) >= 18:
+        return None
+    last_day, last_value = series[-1]
+    earlier = [(d, v) for d, v in series
+               if (last_day - d).days >= GROWTH_MIN_DAYS and (today - d).days <= GROWTH_WINDOW_DAYS]
+    if not earlier:
+        return None
+    first_day, first_value = earlier[0]
+    return round((last_value - first_value) * 365.25 / (last_day - first_day).days, 1)
+
+
 def build_squad(db: Session, caller: Caller, stmt: Select) -> list[dict]:
     """The coach's squad table.
 
@@ -169,6 +190,7 @@ def build_squad(db: Session, caller: Caller, stmt: Select) -> list[dict]:
                 "days_since_last_log": (today - logged_on).days if logged_on else None,
                 "height_trend": [value for _, value in series[-TREND_POINTS:]],
                 "height_readings": len(series),
+                "growth_cm_per_year": growth_cm_per_year(series, player.date_of_birth, today),
                 "height_readings_needed": height_readings_needed(
                     player.date_of_birth,
                     len(series),

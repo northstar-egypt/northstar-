@@ -9,7 +9,7 @@ import type { UserRole } from "@/lib/types";
 
 const LINKS: { href: string; label: string }[] = [
   { href: "/scout", label: "Home" },
-  { href: "/dashboard", label: "Squad" },
+  { href: "/dashboard", label: "Home" },
   { href: "/search", label: "Search" },
   { href: "/compare", label: "Compare" },
   { href: "/explore", label: "Explore" },

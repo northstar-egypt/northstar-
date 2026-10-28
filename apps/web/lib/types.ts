@@ -110,6 +110,8 @@ export interface SquadRow {
   heightTrend: number[];
   /** All height readings, not only the six above. */
   heightReadings: number;
+  /** Height gained per year recently; null for adults and without two readings 180+ days apart. */
+  growthCmPerYear: number | null;
   /**
    * How many more height readings the late-bloomer check needs before it can run on this
    * player; 0 when none. The API applies the detector's own rule (age range, minimum readings,

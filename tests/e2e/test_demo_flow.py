@@ -167,6 +167,34 @@ def test_the_squad_reports_staleness_and_consent(sign_in, page):
     assert "consent missing" in body
 
 
+def test_a_coach_logs_a_height_from_measuring_day(sign_in, page, identities):
+    """The coach's home lists who is due a reading, and a height typed there is saved."""
+    squad = api("/players", identities["coach"]["email"])
+    due = [r for r in squad if r["heightCm"] and ((r["daysSinceLastLog"] or 0) > 90 or r["heightReadingsNeeded"] > 0)]
+    # Not the player the profile logging test uses (the first with a height): two readings on one
+    # day would leave that test unsure which is the latest.
+    first = next(r for r in squad if r["heightCm"])
+    due = [r for r in due if r["player"]["id"] != first["player"]["id"]]
+    if not due:
+        pytest.skip("nobody in this squad is due a reading")
+    sign_in("Coach", "/dashboard")
+    page.get_by_role("heading", name="Measuring day").wait_for(timeout=30000)
+    body = text_of(page)
+    assert "your squad" in body and "growing fastest" in body and "what the models noticed" in body
+
+    row = due[0]
+    name = row["player"]["fullName"]
+    show_all = page.get_by_role("button", name=re.compile("^Show all"))
+    if show_all.count():
+        show_all.click()
+    box = page.get_by_label(f"Height of {name} in cm")
+    box.fill(str(round(row["heightCm"] + 0.4, 1)))
+    box.press("Enter")
+    page.get_by_text(f"Saved {round(row['heightCm'] + 0.4, 1)} cm").wait_for(timeout=20000)
+    after = {r["player"]["id"]: r for r in api("/players", identities["coach"]["email"])}
+    assert after[row["player"]["id"]]["daysSinceLastLog"] == 0
+
+
 # ---------------------------------------------------------------------------
 # The player profile
 # ---------------------------------------------------------------------------
