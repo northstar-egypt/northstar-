@@ -138,7 +138,7 @@ export function homeFor(role: UserRole, linkedPlayerId?: string | null): string 
     case "coach":
       return "/dashboard";
     case "scout":
-      return "/search";
+      return "/scout";
     case "federation":
       return "/oversight";
     case "admin":
@@ -159,6 +159,7 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   "/dashboard": ["coach"],
   "/players/new": ["coach"],
   "/matches": ["coach"],
+  "/scout": ["scout"],
   "/search": ["scout", "federation"],
   "/compare": ["coach", "scout", "federation"],
   "/explore": ["coach", "scout", "federation"],

@@ -102,11 +102,16 @@ def sign_in(page):
     cookie.
     """
 
-    def _sign_in(role: str, expect_url: str) -> None:
+    def _sign_in(role: str, expect_url: str, then: str | None = None) -> None:
+        """Sign in, check the role landed on its home (`expect_url`), then optionally open
+        another screen (`then`)."""
         page.goto(f"{WEB_URL}/login", wait_until="networkidle")
         page.get_by_role("button", name=role).click()
         page.wait_for_url(f"**{expect_url}", timeout=20000)
         page.wait_for_timeout(SETTLE_MS)
+        if then:
+            page.goto(f"{WEB_URL}{then}", wait_until="networkidle")
+            page.wait_for_timeout(SETTLE_MS)
 
     return _sign_in
 

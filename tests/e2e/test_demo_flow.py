@@ -243,12 +243,41 @@ def test_the_profile_draws_the_forecast_band(sign_in, page, identities):
 
 
 # ---------------------------------------------------------------------------
+# Scout home
+# ---------------------------------------------------------------------------
+
+
+def _clear_shortlist(email: str) -> None:
+    for player_id in api("/shortlist", email)["playerIds"]:
+        request = urllib.request.Request(f"{API_URL}/shortlist/{player_id}", method="DELETE")
+        _session(email).open(request, timeout=10).close()
+
+
+def test_a_scout_lands_on_their_home_and_saves_a_breakout(sign_in, page, identities):
+    """The scout opens on what is new for them, and a player saved there stays on their list."""
+    email = identities["scout"]["email"]
+    _clear_shortlist(email)
+    try:
+        sign_in("Scout", "/scout")
+        page.get_by_role("heading", name=re.compile("^Stepped up")).wait_for(timeout=30000)
+        body = text_of(page)
+        assert "good hunting" in body and "your shortlist" in body and "nothing saved yet" in body
+        breakouts = api("/home/scout", email)["breakouts"]
+        assert breakouts, "the seeded league should have breakouts this season"
+        page.get_by_role("button", name="Save", exact=True).first.click()
+        page.get_by_text("1 saved").wait_for(timeout=15000)
+        assert api("/shortlist", email)["playerIds"] == [breakouts[0]["playerId"]]
+    finally:
+        _clear_shortlist(email)
+
+
+# ---------------------------------------------------------------------------
 # Scout search
 # ---------------------------------------------------------------------------
 
 
 def test_search_reports_how_it_read_the_query(sign_in, page):
-    sign_in("Scout", "/search")
+    sign_in("Scout", "/scout", then="/search")
     # The query box carries no `type` attribute, so `input[type=text]` matches nothing. Match
     # the placeholder, which is also what a person would look for.
     page.get_by_placeholder("left footed").fill("under 16 striker")
@@ -263,7 +292,7 @@ def test_search_reports_how_it_read_the_query(sign_in, page):
 
 def test_search_reads_a_described_player(sign_in, page):
     """A phrase becomes a computed filter, and an ask with no data behind it says so."""
-    sign_in("Scout", "/search")
+    sign_in("Scout", "/scout", then="/search")
     page.get_by_placeholder("left footed").fill("small for his age, left footed")
     page.keyboard.press("Enter")
     page.wait_for_timeout(SETTLE_MS)
@@ -277,7 +306,7 @@ def test_search_reads_a_described_player(sign_in, page):
 def test_search_finds_arabic_names_from_a_latin_spelling(sign_in, page):
     """The seeded names are in Arabic; FootyStats will send Latin. A scout typing Mohamed
     must find محمد, and see that the word was read as a name."""
-    sign_in("Scout", "/search")
+    sign_in("Scout", "/scout", then="/search")
     page.get_by_placeholder("left footed").fill("Mohamed")
     page.keyboard.press("Enter")
     page.wait_for_timeout(SETTLE_MS)
@@ -295,7 +324,7 @@ def test_signed_up_minors_are_visible_to_scouts(sign_in, page, identities):
     tested against the API in apps/api/tests (test_access_control.py and test_writes.py),
     where a withdrawal can be set up directly. Here the seeded dataset has none.
     """
-    sign_in("Scout", "/search")
+    sign_in("Scout", "/scout", then="/search")
     page.wait_for_timeout(SETTLE_MS)
 
     results = api(
@@ -632,7 +661,7 @@ def test_the_radar_shows_on_the_profile_and_overlays_on_compare(sign_in, page, i
 def test_the_explorer_plots_comparable_players_and_opens_from_a_profile(sign_in, page, identities):
     """From a profile's radar to the scatter explorer: the player is marked among comparable
     players, the group is named, and changing a statistic redraws the plot."""
-    sign_in("Scout", "/search")
+    sign_in("Scout", "/scout", then="/search")
     scout = identities["scout"]["email"]
     found = api("/search", scout, body={"query": "", "sport": "football", "limit": 200})
     pid = next(
@@ -678,7 +707,7 @@ def test_the_assistant_answers_from_the_records_and_shows_its_reading(sign_in, p
             pytest.skip("the local language model is not running (docker compose --profile llm)")
         raise
 
-    sign_in("Scout", "/search")
+    sign_in("Scout", "/scout", then="/search")
     page.goto(f"{WEB_URL}/ask", wait_until="load")
     page.get_by_label("Your question").fill("مين أحسن هداف تحت ١٦ سنة")
     page.get_by_role("button", name="Ask", exact=True).click()
@@ -819,7 +848,7 @@ def test_oversight_shows_coverage_for_every_governorate(sign_in, page):
 def test_a_scout_picks_players_to_compare_and_changes_the_set(sign_in, page):
     """Tick two search results, compare them, add a third by name on the compare screen, then
     remove one: the page address follows each change."""
-    sign_in("Scout", "/search")
+    sign_in("Scout", "/scout", then="/search")
     # Strikers: football, so all boys. Compare refuses to mix genders, and the first results of
     # an empty search can be anyone (a table tennis girl added by another test made this fail).
     page.get_by_placeholder("left footed").fill("striker")
@@ -906,7 +935,8 @@ def test_the_demo_flow_on_one_player(sign_in, page, browser, identities):
     scout_page = browser.new_context(viewport={"width": 1280, "height": 900}).new_page()
     scout_page.goto(f"{WEB_URL}/login", wait_until="networkidle")
     scout_page.get_by_role("button", name="Scout").click()
-    scout_page.wait_for_url("**/search", timeout=20000)
+    scout_page.wait_for_url("**/scout", timeout=20000)
+    scout_page.goto(f"{WEB_URL}/search", wait_until="networkidle")
     scout_page.wait_for_timeout(SETTLE_MS)  # typed before the page is live, the query is lost
     scout_page.get_by_placeholder("left footed").fill(SECOND_ENTRY)
     scout_page.keyboard.press("Enter")
@@ -1024,7 +1054,7 @@ def test_a_coach_adds_where_a_goal_went_and_a_scout_reads_finishing(sign_in, pag
     scout = browser.new_context(viewport={"width": 1280, "height": 900}).new_page()
     scout.goto(f"{WEB_URL}/login", wait_until="networkidle")
     scout.get_by_role("button", name="Scout").click()
-    scout.wait_for_url("**/search", timeout=20000)
+    scout.wait_for_url("**/scout", timeout=20000)
     scout.goto(f"{WEB_URL}/explore", wait_until="load")
     scout.get_by_role("link", name="Finishing").click()
     scout.wait_for_url("**/explore/finishing", timeout=20000)

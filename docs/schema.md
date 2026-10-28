@@ -268,6 +268,24 @@ Role is the anchor of the access-control workstream. Draft role intent:
 - **player**: view and manage their own profile and self-submissions.
 - **admin**: system administration. TODO: confirm this role belongs here vs a separate flag.
 
+## ShortlistEntry
+
+A player a scout or federation staff member saved, with their own note. The scout's home page
+opens with it. Private to the user: nobody else sees another user's shortlist. Saving a player
+grants no access: the list is read through the same visibility rule as every other screen, so a
+player whose consent is withdrawn after being saved is counted as withheld, not shown.
+
+| Column     | Type      | Notes                                                    |
+|------------|-----------|----------------------------------------------------------|
+| id         | UUID PK   |                                                          |
+| user_id    | UUID FK   | To User. Deleting the user deletes their list.           |
+| player_id  | UUID FK   | To Player.                                               |
+| note       | text      | The user's own words. Empty is allowed.                  |
+| created_at | timestamp | When the player was saved.                               |
+| updated_at | timestamp | When the note last changed.                              |
+
+One row per user and player (`uq_shortlist_entry_user_player`). Migration 0009.
+
 ## Consent
 
 Consent and privacy records, first-class because much of the youth data is about minors.

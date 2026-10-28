@@ -38,9 +38,12 @@ import {
   getProSeasons,
   getRadar,
   getSports,
+  getShortlistIds,
   getSimilar,
   getSummary,
   logMeasurement,
+  removeFromShortlist,
+  saveToShortlist,
   undoMerge,
   withdrawConsent,
   writeRefusal,
@@ -149,6 +152,7 @@ export default function PlayerProfilePage() {
             </div>
             <div className="flex flex-wrap gap-2">
               {/* A player on their own record has no search to find someone to compare with. */}
+              <ShortlistButton playerId={p.id} />
               {!isOwnProfile ? (
                 <Link href={`/compare?players=${p.id}`}>
                   <Button variant="ghost">Compare</Button>
@@ -843,6 +847,46 @@ function RadarCard({ playerId }: { playerId: string }) {
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * Save or remove the player from the caller's shortlist. Shown only when the API gives the
+ * caller a shortlist at all (scouts and federation staff); the page does not decide that from
+ * the role.
+ */
+function ShortlistButton({ playerId }: { playerId: string }) {
+  const [saved, setSaved] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    getShortlistIds()
+      .then((ids) => alive && setSaved(ids == null ? null : ids.includes(playerId)))
+      .catch(() => alive && setSaved(null));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (saved == null) return null;
+  return (
+    <Button
+      variant={saved ? "ghost" : "default"}
+      disabled={busy}
+      aria-pressed={saved}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          if (saved) await removeFromShortlist(playerId);
+          else await saveToShortlist(playerId);
+          setSaved(!saved);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      {saved ? "On your shortlist" : "Save to shortlist"}
+    </Button>
   );
 }
 
