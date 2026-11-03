@@ -1,12 +1,15 @@
 "use client";
 
 /**
- * Coach dashboard. See docs/wireframes/02-coach-dashboard.html.
+ * The coach's home. See docs/wireframes/02-coach-dashboard.html.
  *
- * The screen answers one question on arrival: who needs my attention today. Everything else is
- * secondary, which is why the default sort is by attention rather than by name, and why the
- * overdue count is promoted over squad size. A squad size never changes and tells a coach
- * nothing.
+ * The screen answers one question on arrival: who needs my attention today. So it opens with
+ * measuring day, the players due a reading, each with a box to log their height right there:
+ * a coach at the pitch side with a phone should not have to open twenty profiles. Then the
+ * good news (who is growing fastest, who the models think is a late bloomer), then the squad.
+ *
+ * Nothing on it is computed here. The growth rate comes from the API, which gives none for an
+ * adult or without two readings six months apart; the flags are the detectors' own.
  */
 
 import Link from "next/link";
@@ -25,10 +28,13 @@ import {
   Td,
   Th,
 } from "@/components/ui";
-import { getSquad } from "@/lib/api";
+import { getSquad, logMeasurement, writeRefusal, type MeasurementWarning } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { STALE_DAYS, cx, daysLabel, flagsByType, isStale, times } from "@/lib/format";
+import { ROLE_IDENTITY } from "@/lib/roles";
 import type { SquadRow } from "@/lib/types";
+
+const coach = ROLE_IDENTITY.coach;
 
 type Filter = "all" | "overdue" | "consent" | "flagged" | "readings";
 
@@ -36,6 +42,8 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [rows, setRows] = useState<SquadRow[] | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  // Bumped after a reading is saved, so the squad's numbers catch up.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -43,7 +51,7 @@ export default function DashboardPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [version]);
 
   const counts = useMemo(() => {
     if (!rows) return { overdue: 0, consent: 0, flagged: 0, readings: 0 };
@@ -72,7 +80,10 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Squad</h1>
+          <h1 className={cx("text-3xl font-bold tracking-tight", coach.text)}>
+            {coach.greeting(user?.fullName?.split(" ")[0] ?? null)}
+          </h1>
+          <p className="mt-1 text-slate-400">{coach.tagline}</p>
           <p className="text-sm text-slate-500">
             {user?.organizationName}
             {rows ? `, ${rows.length} players` : ""}
@@ -93,6 +104,15 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {rows ? <MeasuringDay rows={rows} onSaved={() => setVersion((v) => v + 1)} /> : null}
+
+      {rows ? (
+        <div className="grid gap-5 md:grid-cols-2">
+          <Growing rows={rows} />
+          <Noticed rows={rows} />
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {rows ? (
@@ -278,5 +298,256 @@ function RowChips({ row }: { row: SquadRow }) {
         </Chip>
       ))}
     </div>
+  );
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+const MEASURE_SHOWN = 6;
+
+/**
+ * The players due a reading (not measured in STALE_DAYS, or short of the readings the
+ * late-bloomer check needs), each with a height box. The list is fixed when the page loads, so a
+ * row does not jump away the moment it is saved; it shows what was saved instead.
+ */
+function MeasuringDay({ rows, onSaved }: { rows: SquadRow[]; onSaved: () => void }) {
+  const [due] = useState(() =>
+    rows
+      .filter((r) => isStale(r.daysSinceLastLog) || r.heightReadingsNeeded > 0)
+      .sort((a, b) => (b.daysSinceLastLog ?? 9999) - (a.daysSinceLastLog ?? 9999)),
+  );
+  const [measuredAt, setMeasuredAt] = useState(today);
+  const [saved, setSaved] = useState<Record<string, number>>({});
+  const [all, setAll] = useState(false);
+  const left = due.filter((r) => saved[r.player.id] == null).length;
+  // A big squad would bury the rest of the page; the stalest come first anyway.
+  const shown = all ? due : due.slice(0, MEASURE_SHOWN);
+
+  if (due.length === 0) {
+    return (
+      <Card className={cx("border-l-4", coach.border)}>
+        <h2 className="text-lg font-semibold">Measuring day</h2>
+        <p className="mt-1 text-sm text-slate-400">Everyone has a recent reading. Nothing to measure today.</p>
+      </Card>
+    );
+  }
+  return (
+    <Card className={cx("border-l-4", coach.border)}>
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Measuring day</h2>
+          <p className="text-sm text-slate-400">
+            {left === 0
+              ? "All done. Thank you."
+              : `${left} of ${due.length} still to measure. Type a height and press Save.`}
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-slate-400">
+          Measured on
+          <input
+            type="date"
+            value={measuredAt}
+            max={today()}
+            onChange={(e) => setMeasuredAt(e.target.value)}
+            className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
+          />
+        </label>
+      </div>
+      <ul className="flex flex-col divide-y divide-slate-800">
+        {shown.map((r) => (
+          <MeasureRow
+            key={r.player.id}
+            row={r}
+            measuredAt={measuredAt}
+            saved={saved[r.player.id] ?? null}
+            onSaved={(value) => {
+              setSaved((now) => ({ ...now, [r.player.id]: value }));
+              onSaved();
+            }}
+          />
+        ))}
+      </ul>
+      {due.length > shown.length ? (
+        <Button variant="ghost" size="sm" className="mt-2" onClick={() => setAll(true)}>
+          Show all {due.length}
+        </Button>
+      ) : null}
+    </Card>
+  );
+}
+
+function MeasureRow({
+  row,
+  measuredAt,
+  saved,
+  onSaved,
+}: {
+  row: SquadRow;
+  measuredAt: string;
+  saved: number | null;
+  onSaved: (value: number) => void;
+}) {
+  const [height, setHeight] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [warnings, setWarnings] = useState<MeasurementWarning[] | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function save(acknowledgeWarnings: boolean) {
+    const value = Number(height);
+    setBusy(true);
+    setProblem(null);
+    try {
+      await logMeasurement(row.player.id, {
+        measuredAt,
+        metrics: [{ metric: "height_cm", value, unit: "cm", confidence: "measured" }],
+        acknowledgeWarnings,
+      });
+      setWarnings(null);
+      onSaved(value);
+    } catch (error) {
+      const refusal = writeRefusal(error);
+      if (refusal?.kind === "confirm") setWarnings(refusal.warnings);
+      else if (refusal?.kind === "fix") setProblem(refusal.problems[0] ?? refusal.message);
+      else setProblem("Not saved: the server could not be reached. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="flex flex-col gap-2 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar size={36} name={row.player.fullName} />
+          <div className="min-w-0">
+            <Link href={`/players/${row.player.id}`} className="block truncate font-semibold text-slate-100 hover:underline">
+              {row.player.fullName}
+            </Link>
+            <p className="text-xs tabular-nums text-slate-500">
+              {[row.ageLabel, row.heightCm ? `last ${row.heightCm} cm` : "no height yet"].join(" · ")}
+              {" · "}
+              <span className={cx(isStale(row.daysSinceLastLog) && "text-amber-400")}>
+                measured {daysLabel(row.daysSinceLastLog)}
+              </span>
+            </p>
+          </div>
+        </div>
+        {saved != null ? (
+          <span className={cx("text-sm font-semibold tabular-nums", coach.text)}>Saved {saved} cm</span>
+        ) : (
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (height) void save(false);
+            }}
+          >
+            <input
+              inputMode="decimal"
+              placeholder="cm"
+              value={height}
+              onChange={(e) => {
+                setHeight(e.target.value);
+                setWarnings(null);
+                setProblem(null);
+              }}
+              aria-label={`Height of ${row.player.fullName} in cm`}
+              className="w-24 rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-right text-sm tabular-nums text-slate-100"
+            />
+            <Button type="submit" size="sm" variant="primary" disabled={busy || !height}>
+              Save
+            </Button>
+          </form>
+        )}
+      </div>
+      {warnings ? (
+        <div className="rounded-md border border-amber-900/60 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
+          {warnings.map((w) => (
+            <p key={w.metric}>{w.message}</p>
+          ))}
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" disabled={busy} onClick={() => save(true)}>
+              It is right, save it
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setWarnings(null)}>
+              Let me fix it
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {problem ? <p className="text-xs text-rose-300">{problem}</p> : null}
+    </li>
+  );
+}
+
+/**
+ * The players growing fastest, from the API's growth rate (none for adults or without two
+ * readings six months apart, so nobody is shown a number that is only measuring noise).
+ */
+function Growing({ rows }: { rows: SquadRow[] }) {
+  const growing = rows
+    .filter((r) => r.growthCmPerYear != null && r.growthCmPerYear > 0)
+    .sort((a, b) => (b.growthCmPerYear ?? 0) - (a.growthCmPerYear ?? 0))
+    .slice(0, 4);
+  return (
+    <Card>
+      <h2 className="text-lg font-semibold">Growing fastest</h2>
+      <p className="mb-3 text-xs text-slate-500">
+        Height gained a year, from the latest reading and one at least six months earlier. A reading is good to about
+        half a centimetre, so small differences between players mean little.
+      </p>
+      {growing.length === 0 ? (
+        <p className="text-sm text-slate-400">
+          Not enough readings yet: a growth rate needs two heights at least six months apart.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {growing.map((r) => (
+            <li key={r.player.id} className="flex items-center justify-between gap-3">
+              <Link href={`/players/${r.player.id}`} className="min-w-0 truncate text-slate-200 hover:underline">
+                {r.player.fullName}
+                <span className="ml-2 text-xs text-slate-500">{r.ageLabel}</span>
+              </Link>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="hidden sm:inline">
+                  <Sparkline values={r.heightTrend} />
+                </span>
+                <span className={cx("w-24 text-right text-sm font-semibold tabular-nums", coach.text)}>
+                  +{r.growthCmPerYear} cm/yr
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/** Late-bloomer flags on the coach's own players: good news, told as such. */
+function Noticed({ rows }: { rows: SquadRow[] }) {
+  const bloomers = rows.filter((r) => r.flags.some((f) => f.type === "late_bloomer"));
+  return (
+    <Card>
+      <h2 className="text-lg font-semibold">What the models noticed</h2>
+      <p className="mb-3 text-xs text-slate-500">
+        A late bloomer is short for their age group but still growing well: behind in growth, not in ability. Worth
+        patience. Federation staff review every flag.
+      </p>
+      {bloomers.length === 0 ? (
+        <p className="text-sm text-slate-400">No late bloomers flagged in your squad.</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {bloomers.map((r) => (
+            <li key={r.player.id} className="flex items-center justify-between gap-3">
+              <Link href={`/players/${r.player.id}`} className="min-w-0 truncate text-slate-200 hover:underline">
+                {r.player.fullName}
+                <span className="ml-2 text-xs text-slate-500">{r.ageLabel}</span>
+              </Link>
+              <Chip tone="good">late bloomer</Chip>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

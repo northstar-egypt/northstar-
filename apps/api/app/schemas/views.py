@@ -35,6 +35,9 @@ class SquadRowOut(CamelModel):
     height_trend: list[float] = []
     # All height readings, not only the six above.
     height_readings: int = 0
+    # Height gained per year over the last months (app/services/views.py growth_cm_per_year);
+    # null for adults and without two readings far enough apart.
+    growth_cm_per_year: float | None = None
     # How many more height readings the late-bloomer check needs; 0 when none
     # (app/services/views.py height_readings_needed).
     height_readings_needed: int = 0
