@@ -172,9 +172,11 @@ def test_a_coach_logs_a_height_from_measuring_day(sign_in, page, identities):
     squad = api("/players", identities["coach"]["email"])
     due = [r for r in squad if r["heightCm"] and ((r["daysSinceLastLog"] or 0) > 90 or r["heightReadingsNeeded"] > 0)]
     # Not the player the profile logging test uses (the first with a height): two readings on one
-    # day would leave that test unsure which is the latest.
+    # day would leave that test unsure which is the latest. Nor the demo flow's player: its merge
+    # refuses a pair with readings on the same day.
     first = next(r for r in squad if r["heightCm"])
-    due = [r for r in due if r["player"]["id"] != first["player"]["id"]]
+    due = [r for r in due if r["player"]["id"] != first["player"]["id"]
+           and r["player"]["fullName"] not in (ORIGINAL, SECOND_ENTRY)]
     if not due:
         pytest.skip("nobody in this squad is due a reading")
     sign_in("Coach", "/dashboard")

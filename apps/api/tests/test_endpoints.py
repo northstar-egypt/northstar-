@@ -32,6 +32,7 @@ def test_squad_row_carries_everything_the_table_needs(client, auth, world):
         "daysSinceLastLog",
         "heightTrend",
         "heightReadings",
+        "growthCmPerYear",
         "heightReadingsNeeded",
         "flags",
         "consentComplete",
