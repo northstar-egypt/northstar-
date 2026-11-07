@@ -61,7 +61,7 @@ export const ROLE_IDENTITY: Record<UserRole, RoleIdentity> = {
   player: {
     title: "Player",
     greeting: (name) => (name ? `Your journey, ${name}` : "Your journey"),
-    tagline: "Your growth, your progress, and who can see your data.",
+    tagline: "Your progress, your record, and who can see it.",
     bar: "bg-rose-400",
     mark: "bg-rose-400",
     active: "bg-rose-400/15 font-semibold text-rose-200",

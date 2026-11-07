@@ -9,6 +9,7 @@ import type { UserRole } from "@/lib/types";
 
 const LINKS: { href: string; label: string }[] = [
   { href: "/scout", label: "Home" },
+  { href: "/me", label: "Home" },
   { href: "/dashboard", label: "Home" },
   { href: "/search", label: "Search" },
   { href: "/compare", label: "Compare" },
@@ -37,7 +38,7 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5">
-        <Link href={homeFor(user.role, user.linkedPlayerId)} className="flex items-center gap-2 font-bold tracking-tight">
+        <Link href={homeFor(user.role)} className="flex items-center gap-2 font-bold tracking-tight">
           <span className={cx("inline-block h-2.5 w-2.5 rotate-45", identity.mark)} aria-hidden />
           NorthStar
           <span className={cx("text-xs font-medium uppercase tracking-wide", identity.text)}>{identity.title}</span>
@@ -83,7 +84,7 @@ export function Nav() {
                   const role = e.target.value as UserRole;
                   try {
                     const session = await signInAs(role);
-                    router.push(homeFor(session.role, session.linkedPlayerId));
+                    router.push(homeFor(session.role));
                   } catch {
                     // The demo account could not sign in. Staying on the current session is the
                     // honest outcome; the select snaps back because `user` did not change.

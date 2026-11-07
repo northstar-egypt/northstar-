@@ -43,7 +43,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const session = await attempt;
-      router.push(homeFor(session.role, session.linkedPlayerId));
+      router.push(homeFor(session.role));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in.");
       setBusy(false);
