@@ -37,6 +37,7 @@ import {
   getEventAnalysis,
   getProSeasons,
   getRadar,
+  getScoutingReport,
   getSports,
   getShortlistIds,
   getSimilar,
@@ -61,6 +62,7 @@ import type {
   PlayerRadar,
   ProSeasons,
   ProfileSummary,
+  ScoutingReport,
   Rating,
   SimilarPlayers,
   SummaryStat,
@@ -218,6 +220,8 @@ export default function PlayerProfilePage() {
       {data.mergedRecords?.length ? (
         <MergedRecordsCard records={data.mergedRecords} onUndone={() => setVersion((v) => v + 1)} />
       ) : null}
+
+      <VerdictCard playerId={playerId} />
 
       {/* written summary, loaded after the profile because a local model takes seconds */}
       <SummaryCard playerId={playerId} />
@@ -887,6 +891,45 @@ function ShortlistButton({ playerId }: { playerId: string }) {
     >
       {saved ? "On your shortlist" : "Save to shortlist"}
     </Button>
+  );
+}
+
+/**
+ * The scouting report's verdict, with a link to the full report. Shown only when the API writes
+ * one: an adult with a league season, to a caller who is not the player themselves.
+ */
+function VerdictCard({ playerId }: { playerId: string }) {
+  const [report, setReport] = useState<ScoutingReport | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setReport(null);
+    getScoutingReport(playerId)
+      .then((r) => alive && setReport(r?.report ?? null))
+      .catch(() => alive && setReport(null));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (!report) return null;
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <span className="text-4xl font-bold leading-none">{report.levelGrade ?? "n/a"}</span>
+          <div>
+            <p className="text-lg font-semibold">{report.recommendation ?? "No recommendation"}</p>
+            <p className="text-xs text-slate-500">
+              Scouting report, {report.season}, {report.confidence} confidence
+            </p>
+          </div>
+        </div>
+        <Link href={`/players/${playerId}/report`}>
+          <Button>Read the scouting report</Button>
+        </Link>
+      </div>
+      <p className="mt-2 text-sm text-slate-300">{report.summary}</p>
+    </Card>
   );
 }
 

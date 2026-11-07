@@ -812,3 +812,49 @@ export interface ScoutHome {
   breakoutSeason: string | null;
   lateBloomers: (PlayerCard & { reason: string; status: string })[];
 }
+
+/** One statistic on a scouting report. */
+export interface ReportEvidence {
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+  percentile: number;
+  /** The median of the players the percentile is among. */
+  median: number;
+  /** Repeats poorly between half seasons, so it deserves less weight. */
+  lowReliability: boolean;
+}
+
+/** GET /players/{id}/scouting-report, `report`. */
+export interface ScoutingReport {
+  playerId: string;
+  season: string;
+  competition: string;
+  club: string | null;
+  group: string;
+  groupLabel: string;
+  minutes: number;
+  population: number;
+  level: number | null;
+  levelGrade: string | null;
+  recommendation: string | null;
+  confidence: string;
+  areas: {
+    key: string;
+    label: string;
+    score: number | null;
+    grade: string | null;
+    /** Whether the player's role is graded on this area. */
+    graded: boolean;
+    evidence: ReportEvidence[];
+  }[];
+  strengths: ReportEvidence[];
+  weaknesses: ReportEvidence[];
+  summary: string;
+  wouldChange: string[];
+  notInData: string[];
+  young: boolean;
+  finishing: Finishing;
+  breakout: { flagged: boolean; score?: number | null; reason: string; considered: boolean } | null;
+}

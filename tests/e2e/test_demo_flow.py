@@ -301,6 +301,28 @@ def test_a_scout_lands_on_their_home_and_saves_a_breakout(sign_in, page, identit
         _clear_shortlist(email)
 
 
+def test_a_scout_reads_a_scouting_report_from_the_profile(sign_in, page, identities):
+    """A pro player's profile leads with the verdict, and the report gives the evidence."""
+    scout = identities["scout"]["email"]
+    found = api("/search", scout, body={"query": "", "sport": "football", "limit": 200})["results"]
+    player_id = next(
+        (r["player"]["id"] for r in found
+         if api(f"/players/{r['player']['id']}/scouting-report", scout)["report"]),
+        None,
+    )
+    assert player_id, "the seeded league should give somebody a report"
+    report = api(f"/players/{player_id}/scouting-report", scout)["report"]
+
+    sign_in("Scout", "/scout")
+    open_profile(page, player_id)
+    page.get_by_role("button", name="Read the scouting report").click()
+    page.wait_for_url(f"**/players/{player_id}/report", timeout=20000)
+    page.get_by_text("What would change this verdict").wait_for(timeout=30000)
+    body = text_of(page)
+    assert report["recommendation"].lower() in body and "not in our data" in body
+    assert f"compared with {report['population']}" in body
+
+
 # ---------------------------------------------------------------------------
 # Scout search
 # ---------------------------------------------------------------------------
