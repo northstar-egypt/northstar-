@@ -64,7 +64,9 @@ same.
 Sign in with the **Coach** button on the login screen: the coach at the club `demo_check.py`
 named: the Egyptian club or academy with the most youth players.
 
-- **Squad** shows the coach's own players, with how stale each one's readings are.
+- **Home** opens on measuring day: who is due a reading, each with a box to log a height right
+  there. Under it, who is growing fastest, late bloomers in the squad, and the whole squad, with
+  how stale each one's readings are.
 - **Add player.** Full name `منير حجازي`, date of birth `2010-06-09`, position **ST**.
   The date makes him a minor, so the form asks for the guardian's consent: type a guardian's
   name and tick the box. Continue stays locked until then.
@@ -90,7 +92,8 @@ the new player's profile twice and nothing else on purpose.
 
 ### 3. Search (scout)
 
-Sign out, then sign in with **Scout**: a scout at a different academy.
+Sign out, then sign in with **Scout**: a scout at a different academy. The scout lands on their
+own home: their shortlist, who stepped up this season, and late bloomers. Press **Search**.
 
 - Type `Mounir Hegazy` in Latin and press Enter. **How this was read** shows `name: Mounir`,
   `name: Hegazy`, and the one result is in Arabic: the Latin spelling finds the Arabic name.
@@ -153,7 +156,7 @@ That is the sentence, end to end. Then show what the review did:
 | What you see | What to do |
 | --- | --- |
 | The login screen has no role buttons | The API is not up. `docker compose ... ps`, then wait for `northstar-api`. |
-| Search finds only one record | The coach's save did not finish, or the date was typed differently. Search the coach's name in Squad. |
+| Search finds only one record | The coach's save did not finish, or the date was typed differently. Look for the name in the squad table on the coach's Home. |
 | `write_flags` raises 0 flags | The date of birth or the name does not match the original. Check both against what `demo_check.py` printed. |
 | The profile shows no banner after the run | Reload the page: the profile was open before the flag was written. |
 | The summary says the model is not running | The stack was started without `--profile llm`. The flow does not need it. |
@@ -195,5 +198,12 @@ Each of these works from the same accounts:
   screen prints how it read the question; every number comes from the database, not the
   model.
 - **Compare** (scout): tick two results in Search, then **Compare 2**.
-- **Oversight** (federation): coverage for all 27 governorates, including the ones the
-  platform has not reached.
+- **Home** (federation): what needs a decision today (the integrity queue, the academies to
+  call, the national team), who stepped up, then coverage for all 27 governorates, including the
+  ones the platform has not reached. The switch at the top moves it to table tennis.
+- **Team gaps** (scout or federation): where a club is weak against its league and which players
+  are strong there; or name a need for the national team.
+- **Scouting report** (scout): open a pro player and press **Read the scouting report**. The
+  verdict first, the evidence underneath, and what the data cannot see.
+- **Home** (player): the player's own journey, against their own last season, and who can see
+  their record. No verdicts about them.

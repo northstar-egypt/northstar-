@@ -434,8 +434,11 @@ export interface Comparison {
 export interface CoverageRow {
   organization: Organization;
   playerCount: number;
-  lastSubmissionDays: number;
-  medianStalenessDays: number;
+  /** Players under 18: staleness is over them alone, since an adult's height does not change. */
+  youthPlayers: number;
+  /** Null for an organization with no measured players under 18. */
+  lastSubmissionDays: number | null;
+  medianStalenessDays: number | null;
   consentCompletePct: number;
   openFlags: number;
 }
@@ -450,9 +453,10 @@ export interface OversightSummary {
   byRegion: { code: string; region: string; regionAr: string; players: number; populationM: number }[];
   /** Players at an Egyptian club with no governorate set. */
   playersWithoutGovernorate: number;
-  byAgeTier: { age: number; pro: number; youth: number; diaspora: number }[];
+  /** `other`: players with no tier, since tiers are football's. */
+  byAgeTier: { age: number; pro: number; youth: number; diaspora: number; other: number }[];
   academies: CoverageRow[];
-  diaspora: { total: number; uncappedUnder21: number; newThisMonth: number };
+  diaspora: { total: number; under21: number; newThisMonth: number };
 }
 
 export interface IntegrityFlag {
@@ -857,4 +861,19 @@ export interface ScoutingReport {
   young: boolean;
   finishing: Finishing;
   breakout: { flagged: boolean; score?: number | null; reason: string; considered: boolean } | null;
+}
+
+/** GET /oversight/strongest: the strongest rated players of one gender. */
+export interface StrongestGroup {
+  gender: string;
+  population: string;
+  players: {
+    playerId: string;
+    fullName: string;
+    organization: string | null;
+    pointShare: number;
+    low: number;
+    high: number;
+    ratedMatches: number;
+  }[];
 }

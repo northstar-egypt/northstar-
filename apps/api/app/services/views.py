@@ -584,6 +584,9 @@ def build_oversight(db: Session, caller: Caller, sport: str) -> dict:
         )
         .join(Player, Player.id == Measurement.player_id)
         .where(Player.primary_sport == sport)
+        # Only growing players: an adult's height does not change, so an old reading is not a
+        # stale record, and counting the pro tier would drown out the academies.
+        .where(Player.is_minor.is_(True))
         .group_by(Measurement.player_id)
         .subquery()
     )
@@ -605,9 +608,9 @@ def build_oversight(db: Session, caller: Caller, sport: str) -> dict:
     by_age: dict[int, dict[str, int]] = {}
     for tier, dob in age_tier_rows:
         age = int((today - dob).days / cohort.DAYS_PER_YEAR)
-        bucket = by_age.setdefault(age, {"pro": 0, "youth": 0, "diaspora": 0})
-        if tier in bucket:
-            bucket[tier] += 1
+        bucket = by_age.setdefault(age, {"pro": 0, "youth": 0, "diaspora": 0, "other": 0})
+        # Tiers are football's; a player of another sport has none and is counted all the same.
+        bucket[tier if tier in ("pro", "youth", "diaspora") else "other"] += 1
 
     academies = _academy_coverage(db, sport, today)
     by_region, unplaced = _coverage_by_governorate(db, sport)
@@ -642,9 +645,9 @@ def build_oversight(db: Session, caller: Caller, sport: str) -> dict:
         "academies": academies,
         "diaspora": {
             "total": diaspora_total,
-            # "Uncapped" needs national-team appearance data, which nothing ingests yet, so
-            # this is every under-21 diaspora player rather than the uncapped subset.
-            "uncapped_under21": diaspora_u21,
+            # Every under-21 player abroad. Who is uncapped would need national team appearances,
+            # which nothing ingests yet.
+            "under21": diaspora_u21,
             "new_this_month": db.execute(
                 select(func.count())
                 .select_from(Player)
@@ -692,7 +695,8 @@ def _coverage_by_governorate(db: Session, sport: str) -> tuple[list[dict], int]:
 
 
 def _academy_coverage(db: Session, sport: str, today: date) -> list[dict]:
-    """Per-organization coverage: how many players, how stale, how much consent."""
+    """Per-organization coverage: how many players, how stale, how much consent. Staleness is over
+    the organization's growing players only, and None for one with none (see `build_oversight`)."""
     organizations = list(
         db.execute(
             select(Organization)
@@ -716,11 +720,14 @@ def _academy_coverage(db: Session, sport: str, today: date) -> list[dict]:
         if not player_ids:
             continue
 
+        youth_ids = list(
+            db.execute(select(Player.id).where(Player.id.in_(player_ids), Player.is_minor.is_(True))).scalars()
+        )
         last_logs = db.execute(
             select(Measurement.player_id, func.max(Measurement.measured_at))
-            .where(Measurement.player_id.in_(player_ids))
+            .where(Measurement.player_id.in_(youth_ids))
             .group_by(Measurement.player_id)
-        ).all()
+        ).all() if youth_ids else []
         staleness = [(today - last_at).days for _, last_at in last_logs]
 
         complete = sum(
@@ -731,8 +738,9 @@ def _academy_coverage(db: Session, sport: str, today: date) -> list[dict]:
             {
                 "organization": organization,
                 "player_count": len(player_ids),
-                "last_submission_days": min(staleness) if staleness else 0,
-                "median_staleness_days": int(statistics.median(staleness)) if staleness else 0,
+                "youth_players": len(youth_ids),
+                "last_submission_days": min(staleness) if staleness else None,
+                "median_staleness_days": int(statistics.median(staleness)) if staleness else None,
                 "consent_complete_pct": (
                     round(100 * complete / len(player_ids), 1) if player_ids else 0.0
                 ),
