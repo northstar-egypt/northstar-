@@ -111,7 +111,7 @@ def main() -> int:
     federation = signed_in(identities["federation"]["email"], identities["federation"]["demoPassword"])
     stale = get(f"{API}/oversight", federation)["stalePct"]
     report(None if stale > 75 else True,
-           f"{stale:.0f}% of players not measured in 90 days",
+           f"{stale:.0f}% of young players not measured in 90 days",
            "the data was loaded a while ago; reset it so the readings are recent "
            "(docs/demo.md, After a rehearsal)")
     report(None if leftovers else True,

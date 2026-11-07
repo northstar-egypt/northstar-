@@ -226,6 +226,21 @@ def shown_strengths(db: Session) -> dict[str, tuple[str, float]]:
     }
 
 
+def strongest(db: Session, limit: int = 5) -> dict[str, list[dict]]:
+    """The strongest shown ratings, per gender: players are only compared within one. Only ratings
+    the profile would show, so nobody is ranked on too few matches or without analytics consent."""
+    table = _current(db)
+    out: dict[str, list[tuple[float, str, points.Strength]]] = {}
+    for pid, strength in table.now.items():
+        if strength.shown and pid in table.gender and pid in table.consented:
+            out.setdefault(table.gender[pid], []).append((strength.theta, pid, strength))
+    return {
+        gender: [{"player_id": pid, **_share(s), "rated_matches": s.matches}
+                 for _, pid, s in sorted(rows, key=lambda r: -r[0])[:limit]]
+        for gender, rows in out.items()
+    }
+
+
 def _share(strength: points.Strength) -> dict:
     low, high = strength.point_range
     return {"point_share": strength.point_share(), "low": low, "high": high}

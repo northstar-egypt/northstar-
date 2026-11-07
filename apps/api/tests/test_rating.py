@@ -175,6 +175,36 @@ def test_a_well_measured_player_has_a_rating_with_a_range(client, auth, tt):
     assert r["note"] is None
 
 
+def test_the_federation_sees_the_strongest_rated_and_nobody_else_does(client, auth, tt):
+    strong = tt["people"]["strong"]
+    groups = client.get("/oversight/strongest", headers=auth("federation")).json()
+    boys = next(g for g in groups if g["gender"] == "male")
+    assert boys["population"] == "registered boys and men in table tennis"
+    (row,) = [p for p in boys["players"] if p["playerId"] == str(strong.id)]
+    assert row["fullName"] == strong.full_name and row["low"] < row["pointShare"] < row["high"]
+    shares = [p["pointShare"] for p in boys["players"]]
+    assert shares == sorted(shares, reverse=True)
+    for who in ("scout", "coach_a", "player_self"):
+        assert client.get("/oversight/strongest", headers=auth(who)).status_code == 403
+
+
+def test_a_withdrawn_player_is_not_among_the_strongest(client, auth, db, tt):
+    from tests.conftest import withdraw_analytics
+
+    strong = tt["people"]["strong"]
+    withdraw_analytics(db, strong)
+    db.flush()
+    groups = client.get("/oversight/strongest", headers=auth("federation")).json()
+    assert str(strong.id) not in [p["playerId"] for g in groups for p in g["players"]]
+
+
+def test_oversight_counts_players_who_have_no_tier(client, auth, tt):
+    """Tiers are football's: table tennis players were counted nowhere in the age chart."""
+    body = client.get("/oversight?sport=table_tennis", headers=auth("federation")).json()
+    assert sum(r["other"] for r in body["byAgeTier"]) >= len(tt["people"]) - 1
+    assert "under21" in body["diaspora"]
+
+
 def test_too_little_evidence_shows_no_number_and_says_why(client, auth, tt):
     r = _profile(client, auth, "scout", tt["people"]["newcomer"])["rating"]
     assert r["shown"] is False

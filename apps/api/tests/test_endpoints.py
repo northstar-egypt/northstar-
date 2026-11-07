@@ -427,3 +427,41 @@ def test_under_16_leaves_out_a_player_who_is_16(client, auth, db, world):
     ids = {row["player"]["id"] for row in body["results"]}
     assert made["Fifteen"] in ids
     assert made["Sixteen"] not in ids
+
+
+def test_staleness_counts_only_growing_players(client, auth, db, world):
+    """An adult's old reading is not a stale record. A club of adults has no staleness at all,
+    and adding adults with old readings does not move the headline."""
+    from datetime import date, timedelta
+
+    from app.models.measurement import Measurement
+    from tests.conftest import _add_player
+
+    before = client.get("/oversight", headers=auth("federation")).json()["stalePct"]
+    org = world["orgs"]["b"]
+    for i in range(5):
+        adult = _add_player(db, org, f"Stale Adult {i}", age=30, position="ST", shots=1, n_matches=0)
+        db.add(Measurement(player_id=adult.id, measured_at=date.today() - timedelta(days=400), metric="height_cm",
+                           value=180.0, unit="cm", source="coach_logged", confidence="measured"))
+    db.flush()
+    assert client.get("/oversight", headers=auth("federation")).json()["stalePct"] == before
+
+
+def test_a_club_of_adults_reports_no_staleness(client, auth, db):
+    from datetime import date, timedelta
+
+    from app.models.measurement import Measurement
+    from app.models.organization import Organization
+    from tests.conftest import _add_player
+
+    club = Organization(name="Adults Only FC", type="club", sport="football", country="EG")
+    db.add(club)
+    db.flush()
+    adult = _add_player(db, club, "Only Adult", age=30, position="ST", shots=1, n_matches=0)
+    db.add(Measurement(player_id=adult.id, measured_at=date.today() - timedelta(days=400), metric="height_cm",
+                       value=180.0, unit="cm", source="coach_logged", confidence="measured"))
+    db.flush()
+    rows = client.get("/oversight", headers=auth("federation")).json()["academies"]
+    (row,) = [r for r in rows if r["organization"]["id"] == str(club.id)]
+    assert row["youthPlayers"] == 0 and row["lastSubmissionDays"] is None and row["medianStalenessDays"] is None
+

@@ -350,9 +350,12 @@ export function RatioBars({
 export function StackedAges({
   rows,
 }: {
-  rows: { age: number; pro: number; youth: number; diaspora: number }[];
+  rows: { age: number; pro: number; youth: number; diaspora: number; other?: number }[];
 }) {
-  const max = Math.max(1, ...rows.map((r) => r.pro + r.youth + r.diaspora));
+  const others = (r: { other?: number }) => r.other ?? 0;
+  const max = Math.max(1, ...rows.map((r) => r.pro + r.youth + r.diaspora + others(r)));
+  const anyTier = rows.some((r) => r.pro + r.youth + r.diaspora > 0);
+  const anyOther = rows.some((r) => others(r) > 0);
   const share = (part: number, total: number) => `${total ? (part / total) * 100 : 0}%`;
   return (
     <div>
@@ -360,18 +363,23 @@ export function StackedAges({
           sized in percent needs a parent with a height; without one every bar was 0 px tall. */}
       <div className="flex h-40 gap-1 sm:gap-2">
         {rows.map((r) => {
-          const total = r.pro + r.youth + r.diaspora;
+          const total = r.pro + r.youth + r.diaspora + others(r);
           return (
             <div key={r.age} className="flex h-full min-w-0 flex-1 flex-col items-center gap-1">
               <div className="flex w-full flex-1 items-end">
                 <div
                   className="flex w-full flex-col-reverse"
                   style={{ height: share(total, max) }}
-                  title={`age ${r.age}: ${total} players (${r.youth} youth, ${r.pro} pro, ${r.diaspora} diaspora)`}
+                  title={
+                    anyTier
+                      ? `age ${r.age}: ${total} players (${r.youth} youth, ${r.pro} pro, ${r.diaspora} diaspora${others(r) ? `, ${others(r)} no tier` : ""})`
+                      : `age ${r.age}: ${total} players`
+                  }
                 >
                   <div className="w-full bg-sky-500/80" style={{ height: share(r.youth, total) }} />
                   <div className="w-full bg-emerald-500/80" style={{ height: share(r.pro, total) }} />
                   <div className="w-full bg-amber-500/80" style={{ height: share(r.diaspora, total) }} />
+                  <div className="w-full bg-slate-400/80" style={{ height: share(others(r), total) }} />
                 </div>
               </div>
               <span className="text-[0.65rem] tabular-nums text-slate-500">{r.age}</span>
@@ -379,11 +387,16 @@ export function StackedAges({
           );
         })}
       </div>
-      <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 bg-sky-500/80" /> youth</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 bg-emerald-500/80" /> pro</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 bg-amber-500/80" /> diaspora</span>
-      </div>
+      {anyTier ? (
+        <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
+          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 bg-sky-500/80" /> youth</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 bg-emerald-500/80" /> pro</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 bg-amber-500/80" /> diaspora</span>
+          {anyOther ? (
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 bg-slate-400/80" /> no tier</span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

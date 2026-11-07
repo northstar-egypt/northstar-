@@ -47,6 +47,7 @@ import type {
   ProSeasons,
   ScoutHome,
   ScoutingReport,
+  StrongestGroup,
   ClubGaps,
   GapOptions,
   NationalGaps,
@@ -604,6 +605,10 @@ export async function getPlayerEvents(playerId: string, type?: string): Promise<
 
 export async function getOversight(sport = "football"): Promise<OversightSummary> {
   return request<OversightSummary>(`/oversight?sport=${encodeURIComponent(sport)}`);
+}
+
+export async function getStrongestRated(): Promise<StrongestGroup[]> {
+  return request<StrongestGroup[]>("/oversight/strongest");
 }
 
 /* ------------------------------------------------------------------ integrity */

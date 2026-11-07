@@ -11,12 +11,12 @@ const LINKS: { href: string; label: string }[] = [
   { href: "/scout", label: "Home" },
   { href: "/me", label: "Home" },
   { href: "/dashboard", label: "Home" },
+  { href: "/oversight", label: "Home" },
   { href: "/search", label: "Search" },
   { href: "/compare", label: "Compare" },
   { href: "/explore", label: "Explore" },
   { href: "/gaps", label: "Team gaps" },
   { href: "/ask", label: "Ask" },
-  { href: "/oversight", label: "Oversight" },
   { href: "/integrity", label: "Integrity" },
 ];
 

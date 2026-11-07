@@ -481,8 +481,11 @@ class ComparisonOut(CamelModel):
 class CoverageRowOut(CamelModel):
     organization: OrganizationOut
     player_count: int = 0
-    last_submission_days: int = 0
-    median_staleness_days: int = 0
+    # Players under 18: staleness is over them alone, since an adult's height does not change.
+    youth_players: int = 0
+    # Null for an organization with no measured players under 18.
+    last_submission_days: int | None = None
+    median_staleness_days: int | None = None
     consent_complete_pct: float = 0.0
     open_flags: int = 0
 
@@ -502,11 +505,13 @@ class AgeTierRowOut(CamelModel):
     pro: int = 0
     youth: int = 0
     diaspora: int = 0
+    # Players with no tier: tiers are football's.
+    other: int = 0
 
 
 class DiasporaSummaryOut(CamelModel):
     total: int = 0
-    uncapped_under21: int = 0
+    under21: int = 0
     new_this_month: int = 0
 
 
