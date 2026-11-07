@@ -92,7 +92,8 @@ def measurement_series(
         select(Measurement.player_id, Measurement.measured_at, Measurement.value)
         .where(Measurement.player_id.in_(player_ids))
         .where(Measurement.metric == metric)
-        .order_by(Measurement.player_id, Measurement.measured_at)
+        # Entered last comes last on the same day, so a corrected reading counts as the latest.
+        .order_by(Measurement.player_id, Measurement.measured_at, Measurement.created_at)
     ).all()
     series: dict[uuid.UUID, list[tuple[date, float]]] = {}
     for player_id, measured_at, value in rows:

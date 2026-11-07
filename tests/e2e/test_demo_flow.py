@@ -273,6 +273,28 @@ def test_the_profile_draws_the_forecast_band(sign_in, page, identities):
 
 
 # ---------------------------------------------------------------------------
+# Player home
+# ---------------------------------------------------------------------------
+
+
+def test_a_player_lands_on_their_own_journey_and_sees_no_verdict(sign_in, page):
+    """Written to the player: who can see the record and what they agreed to, and no scouting
+    report or flags about them, on the home or on their full record."""
+    sign_in("Player", "/me")
+    page.get_by_text("Who can see your record").wait_for(timeout=30000)
+    body = text_of(page)
+    assert "your journey" in body and "what you have agreed to" in body
+    assert "other players: no" in body
+    assert "shortlist" not in body.replace("shortlisted", "")
+
+    # Several demo player accounts exist, so ask which one the page signed in as.
+    me = page.evaluate(f"fetch('{API_URL}/me', {{credentials: 'include'}}).then(r => r.json())")
+    open_profile(page, me["linkedPlayerId"])
+    assert "read the scouting report" not in text_of(page)
+    assert api(f"/players/{me['linkedPlayerId']}/scouting-report", me["email"])["report"] is None
+
+
+# ---------------------------------------------------------------------------
 # Scout home
 # ---------------------------------------------------------------------------
 

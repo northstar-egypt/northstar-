@@ -49,3 +49,23 @@ def test_no_rate_for_an_adult_or_without_a_birth_date():
     series = [(_ago(365), 180.0), (_ago(10), 180.4)]
     assert growth_cm_per_year(series, date(2000, 1, 1), TODAY) is None
     assert growth_cm_per_year(series, None, TODAY) is None
+
+
+def test_the_reading_entered_last_on_a_day_counts_as_the_latest(db, world):
+    """A coach correcting a typo logs again the same day: the correction is the latest."""
+    from datetime import datetime, timezone
+
+    from app.models.measurement import Measurement
+    from app.services.views import latest_value, measurement_series
+
+    player = world["players"]["adult_a"]
+    day = date(2026, 10, 1)
+    for hour, value in ((12, 190.0), (9, 170.0)):  # added out of order, so insertion order proves nothing
+        db.add(Measurement(
+            player_id=player.id, measured_at=day, metric="height_cm", value=value, unit="cm", source="coach_logged",
+            confidence="measured", created_at=datetime(2026, 10, 1, hour, tzinfo=timezone.utc),
+        ))
+    db.flush()
+    series = [p for p in measurement_series(db, [player.id], "height_cm")[player.id] if p[0] == day]
+    assert [v for _, v in series] == [170.0, 190.0]
+    assert latest_value(series) == 190.0

@@ -128,12 +128,9 @@ export function useAuth(): AuthState {
 }
 
 /**
- * Where each role lands after signing in. See docs/wireframes/01-login.html.
- *
- * Takes the linked player id rather than a whole user because a player is the only role whose
- * landing page depends on anything beyond the role itself.
+ * Where each role lands after signing in: the role's own home.
  */
-export function homeFor(role: UserRole, linkedPlayerId?: string | null): string {
+export function homeFor(role: UserRole): string {
   switch (role) {
     case "coach":
       return "/dashboard";
@@ -144,9 +141,8 @@ export function homeFor(role: UserRole, linkedPlayerId?: string | null): string 
     case "admin":
       return "/integrity";
     case "player":
-      // A player account points at its own record. Without a linked player there is nothing
-      // to show them, so they land on search and see the empty state rather than a 404.
-      return linkedPlayerId ? `/players/${linkedPlayerId}` : "/search";
+      // Their own journey. Without a linked player record, that page says so.
+      return "/me";
   }
 }
 
@@ -160,6 +156,7 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   "/players/new": ["coach"],
   "/matches": ["coach"],
   "/scout": ["scout"],
+  "/me": ["player"],
   "/search": ["scout", "federation"],
   "/compare": ["coach", "scout", "federation"],
   "/explore": ["coach", "scout", "federation"],
