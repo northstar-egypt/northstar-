@@ -531,3 +531,20 @@ def test_a_broken_team_gap_config_is_refused(tmp_path, change, match):
     (tmp_path / "football.json").write_text(json.dumps(module), encoding="utf-8")
     with pytest.raises(sports.ModuleError, match=match):
         sports.load_module(tmp_path / "football.json")
+
+
+@pytest.mark.parametrize(
+    ("change", "match"),
+    [
+        (lambda r: r["areas"][0]["attributes"].append("saves_per_90"), "unknown statistic"),
+        (lambda r: r["roles"].update(goalkeepers=["defending"]), "unknown position group"),
+        (lambda r: r["roles"].update(strikers=["heading"]), "unknown area"),
+        (lambda r: r["roles"].pop("wingers"), "how to grade"),
+    ],
+)
+def test_a_broken_scouting_report_config_is_refused(tmp_path, change, match):
+    module = json.loads((sports.default_modules_dir() / "football.json").read_text("utf-8"))
+    change(module["scoutingReport"])
+    (tmp_path / "football.json").write_text(json.dumps(module), encoding="utf-8")
+    with pytest.raises(sports.ModuleError, match=match):
+        sports.load_module(tmp_path / "football.json")

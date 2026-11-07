@@ -242,6 +242,27 @@ class TeamGaps:
 
 
 @dataclass(frozen=True)
+class ReportArea:
+    key: str
+    label: str
+    # Team gap attributes (GapAttribute keys) that make up the area.
+    attributes: list[str]
+
+
+@dataclass(frozen=True)
+class ScoutingReport:
+    """A pro player's scouting report (ml/pro/report.py): areas of the game, each a set of team
+    gap statistics, and the areas each position group is graded on. Built on `teamGaps`, whose
+    groups, statistics and percentile rules it uses."""
+
+    areas: dict[str, ReportArea]
+    # Position group (TeamGaps.groups key) -> the areas its current level is graded on.
+    roles: dict[str, list[str]]
+    # What the data cannot say about any player, said on every report.
+    not_in_data: list[str]
+
+
+@dataclass(frozen=True)
 class SportModule:
     sport: str
     label: str
@@ -267,6 +288,8 @@ class SportModule:
     analyses: dict[str, Analysis] = field(default_factory=dict)
     # Team gap analysis, for a sport with team season records; None otherwise.
     team_gaps: TeamGaps | None = None
+    # The pro scouting report, built on team_gaps; None for a sport without one.
+    scouting_report: ScoutingReport | None = None
 
 
 def default_modules_dir() -> Path:
@@ -384,8 +407,9 @@ def load_module(path: Path) -> SportModule:
             team_periods=team_periods,
             events_period=(raw.get("events") or {}).get("matchPeriod"),
             analyses=_analyses(path.name, (raw.get("events") or {}).get("analyses"), events),
-            team_gaps=_team_gaps(path.name, raw.get("teamGaps"), periods, team_periods,
-                                 list(raw["roles"]["values"])),
+            team_gaps=(gaps := _team_gaps(path.name, raw.get("teamGaps"), periods, team_periods,
+                                          list(raw["roles"]["values"]))),
+            scouting_report=_scouting_report(path.name, raw.get("scoutingReport"), gaps),
         )
     except KeyError as exc:
         raise ModuleError(f"{path.name}: missing {exc}") from exc
@@ -455,6 +479,29 @@ def _details(name: str, kind: str, raw: dict, outcomes: dict) -> dict[str, Event
             grid = (int(grid[0]), int(grid[1]))
         details[key] = EventDetail(key, spec["label"], dict(values), applies, grid)
     return details
+
+
+def _scouting_report(name: str, raw: dict | None, gaps: TeamGaps | None) -> ScoutingReport | None:
+    if raw is None:
+        return None
+    if gaps is None:
+        raise ModuleError(f"{name}: scoutingReport is built on teamGaps, which the module does not define")
+    areas = {}
+    for spec in raw["areas"]:
+        area = ReportArea(spec["key"], spec["label"], list(spec["attributes"]))
+        if not area.attributes or any(a not in gaps.attributes for a in area.attributes):
+            raise ModuleError(f"{name}: scoutingReport area {area.key} names an unknown statistic")
+        areas[area.key] = area
+    roles = {group: list(keys) for group, keys in raw["roles"].items()}
+    for group, keys in roles.items():
+        if group not in gaps.groups:
+            raise ModuleError(f"{name}: scoutingReport grades unknown position group {group!r}")
+        if not keys or any(k not in areas for k in keys):
+            raise ModuleError(f"{name}: scoutingReport role {group} names an unknown area")
+    missing = set(gaps.groups) - set(roles)
+    if missing:
+        raise ModuleError(f"{name}: scoutingReport does not say how to grade {sorted(missing)}")
+    return ScoutingReport(areas, roles, list(raw.get("notInData", [])))
 
 
 def _team_gaps(name: str, raw: dict | None, periods: dict[str, Period],

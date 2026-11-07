@@ -223,6 +223,31 @@
         "noPlayerLink": "season totals say nothing about who is on the pitch late in games" }
     ]
   },
+  "scoutingReport": {
+    "areas": [
+      { "key": "goal_threat", "label": "Goal threat", "attributes": ["npxg_per_90", "shots_per_90"] },
+      { "key": "creation", "label": "Chance creation", "attributes": ["xa_per_90", "key_passes_per_90", "crosses_per_90"] },
+      { "key": "carrying", "label": "Carrying", "attributes": ["dribbles_per_90"] },
+      { "key": "passing", "label": "Passing", "attributes": ["passes_per_90", "pass_completion"] },
+      { "key": "defending", "label": "Defending", "attributes": ["tackles_per_90", "interceptions_per_90", "clearances_per_90"] },
+      { "key": "duels", "label": "Duels", "attributes": ["duels_won_share", "aerials_won_share"] }
+    ],
+    "roles": {
+      "centre_backs": ["defending", "duels", "passing"],
+      "full_backs": ["defending", "creation", "carrying"],
+      "holding_midfielders": ["defending", "passing", "duels"],
+      "central_midfielders": ["passing", "creation", "goal_threat"],
+      "wingers": ["creation", "carrying", "goal_threat"],
+      "strikers": ["goal_threat", "creation", "duels"]
+    },
+    "notInData": [
+      "Contract and market value",
+      "Injury history: why a player missed matches",
+      "Physical and running data: no tracking data",
+      "Off-ball movement, scanning and decision making: needs live scouting",
+      "Character and attitude: needs live scouting"
+    ]
+  },
   "teamPeriods": {
     "football.team_season.v1": {
       "periodType": "team_season",

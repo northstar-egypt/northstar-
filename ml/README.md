@@ -895,6 +895,75 @@ the threshold or more in each half (reporting seeds):
 - **Candidates come from the club's own league** in club mode, so every percentile is among the
   same players.
 
+## Scouting report
+
+```bash
+python -m ml.run_report_eval    # the reporting seeds, the numbers below
+```
+
+A pro player's report at `/players/{id}/report`: the verdict first, then the evidence. Code in
+`ml/pro/report.py`, built on team gap analysis (the same position groups, statistics, percentile
+rule and 450-minute minimum). The areas of the game and which of them each role is graded on are
+config (`scoutingReport` in `packages/shared/sports/football.json`).
+
+Every grade and sentence is a rule over the numbers on the page. An area's score is the mean of
+its statistics' percentiles. Grades: A at 85 or more, B at 70, C at 50, D below. The current level
+averages the areas the role needs, so a centre back is never marked down for not scoring.
+Shortlist at a level of 70 or more, Monitor at 50, Not now below. Confidence comes from minutes:
+high at 2,000, medium at 1,000, low below. **These thresholds were set before the check below was
+first run and were not tuned on it**, so there are no tuning seeds to separate from the reporting
+ones.
+
+Adults only. A child's report would grade them against an adult standard of output, which is the
+comparison the late-bloomer work exists to avoid. A player does not get the report on themselves
+either: it is a scout's claim, like the model flags the profile keeps from a player's own view.
+
+### Does the level track how good a player is?
+
+The synthetic league plants each player's true quality, which no real data offers. Measured on
+2026-11-07 on the league's latest season, 1,606 reports over the five reporting seeds (20260827, 7,
+99, 404 and 555). Spearman correlation with true quality, within each position group:
+
+| position group | report's level | baseline: minutes played |
+|---|---|---|
+| Centre backs | 0.70 | 0.45 |
+| Full backs | 0.65 | 0.46 |
+| Holding midfielders | 0.67 | 0.50 |
+| Central midfielders | 0.69 | 0.40 |
+| Wingers | 0.67 | 0.50 |
+| Strikers | 0.75 | 0.53 |
+| **All groups, mean** | **0.69** | **0.47** |
+
+The baseline matters: better players play more, so minutes alone rank players. The report's level
+beats it in every group.
+
+| recommendation | players | in the matching third of true quality (chance: 33%) |
+|---|---|---|
+| Shortlist | 261 | 204 in the top third (78%) |
+| Monitor | 544 | |
+| Not now | 801 | 449 in the bottom third (56%) |
+
+What this says, including the parts that are not flattering:
+
+- **Shortlist is the useful call.** Nearly four in five are truly in the top third of their group.
+- **Not now is much weaker.** Half of all players get it (801 of 1,606), and 44% of them are not in
+  the bottom third. It means "nothing here yet says otherwise", not "this player is poor", and the
+  screen must not be read as a rejection.
+- **Single seasons vary**: one group's correlation runs from 0.48 to 0.79 across seeds (full backs).
+- **The numbers are likely optimistic.** In the synthetic league, quality feeds most statistics
+  directly and shares out chances cleanly (see "Team gap analysis", where npxG and xA look too
+  reliable to believe). Real football has more that season totals miss. Rerun this shape of check
+  wherever a real measure of quality exists.
+
+### Limits
+
+- **Season totals only.** Unlike a report built on match event data, this has no pitch maps, no
+  with-and-without-the-player phases and no passing connections. FootyStats does not publish
+  them. Stage 5 of the pro tier looks at event data through StatsBomb's open data.
+- **No comparable players yet.** Similar players on league seasons are their own board card.
+- **Players abroad get no report**: their leagues have too few players on record to rank them.
+- **A role's areas are a judgement**, written by hand in the config and not learned from anything.
+
 ## Player similarity
 
 ```bash
@@ -1293,7 +1362,8 @@ rating/        table tennis ratings: Glicko-2 and the point rating          done
 run_rating_eval.py  grades both against hidden ability                       done
 similarity.py  player similarity, run_similarity_eval.py grades it             done
 pro/          pro tier: breakouts, finishing vs xG, trends, team gaps;
-              run_pro_eval.py and run_gap_eval.py grade them                 done
+              run_pro_eval.py and run_gap_eval.py grade them;
+              report.py, the scouting report, run_report_eval.py checks it   done
 assistant/     Ollama prompt + retrieval grounding                        TODO
 artifacts/     trained models (gitignored)
 ```

@@ -46,6 +46,7 @@ import type {
   PlayerRadar,
   ProSeasons,
   ScoutHome,
+  ScoutingReport,
   ClubGaps,
   GapOptions,
   NationalGaps,
@@ -260,6 +261,18 @@ export async function getClubGaps(clubId: string, season?: string | null): Promi
 export async function getNationalGaps(needs: string[]): Promise<NationalGaps> {
   const query = needs.map((n) => `need=${encodeURIComponent(n)}`).join("&");
   return request<NationalGaps>(`/gaps/national?${query}`);
+}
+
+/** A pro player's scouting report, or the API's reason there is none; null if not visible. */
+export async function getScoutingReport(
+  playerId: string,
+): Promise<{ report: ScoutingReport | null; note: string | null } | null> {
+  try {
+    return await request(`/players/${encodeURIComponent(playerId)}/scouting-report`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 export async function getProSeasons(playerId: string): Promise<ProSeasons | null> {

@@ -307,6 +307,63 @@ class ProSeasonsOut(CamelModel):
     note: str | None = None
 
 
+class ReportEvidenceOut(CamelModel):
+    key: str
+    label: str
+    value: float
+    # "per 90" or "%".
+    unit: str
+    percentile: int
+    # The median of the players the percentile is among.
+    median: float
+    # The statistic repeats poorly between half seasons (ml/README.md, "Team gap analysis").
+    low_reliability: bool
+
+
+class ReportAreaOut(CamelModel):
+    key: str
+    label: str
+    score: float | None = None
+    grade: str | None = None
+    # Whether the player's role is graded on this area.
+    graded: bool
+    evidence: list[ReportEvidenceOut]
+
+
+class ScoutingReportBodyOut(CamelModel):
+    player_id: str
+    season: str
+    competition: str
+    club: str | None = None
+    group: str
+    group_label: str
+    minutes: int
+    # Players of the group in the same league and season the percentiles are among.
+    population: int
+    level: float | None = None
+    level_grade: str | None = None
+    # "Shortlist", "Monitor" or "Not now".
+    recommendation: str | None = None
+    # "high", "medium" or "low", from minutes.
+    confidence: str
+    areas: list[ReportAreaOut]
+    strengths: list[ReportEvidenceOut]
+    weaknesses: list[ReportEvidenceOut]
+    summary: str
+    would_change: list[str]
+    not_in_data: list[str]
+    young: bool
+    finishing: FinishingOut
+    breakout: BreakoutOut | None = None
+
+
+class ScoutingReportOut(CamelModel):
+    """GET /players/{id}/scouting-report. `report` is null and `note` says why when there is none."""
+
+    report: ScoutingReportBodyOut | None = None
+    note: str | None = None
+
+
 class SimilarPlayerOut(CamelModel):
     player_id: uuid.UUID
     full_name: str
