@@ -367,7 +367,7 @@ export default function TagMatchPage() {
                     {clock(e.videoSeconds)}
                   </button>
                   <span className="min-w-0 flex-1 truncate" dir="auto">
-                    {e.playerName}
+                    <bdi>{e.playerName}</bdi>
                   </span>
                   <span className="shrink-0 text-slate-300">
                     <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: colourOf[e.eventType] }} />
@@ -408,7 +408,7 @@ export default function TagMatchPage() {
                   {players.map((p) => (
                     <tr key={p.playerId}>
                       <td className="border-b border-slate-800/70 px-2 py-2" dir="auto">
-                        {p.playerName}
+                        <bdi>{p.playerName}</bdi>
                       </td>
                       {totals.map((t) => {
                         const tagged = p.tagged[t] ?? 0;

@@ -140,7 +140,7 @@ export default function ComparePage() {
                 </button>
                 <Avatar size={40} name={entry.player.fullName} />
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">{entry.player.fullName}</p>
+                  <p className="truncate font-semibold"><bdi>{entry.player.fullName}</bdi></p>
                   <p className="text-xs text-slate-500">
                     {entry.ageLabel} &middot; {entry.player.position}
                   </p>
@@ -189,7 +189,7 @@ export default function ComparePage() {
                 <tr>
                   <Th>Metric</Th>
                   {data.players.map((p) => (
-                    <Th key={p.player.id}>{p.player.fullName}</Th>
+                    <Th key={p.player.id}><bdi>{p.player.fullName}</bdi></Th>
                   ))}
                   <Th>Difference</Th>
                 </tr>
@@ -401,7 +401,7 @@ function PlayerPicker({
                 }}
               >
                 <span className="truncate text-slate-100" dir="auto">
-                  {r.player.fullName}
+                  <bdi>{r.player.fullName}</bdi>
                 </span>
                 <span className="shrink-0 text-xs text-slate-500">
                   {r.player.position ?? ""} {r.ageLabel}

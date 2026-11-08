@@ -258,7 +258,7 @@ function ClubMode({ options, attributes }: { options: GapOptions; attributes: Re
                           <tr key={p.playerId}>
                             <Td>
                               <Link href={`/players/${p.playerId}`} className="text-sky-300 hover:underline">
-                                {p.fullName}
+                                <bdi>{p.fullName}</bdi>
                               </Link>
                             </Td>
                             <Td className="text-right tabular-nums">
@@ -338,7 +338,7 @@ function CandidateTable({
           <tr key={c.playerId}>
             <Td>
               <Link href={`/players/${c.playerId}`} className="text-sky-300 hover:underline">
-                {c.fullName}
+                <bdi>{c.fullName}</bdi>
               </Link>
               {c.position ? <span className="block text-xs text-slate-500">{c.position}</span> : null}
             </Td>

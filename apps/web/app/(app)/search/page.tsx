@@ -317,13 +317,13 @@ export default function SearchPage() {
                     <div className="flex min-w-[12rem] flex-1 flex-col gap-1.5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         {r.withheld ? (
-                          <span className="font-semibold text-slate-400">{r.player.fullName}</span>
+                          <span className="font-semibold text-slate-400"><bdi>{r.player.fullName}</bdi></span>
                         ) : (
                           <Link
                             href={`/players/${r.player.id}`}
                             className="font-semibold text-slate-100 hover:text-sky-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
                           >
-                            {r.player.fullName}
+                            <bdi>{r.player.fullName}</bdi>
                           </Link>
                         )}
                         <span className="flex items-center gap-2">

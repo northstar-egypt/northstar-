@@ -34,7 +34,7 @@ function Who({ player }: { player: PlayerCard }) {
       <Avatar size={40} name={player.fullName} />
       <div className="min-w-0">
         <Link href={`/players/${player.playerId}`} className="block truncate font-semibold text-slate-100 hover:underline">
-          {player.fullName}
+          <bdi>{player.fullName}</bdi>
         </Link>
         <p className="truncate text-xs text-slate-500">
           {[player.position, player.ageLabel, player.club, player.tier ? `${player.tier} tier` : null]
