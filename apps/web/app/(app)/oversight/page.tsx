@@ -17,6 +17,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { RatioBars, StackedAges } from "@/components/charts";
+import { EgyptMap } from "@/components/egypt-map";
 import {
   Button,
   Card,
@@ -274,7 +275,7 @@ export default function OversightPage() {
         <Stat label="Open flags" value={data.openFlags} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="flex flex-col gap-4">
         <Card>
           <SectionTitle>Coverage by governorate</SectionTitle>
           {noCoverage ? (
@@ -284,17 +285,27 @@ export default function OversightPage() {
             </p>
           ) : (
           <>
-          <RatioBars
-            rows={data.byRegion.map((r) => ({
-              label: r.region,
-              value: r.players,
-              per: r.populationM,
-            }))}
-          />
-          <p className="mt-3 text-xs text-slate-500">
+          <div className="grid items-start gap-6 md:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
+            <EgyptMap
+              rows={data.byRegion.map((r) => ({
+                code: r.code,
+                label: r.region,
+                players: r.players,
+                populationM: r.populationM,
+              }))}
+            />
+            <RatioBars
+              rows={data.byRegion.map((r) => ({
+                label: r.region,
+                value: r.players,
+                per: r.populationM,
+              }))}
+            />
+          </div>
+          <p className="mt-4 text-xs text-slate-500">
             Players tracked per million people, by where their club is: all 27 governorates, so
             the ones the platform has not reached show as the gaps they are (
-            {data.byRegion.filter((r) => r.players === 0).length} with no tracked players). Amber
+            {data.byRegion.filter((r) => r.players === 0).length} with no tracked players). On the map and in the list, amber
             marks thin coverage, and &ldquo;none&rdquo; a governorate with no tracked players at all. Populations are 2023 estimates.
             {data.playersWithoutGovernorate > 0
               ? ` ${data.playersWithoutGovernorate} players are at clubs with no governorate set and are not counted here.`

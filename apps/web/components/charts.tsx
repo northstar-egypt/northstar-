@@ -307,6 +307,12 @@ export function ShareRange({
 /* ------------------------------------------------------------------ horizontal bars */
 
 /**
+ * Coverage below this share of the best-covered region is "thin". One rule for the bars and the
+ * map of Egypt, so the two never disagree about which governorate is amber.
+ */
+export const THIN_SHARE = 0.22;
+
+/**
  * Used for coverage by region. Takes a value and a reference so the bar can show players per
  * million rather than a raw total, which is the whole point of that panel.
  */
@@ -322,7 +328,7 @@ export function RatioBars({
       {rows.map((r) => {
         const ratio = r.value / r.per;
         const share = (ratio / max) * 100;
-        const thin = share < 22;
+        const thin = share < THIN_SHARE * 100;
         return (
           <li key={r.label} className="grid grid-cols-[6rem_1fr_5rem] items-center gap-3 text-xs">
             <span className="truncate text-slate-400">{r.label}</span>
