@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 /**
  * Login. See docs/wireframes/01-login.html.
  *
@@ -67,6 +69,9 @@ export default function LoginPage() {
           <p className="text-xs uppercase tracking-[0.14em] text-slate-500">
             Egyptian sports talent
           </p>
+          <Link href="/story" className="mt-2 text-sm text-amber-300 hover:underline">
+            The ones we&apos;d have let go: see why NorthStar exists
+          </Link>
         </div>
 
         <Card>

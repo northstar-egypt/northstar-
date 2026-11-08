@@ -1,0 +1,419 @@
+{
+ "seed": 20260827,
+ "sample": "5 datasets of 1000 players",
+ "player": {
+  "name": "محمد عبد الرحمن منصور",
+  "position": "CDM",
+  "sex": "male"
+ },
+ "readings": [
+  {
+   "age": 13.3,
+   "cm": 129.8,
+   "known": true
+  },
+  {
+   "age": 13.51,
+   "cm": 131.1,
+   "known": true
+  },
+  {
+   "age": 13.69,
+   "cm": 132.4,
+   "known": true
+  },
+  {
+   "age": 14.03,
+   "cm": 133.4,
+   "known": true
+  },
+  {
+   "age": 14.11,
+   "cm": 133.3,
+   "known": true
+  },
+  {
+   "age": 14.45,
+   "cm": 135.5,
+   "known": false
+  },
+  {
+   "age": 14.76,
+   "cm": 137.2,
+   "known": false
+  },
+  {
+   "age": 14.97,
+   "cm": 140.0,
+   "known": false
+  },
+  {
+   "age": 15.32,
+   "cm": 141.7,
+   "known": false
+  },
+  {
+   "age": 15.46,
+   "cm": 142.8,
+   "known": false
+  },
+  {
+   "age": 15.59,
+   "cm": 144.2,
+   "known": false
+  },
+  {
+   "age": 15.98,
+   "cm": 146.4,
+   "known": false
+  },
+  {
+   "age": 16.37,
+   "cm": 150.0,
+   "known": false
+  }
+ ],
+ "curve": [
+  {
+   "age": 16.37,
+   "cm": 149.2
+  },
+  {
+   "age": 16.47,
+   "cm": 149.9
+  },
+  {
+   "age": 16.57,
+   "cm": 150.7
+  },
+  {
+   "age": 16.67,
+   "cm": 151.4
+  },
+  {
+   "age": 16.77,
+   "cm": 152.1
+  },
+  {
+   "age": 16.87,
+   "cm": 152.8
+  },
+  {
+   "age": 16.97,
+   "cm": 153.5
+  },
+  {
+   "age": 17.07,
+   "cm": 154.2
+  },
+  {
+   "age": 17.17,
+   "cm": 155.0
+  },
+  {
+   "age": 17.27,
+   "cm": 155.7
+  },
+  {
+   "age": 17.37,
+   "cm": 156.4
+  },
+  {
+   "age": 17.47,
+   "cm": 156.9
+  },
+  {
+   "age": 17.57,
+   "cm": 157.4
+  },
+  {
+   "age": 17.67,
+   "cm": 157.9
+  },
+  {
+   "age": 17.77,
+   "cm": 158.4
+  },
+  {
+   "age": 17.87,
+   "cm": 158.9
+  },
+  {
+   "age": 17.97,
+   "cm": 159.4
+  },
+  {
+   "age": 18.07,
+   "cm": 159.9
+  },
+  {
+   "age": 18.17,
+   "cm": 160.4
+  },
+  {
+   "age": 18.27,
+   "cm": 160.9
+  },
+  {
+   "age": 18.37,
+   "cm": 161.4
+  },
+  {
+   "age": 18.47,
+   "cm": 161.7
+  },
+  {
+   "age": 18.57,
+   "cm": 162.0
+  },
+  {
+   "age": 18.67,
+   "cm": 162.3
+  },
+  {
+   "age": 18.77,
+   "cm": 162.6
+  },
+  {
+   "age": 18.87,
+   "cm": 162.9
+  },
+  {
+   "age": 18.97,
+   "cm": 163.2
+  },
+  {
+   "age": 19.07,
+   "cm": 163.5
+  },
+  {
+   "age": 19.17,
+   "cm": 163.8
+  },
+  {
+   "age": 19.27,
+   "cm": 164.1
+  },
+  {
+   "age": 19.37,
+   "cm": 164.4
+  },
+  {
+   "age": 19.47,
+   "cm": 164.6
+  },
+  {
+   "age": 19.57,
+   "cm": 164.8
+  },
+  {
+   "age": 19.67,
+   "cm": 164.9
+  },
+  {
+   "age": 19.77,
+   "cm": 165.1
+  },
+  {
+   "age": 19.87,
+   "cm": 165.3
+  },
+  {
+   "age": 19.97,
+   "cm": 165.4
+  },
+  {
+   "age": 20.07,
+   "cm": 165.6
+  },
+  {
+   "age": 20.17,
+   "cm": 165.8
+  },
+  {
+   "age": 20.27,
+   "cm": 165.9
+  },
+  {
+   "age": 20.37,
+   "cm": 166.1
+  },
+  {
+   "age": 20.47,
+   "cm": 166.2
+  },
+  {
+   "age": 20.57,
+   "cm": 166.2
+  },
+  {
+   "age": 20.67,
+   "cm": 166.3
+  },
+  {
+   "age": 20.77,
+   "cm": 166.4
+  },
+  {
+   "age": 20.87,
+   "cm": 166.4
+  },
+  {
+   "age": 20.97,
+   "cm": 166.5
+  },
+  {
+   "age": 21.07,
+   "cm": 166.6
+  },
+  {
+   "age": 21.17,
+   "cm": 166.6
+  },
+  {
+   "age": 21.27,
+   "cm": 166.7
+  },
+  {
+   "age": 21.37,
+   "cm": 166.8
+  },
+  {
+   "age": 21.47,
+   "cm": 166.8
+  },
+  {
+   "age": 21.57,
+   "cm": 166.8
+  },
+  {
+   "age": 21.67,
+   "cm": 166.9
+  },
+  {
+   "age": 21.77,
+   "cm": 166.9
+  },
+  {
+   "age": 21.87,
+   "cm": 166.9
+  },
+  {
+   "age": 21.97,
+   "cm": 167.0
+  },
+  {
+   "age": 22.07,
+   "cm": 167.0
+  },
+  {
+   "age": 22.17,
+   "cm": 167.0
+  },
+  {
+   "age": 22.27,
+   "cm": 167.1
+  },
+  {
+   "age": 23.0,
+   "cm": 167.1
+  }
+ ],
+ "band": [
+  {
+   "age": 12,
+   "median": 141.8,
+   "spread": 9.1
+  },
+  {
+   "age": 13,
+   "median": 148.1,
+   "spread": 10.5
+  },
+  {
+   "age": 14,
+   "median": 155.0,
+   "spread": 11.7
+  },
+  {
+   "age": 15,
+   "median": 161.8,
+   "spread": 11.1
+  },
+  {
+   "age": 16,
+   "median": 166.1,
+   "spread": 9.9
+  },
+  {
+   "age": 17,
+   "median": 169.8,
+   "spread": 8.5
+  },
+  {
+   "age": 18,
+   "median": 171.4,
+   "spread": 7.8
+  },
+  {
+   "age": 19,
+   "median": 170.4,
+   "spread": 7.0
+  },
+  {
+   "age": 20,
+   "median": 170.0,
+   "spread": 6.4
+  },
+  {
+   "age": 21,
+   "median": 169.2,
+   "spread": 6.0
+  },
+  {
+   "age": 22,
+   "median": 170.9,
+   "spread": 7.5
+  },
+  {
+   "age": 23,
+   "median": 175.6,
+   "spread": 6.7
+  }
+ ],
+ "cut": {
+  "age": 14.22,
+  "heightZ": -2.03,
+  "readings": 5,
+  "flagged": true,
+  "reason": "Tracking 2.1 standard deviations below the median height for age 14, but still growing at 4.3 cm/year. Short for their age group and still climbing, which is the late-maturing pattern rather than a low ceiling."
+ },
+ "adult": {
+  "heightCm": 167.1,
+  "medianCm": 169.2,
+  "age": 21
+ },
+ "maturityOffsetYears": 2.37,
+ "endAge": 23.0,
+ "rates": {
+  "minReadings": 3,
+  "caughtWithHistory": {
+   "hits": 35,
+   "total": 86,
+   "low": 0.309,
+   "high": 0.513
+  },
+  "otherSmallWithHistory": {
+   "hits": 31,
+   "total": 140,
+   "low": 0.161,
+   "high": 0.297
+  },
+  "caughtWithoutHistory": {
+   "hits": 0,
+   "total": 113,
+   "low": 0.0,
+   "high": 0.033
+  }
+ }
+}

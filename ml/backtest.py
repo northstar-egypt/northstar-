@@ -95,6 +95,8 @@ class Decision:
     flagged: bool
     # Why the detector did not fire, in its own terms. Empty when it did.
     not_flagged_because: str = ""
+    # The detector's own sentence when it did fire. Empty when it did not.
+    flag_reason: str = ""
 
     # Observable afterwards.
     has_outcome: bool = False
@@ -288,6 +290,7 @@ def _decide(
         readings=len(pf.heights),
         flagged=pf.player_id in flagged,
         not_flagged_because="" if pf.player_id in flagged else _why_not(pf, params),
+        flag_reason=flagged.get(pf.player_id, ""),
         planted_late_bloomer=(pf.player_id in planted) if has_key else None,
         released=(pf.player_id in released) if released is not None else None,
     )

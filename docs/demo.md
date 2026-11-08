@@ -59,6 +59,18 @@ same.
 
 ## The script
 
+### 0. Why it exists (no account needed)
+
+Open `http://localhost:3000/story`, or follow the link under the logo on the sign-in screen.
+Press **Play**. One boy, small at 14: the red line is the day a size-based cut would have
+released him, the blue box is what NorthStar said that same day, and the dashed green line is
+how he went on to grow. Then the pattern across five datasets: about four in ten such boys
+flagged when measured three times or more, one in five other small boys, and none measured less.
+Say the last line out loud: the fix is not a better model, it is a tape measure.
+
+The boy is synthetic and the footnote says so. His numbers and the pattern are the late-bloomer
+figure's (`python -m ml.figure_late_bloomer`), so they always match `ml/README.md`.
+
 ### 1. Log a player (coach)
 
 Sign in with the **Coach** button on the login screen: the coach at the club `demo_check.py`
