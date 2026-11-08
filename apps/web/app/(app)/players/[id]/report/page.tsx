@@ -102,7 +102,7 @@ export default function ScoutingReportPage() {
         <Avatar size={64} name={profile?.player.fullName} />
         <div className="min-w-[14rem] flex-1">
           <p className={cx("text-xs font-medium uppercase tracking-widest", accent.text)}>Scouting report</p>
-          <h1 className="text-2xl font-bold leading-tight tracking-tight">{profile?.player.fullName}</h1>
+          <h1 className="text-2xl font-bold leading-tight tracking-tight"><bdi>{profile?.player.fullName}</bdi></h1>
           <p className="text-sm text-slate-500">
             {[report.club, report.groupLabel, profile ? `age ${profile.ageLabel}` : null].filter(Boolean).join(" · ")}
           </p>

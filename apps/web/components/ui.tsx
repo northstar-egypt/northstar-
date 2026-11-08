@@ -27,7 +27,12 @@ export function Card({
   as?: "div" | "section" | "article";
 }) {
   return (
-    <Tag className={cx("rounded-lg border border-slate-800 bg-slate-900/50 p-4", className)}>
+    <Tag
+      className={cx(
+        "rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-[0_1px_0_0_rgb(255_255_255/0.03)_inset]",
+        className,
+      )}
+    >
       {children}
     </Tag>
   );
@@ -41,10 +46,8 @@ export function SectionTitle({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <h2 className="text-xs font-medium uppercase tracking-[0.12em] text-slate-400">
-        {children}
-      </h2>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <h2 className="text-base font-semibold tracking-tight text-slate-100">{children}</h2>
       {action}
     </div>
   );
@@ -52,7 +55,7 @@ export function SectionTitle({
 
 export function Label({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-[0.66rem] font-medium uppercase tracking-[0.12em] text-slate-500">
+    <span className="text-xs font-medium text-slate-400">
       {children}
     </span>
   );
@@ -154,7 +157,7 @@ export function Field({
 }
 
 export const inputClass =
-  "w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 " +
+  "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 " +
   "placeholder:text-slate-600 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500";
 
 /* ------------------------------------------------------------------ display */
@@ -179,7 +182,7 @@ export function Stat({
   return (
     <Card className="flex flex-col gap-0.5">
       <Label>{label}</Label>
-      <span className={cx("text-2xl font-bold tabular-nums leading-tight", tones[tone])}>
+      <span className={cx("mt-1 text-3xl font-semibold tabular-nums leading-tight tracking-tight", tones[tone])}>
         {value}
       </span>
       {hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
@@ -202,7 +205,7 @@ export function Banner({
     bad: "border-rose-900/70 bg-rose-950/40 text-rose-200",
   } as const;
   return (
-    <div className={cx("rounded-lg border-l-4 px-4 py-3 text-sm", tones[tone])}>
+    <div className={cx("rounded-xl border-l-4 px-4 py-3 text-sm", tones[tone])}>
       {title ? <div className="mb-0.5 font-semibold">{title}</div> : null}
       <div className="text-slate-300">{children}</div>
     </div>
@@ -227,7 +230,7 @@ export function Th({
   return (
     <th
       className={cx(
-        "border-b border-slate-700 px-2 py-2 text-left text-[0.66rem] font-medium uppercase tracking-[0.1em] text-slate-500",
+        "border-b border-slate-700/80 px-2 py-2 text-left text-xs font-medium text-slate-400",
         className,
       )}
     >
@@ -286,7 +289,7 @@ export function Skeleton({ className }: { className?: string }) {
 
 export function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-800 px-4 py-10 text-center text-sm text-slate-500">
+    <div className="rounded-xl border border-dashed border-slate-800 px-4 py-10 text-center text-sm text-slate-500">
       {children}
     </div>
   );

@@ -8,4 +8,12 @@
 
 body {
   @apply bg-slate-950 text-slate-100 antialiased;
+  /* A faint light from the top: enough to stop the page reading as a flat admin panel. */
+  background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgb(56 189 248 / 0.07), transparent 70%);
+  background-attachment: fixed;
+}
+
+/* Numbers in a table or a figure line up. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }

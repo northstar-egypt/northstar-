@@ -344,7 +344,7 @@ export default function ExplorePage() {
                     <tr key={p.playerId} className={marked.has(p.playerId) ? "bg-amber-500/10" : undefined}>
                       <Td>
                         <Link href={`/players/${p.playerId}`} className="text-sky-300 hover:underline">
-                          {p.fullName}
+                          <bdi>{p.fullName}</bdi>
                         </Link>
                       </Td>
                       <Td className="hidden sm:table-cell">{p.position ?? "n/a"}</Td>
@@ -410,7 +410,7 @@ function LeaderBoards({ leaders }: { leaders: Leaders }) {
                           <span className="min-w-0 truncate">
                             <span className="mr-2 inline-block w-4 text-slate-500">{i + 1}</span>
                             <Link href={`/players/${l.playerId}`} className="text-sky-300 hover:underline">
-                              {l.fullName}
+                              <bdi>{l.fullName}</bdi>
                             </Link>
                             <span className="ml-2 text-xs text-slate-500">
                               {l.position ? `${l.position}, ` : ""}
@@ -429,7 +429,7 @@ function LeaderBoards({ leaders }: { leaders: Leaders }) {
                   )}
                   {b.focus && !focusListed ? (
                     <p className="mt-2 rounded bg-amber-500/10 px-1 text-sm text-slate-300">
-                      {b.focus.fullName} is {ordinal(b.focus.rank ?? 0)} of the players you may open:{" "}
+                      <bdi>{b.focus.fullName}</bdi> is {ordinal(b.focus.rank ?? 0)} of the players you may open:{" "}
                       {b.focus.value}, {ordinal(b.focus.percentile)} percentile.
                     </p>
                   ) : null}

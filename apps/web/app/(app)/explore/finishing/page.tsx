@@ -177,7 +177,7 @@ export default function FinishingPage() {
             </p>
             {data.player ? (
               <p className="mt-2 text-sm text-slate-300" dir="auto">
-                {data.player.fullName}: {data.player.successes} of {data.player.attempts} {data.rateLabel}
+                <bdi>{data.player.fullName}</bdi>: {data.player.successes} of {data.player.attempts} {data.rateLabel}
                 {data.player.rate != null
                   ? `, ${pct(data.player.rate)}`
                   : `; a rate needs ${data.minAttempts} attempts`}
@@ -258,7 +258,7 @@ export default function FinishingPage() {
                     <tr key={l.playerId}>
                       <Td>
                         <Link href={`/players/${l.playerId}`} className="text-sky-300 hover:underline" dir="auto">
-                          {l.fullName}
+                          <bdi>{l.fullName}</bdi>
                         </Link>
                       </Td>
                       <Td>{l.position ?? ""}</Td>

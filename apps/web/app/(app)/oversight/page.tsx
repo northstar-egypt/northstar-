@@ -123,7 +123,7 @@ export default function OversightPage() {
           <ul className="mb-3 flex flex-col gap-1.5 text-sm">
             {(flags ?? []).slice(0, 3).map((f) => (
               <li key={f.id} className="flex items-baseline justify-between gap-2">
-                <span className="min-w-0 truncate text-slate-200">{f.playerName}</span>
+                <span className="min-w-0 truncate text-slate-200"><bdi>{f.playerName}</bdi></span>
                 <span className="shrink-0 text-xs text-slate-500">
                   {FLAG_WORDS[f.type] ?? f.type}, {f.ageDays} days
                 </span>
@@ -209,7 +209,7 @@ export default function OversightPage() {
             {talent.breakouts.slice(0, 6).map((b) => (
               <li key={b.playerId} className="min-w-0">
                 <Link href={`/players/${b.playerId}`} className="font-semibold text-slate-100 hover:underline">
-                  {b.fullName}
+                  <bdi>{b.fullName}</bdi>
                 </Link>
                 <span className="ml-2 text-xs text-slate-500">
                   {[b.position, b.ageLabel, b.club].filter(Boolean).join(" · ")}
@@ -242,7 +242,7 @@ export default function OversightPage() {
                     {group.players.map((p) => (
                       <li key={p.playerId} className="flex items-baseline justify-between gap-3">
                         <Link href={`/players/${p.playerId}`} className="min-w-0 truncate text-slate-200 hover:underline">
-                          {p.fullName}
+                          <bdi>{p.fullName}</bdi>
                         </Link>
                         <span className="shrink-0 text-xs tabular-nums text-slate-400">
                           <span className="font-semibold text-slate-100">{pct(p.pointShare)}</span> ({pct(p.low)} to {pct(p.high)}),{" "}

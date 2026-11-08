@@ -206,7 +206,7 @@ export default function DashboardPage() {
                     href={`/players/${r.player.id}`}
                     className="font-semibold text-slate-100 hover:text-sky-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
                   >
-                    {r.player.fullName}
+                    <bdi>{r.player.fullName}</bdi>
                   </Link>
                   <Sparkline values={r.heightTrend} />
                 </div>
@@ -248,7 +248,7 @@ export default function DashboardPage() {
                       href={`/players/${r.player.id}`}
                       className="font-semibold text-slate-100 hover:text-sky-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
                     >
-                      {r.player.fullName}
+                      <bdi>{r.player.fullName}</bdi>
                     </Link>
                   </Td>
                   <Td>{r.player.position}</Td>
@@ -420,7 +420,7 @@ function MeasureRow({
           <Avatar size={36} name={row.player.fullName} />
           <div className="min-w-0">
             <Link href={`/players/${row.player.id}`} className="block truncate font-semibold text-slate-100 hover:underline">
-              {row.player.fullName}
+              <bdi>{row.player.fullName}</bdi>
             </Link>
             <p className="text-xs tabular-nums text-slate-500">
               {[row.ageLabel, row.heightCm ? `last ${row.heightCm} cm` : "no height yet"].join(" · ")}
@@ -504,7 +504,7 @@ function Growing({ rows }: { rows: SquadRow[] }) {
           {growing.map((r) => (
             <li key={r.player.id} className="flex items-center justify-between gap-3">
               <Link href={`/players/${r.player.id}`} className="min-w-0 truncate text-slate-200 hover:underline">
-                {r.player.fullName}
+                <bdi>{r.player.fullName}</bdi>
                 <span className="ml-2 text-xs text-slate-500">{r.ageLabel}</span>
               </Link>
               <span className="flex shrink-0 items-center gap-2">
@@ -540,7 +540,7 @@ function Noticed({ rows }: { rows: SquadRow[] }) {
           {bloomers.map((r) => (
             <li key={r.player.id} className="flex items-center justify-between gap-3">
               <Link href={`/players/${r.player.id}`} className="min-w-0 truncate text-slate-200 hover:underline">
-                {r.player.fullName}
+                <bdi>{r.player.fullName}</bdi>
                 <span className="ml-2 text-xs text-slate-500">{r.ageLabel}</span>
               </Link>
               <Chip tone="good">late bloomer</Chip>

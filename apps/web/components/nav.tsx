@@ -36,8 +36,8 @@ export function Nav() {
   });
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5">
+    <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
         <Link href={homeFor(user.role)} className="flex items-center gap-2 font-bold tracking-tight">
           <span className={cx("inline-block h-2.5 w-2.5 rotate-45", identity.mark)} aria-hidden />
           NorthStar
@@ -53,7 +53,7 @@ export function Nav() {
                 href={l.href}
                 aria-current={active ? "page" : undefined}
                 className={cx(
-                  "rounded-md px-2.5 py-1 text-sm transition",
+                  "rounded-lg px-3 py-1.5 text-sm transition",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400",
                   active
                     ? identity.active
@@ -116,7 +116,7 @@ export function Nav() {
       </div>
 
       <div className={cx("h-0.5", identity.bar)} aria-hidden />
-      <div className="border-t border-amber-900/40 bg-amber-950/30 px-4 py-1 text-center text-[0.7rem] text-amber-300/90">
+      <div className="border-t border-amber-900/30 bg-amber-950/20 px-4 py-0.5 text-center text-[0.68rem] text-amber-300/80">
         Prototype. All player data is synthetic.
       </div>
     </header>

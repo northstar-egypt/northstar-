@@ -195,7 +195,7 @@ export default function IntegrityPage() {
                   <Chip tone={TONE[f.type]}>{f.type}</Chip>
                   <span className="text-xs tabular-nums text-slate-500">{f.ageDays}d</span>
                 </div>
-                <p className="text-sm font-semibold text-slate-100">{f.playerName}</p>
+                <p className="text-sm font-semibold text-slate-100"><bdi>{f.playerName}</bdi></p>
                 <p className="text-xs text-slate-500">{f.organizationName ?? "self submitted"}</p>
               </button>
             ))
@@ -214,7 +214,7 @@ export default function IntegrityPage() {
                     {flagTitle(selected)}
                   </h2>
                   <p className="text-xs text-slate-500">
-                    {selected.playerName} &middot; raised {selected.ageDays} days ago
+                    <bdi>{selected.playerName}</bdi> &middot; raised {selected.ageDays} days ago
                   </p>
                 </div>
                 {selected.confidence != null ? (

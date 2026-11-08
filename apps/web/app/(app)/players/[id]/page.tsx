@@ -141,7 +141,7 @@ export default function PlayerProfilePage() {
         <div className="flex min-w-[16rem] flex-1 flex-col gap-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <h1 className="text-2xl font-bold leading-tight tracking-tight">{p.fullName}</h1>
+              <h1 className="text-2xl font-bold leading-tight tracking-tight"><bdi>{p.fullName}</bdi></h1>
               <p className="text-sm text-slate-500">
                 {[
                   data.organizationName,
@@ -676,7 +676,7 @@ function MergedRecordsCard({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span>
                 <span dir="auto" className="text-slate-100">
-                  {r.fullName}
+                  <bdi>{r.fullName}</bdi>
                 </span>
                 <span className="ml-2 text-xs text-slate-500">
                   {r.mergedOn
@@ -701,7 +701,7 @@ function MergedRecordsCard({
                   className={inputClass}
                 />
                 <span className="text-xs text-slate-500">
-                  Everything the merge moved goes back to {r.fullName}, and the duplicate case
+                  Everything the merge moved goes back to <bdi>{r.fullName}</bdi>, and the duplicate case
                   is reopened on the integrity board.
                 </span>
                 {problem ? <p className="text-xs text-rose-300">{problem}</p> : null}
@@ -1276,7 +1276,7 @@ function SimilarCard({ playerId }: { playerId: string }) {
             {similar.items.map((p) => (
               <li key={p.playerId} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
                 <Link href={`/players/${p.playerId}`} className="font-semibold text-slate-100 hover:text-sky-300">
-                  {p.fullName}
+                  <bdi>{p.fullName}</bdi>
                 </Link>
                 <span className="text-xs text-slate-400">
                   {[p.position, p.ageLabel].filter(Boolean).join(" · ")} · alike on {p.alike.join(", ")}
