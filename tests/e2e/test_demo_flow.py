@@ -273,6 +273,31 @@ def test_the_profile_draws_the_forecast_band(sign_in, page, identities):
 
 
 # ---------------------------------------------------------------------------
+# The story, before anyone signs in
+# ---------------------------------------------------------------------------
+
+
+def test_the_story_plays_without_an_account_and_shows_the_graded_numbers(page):
+    """The demo's opening scene: public, and its numbers are the backtest's own."""
+    story = json.loads(
+        (Path(__file__).resolve().parents[2] / "apps/web/public/story/late-bloomer.sample.json").read_text("utf-8")
+    )
+    page.goto(f"{WEB_URL}/login", wait_until="networkidle")
+    page.get_by_role("link", name=re.compile("The ones we.d have let go")).click()
+    page.wait_for_url("**/story", timeout=20000)
+    page.get_by_role("button", name="Play").click()
+    page.get_by_role("button", name="Play again").wait_for(timeout=30000)
+    body = text_of(page)
+    rates = story["rates"]
+    for key in ("caughtWithHistory", "otherSmallWithHistory", "caughtWithoutHistory"):
+        r = rates[key]
+        assert f"{round(100 * r['hits'] / r['total'])}%" in body, key
+        assert f"{r['hits']} of {r['total']}" in body, key
+    assert story["cut"]["reason"].lower() in body
+    assert "is not a real person" in body
+
+
+# ---------------------------------------------------------------------------
 # Player home
 # ---------------------------------------------------------------------------
 

@@ -3,6 +3,11 @@
     python -m ml.figure_late_bloomer             # writes docs/figures/late-bloomer.svg
     python -m ml.figure_late_bloomer --quick     # rates from the 212-player datasets, faster
 
+It also writes the same player and rates as data for the web app's story screen
+(apps/web/public/story/late-bloomer.sample.json, `--json`), so the screen shows exactly what the
+figure shows. Synthetic, like everything committed here, and named `.sample.json` as the repo's
+data rules ask.
+
 The project's whole argument in one picture. A boy small enough at about 14 to be in the
 shortest quarter of his age group, the date the size cut would have released him, the same
 date the system flagged him as a late bloomer, and how tall he goes on to be.
@@ -47,6 +52,7 @@ REPORTED_SEEDS = (20260827, 7, 99, 404, 555)
 # The size ml/README.md quotes the backtest at.
 POOLED_PLAYERS = 1000
 DEFAULT_OUT = Path("docs/figures/late-bloomer.svg")
+DEFAULT_JSON = Path("apps/web/public/story/late-bloomer.sample.json")
 TARGET_AGE = 14.0
 # The curve is drawn until the planted model stops growing, at most to this age.
 MAX_AGE = 25.0
@@ -57,6 +63,8 @@ ADULT_AGE = 21
 @dataclass
 class Example:
     decision: Decision
+    name: str
+    position: str | None
     readings: list[tuple[float, float]]  # (age, cm)
     planted_curve: list[tuple[float, float]]  # (age, cm), from the last reading to fully grown
     adult_height_cm: float
@@ -116,7 +124,8 @@ def build_example(data_dir: Path) -> Example:
     ref = features.height_reference.get((pf.sex, ADULT_AGE))
     adult_median = ref[0] if ref else None
 
-    return Example(decision, readings, curve, adult, offset, band, adult_median, end_age)
+    return Example(decision, pf.full_name, pf.player.get("position"), readings, curve, adult, offset, band,
+                   adult_median, end_age)
 
 
 def pooled_rates(seeds: tuple[int, ...], players: int | None) -> dict:
@@ -141,6 +150,46 @@ LEFT, RIGHT, TOP, BOTTOM = 70, 790, 70, 400
 INK, MUTED, GRID = "#1f2937", "#6b7280", "#e5e7eb"
 BAND, MEDIAN = "#e5e7eb", "#9ca3af"
 PLAYER, CUT = "#0f766e", "#b45309"
+
+
+def story(example: Example, rates: dict, *, seed: int, sample: str) -> dict:
+    """The figure as data, for the web app's story screen."""
+    from ml.evaluation.metrics import wilson_interval
+
+    d = example.decision
+
+    def rate(r) -> dict:
+        low, high = wilson_interval(r.hits, r.total) if r.total else (0.0, 0.0)
+        return {"hits": r.hits, "total": r.total, "low": round(low, 3), "high": round(high, 3)}
+
+    return {
+        "seed": seed,
+        "sample": sample,
+        "player": {"name": example.name, "position": example.position, "sex": d.sex},
+        "readings": [{"age": round(a, 2), "cm": cm, "known": a <= d.stated_age + 1e-9} for a, cm in example.readings],
+        "curve": [{"age": round(a, 2), "cm": round(cm, 1)} for a, cm in example.planted_curve],
+        "band": [{"age": a, "median": round(m, 1), "spread": round(sd, 1)} for a, m, sd in example.band],
+        "cut": {
+            "age": round(d.stated_age, 2),
+            "heightZ": round(d.height_z, 2),
+            "readings": d.readings,
+            "flagged": d.flagged,
+            "reason": d.flag_reason,
+        },
+        "adult": {
+            "heightCm": round(example.adult_height_cm, 1),
+            "medianCm": round(example.adult_median_cm, 1) if example.adult_median_cm else None,
+            "age": ADULT_AGE,
+        },
+        "maturityOffsetYears": round(example.maturity_offset_years, 2),
+        "endAge": example.end_age,
+        "rates": {
+            "minReadings": rates["min_readings"],
+            "caughtWithHistory": rate(rates["caught_with_history"]),
+            "otherSmallWithHistory": rate(rates["false_alarms_with_history"]),
+            "caughtWithoutHistory": rate(rates["caught_without_history"]),
+        },
+    }
 
 
 def _rate(rate) -> str:
@@ -272,6 +321,7 @@ def render(example: Example, rates: dict, *, seed: int, sample: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="figure_late_bloomer", description=__doc__.split("\n")[0])
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    parser.add_argument("--json", type=Path, default=DEFAULT_JSON, help="where the story screen's data goes")
     parser.add_argument(
         "--quick",
         action="store_true",
@@ -295,6 +345,11 @@ def main(argv: list[str] | None = None) -> int:
     # LF on every platform, so regenerating on Windows does not rewrite every line.
     args.out.write_text(
         render(example, rates, seed=DEFAULT_SEED, sample=sample), encoding="utf-8", newline="\n"
+    )
+    args.json.parent.mkdir(parents=True, exist_ok=True)
+    args.json.write_text(
+        json.dumps(story(example, rates, seed=DEFAULT_SEED, sample=sample), ensure_ascii=False, indent=1) + "\n",
+        encoding="utf-8", newline="\n",
     )
     d = example.decision
     print(
