@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PercentileBar } from "@/components/charts";
+import { Pitch } from "@/components/pitch";
 import { Avatar, Banner, Card, Chip, SectionTitle, Skeleton } from "@/components/ui";
 import { getProfile, getScoutingReport } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -115,6 +116,8 @@ export default function ScoutingReportPage() {
 
       {/* The verdict comes first: a scout should have it in ten seconds. */}
       <Card className={cx("border-l-4", accent.border)}>
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
+        <div>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500">Current level</p>
@@ -147,6 +150,9 @@ export default function ScoutingReportPage() {
           <p className="mt-1 text-sm text-slate-400">Aged under 23: development years ahead, so the level can still rise.</p>
         ) : null}
         <p className="mt-2 text-xs text-slate-500">A claim to check, not a decision: the data sees only part of a player.</p>
+        </div>
+        <Pitch group={report.group} groupLabel={report.groupLabel} className={accent.text} />
+        </div>
       </Card>
 
       <div className="grid gap-5 md:grid-cols-2">
