@@ -1,5 +1,5 @@
 {
-  "about": "Questions for the assistant's reader (app/services/assistant.py), each with the reading that would give the right answer. 'dev' is what the prompt was written and tuned against; 'test' is held out and scored once per change. Names are made up. Fields left out of 'expect' are not scored for that question: see eval/run_assistant_eval.py for which fields matter for which intent.",
+  "about": "Questions for the assistant's reader (app/services/assistant.py), each with the reading that would give the right answer. 'dev' is what the prompt was written and tuned against; 'test' is held out and scored once per change. Names are made up. Fields left out of 'expect' are not scored for that question: see eval/run_assistant_eval.py for which fields matter for which intent. Added 2026-11-09, before any run: eight questions per half for the breakouts and late-bloomer intents.",
   "dev": [
     {"q": "top 5 strikers for goals under 16", "expect": {"intent": "leaders", "sport": "football", "position_group": "forward", "age_from": null, "age_to": 15, "statistic": "goals"}},
     {"q": "best passers among 15 year old midfielders", "expect": {"intent": "leaders", "sport": "football", "position_group": "midfielder", "age_from": 15, "age_to": 15, "statistic": "pass_completion"}},
@@ -36,7 +36,15 @@
     {"q": "strikers who shoot the most, between 15 and 17", "expect": {"intent": "leaders", "sport": "football", "position_group": "forward", "age_from": 15, "age_to": 17, "statistic": "shots"}},
     {"q": "find me someone like Ahmed Tarek but younger", "expect": {"intent": "similar", "players": ["Ahmed Tarek"]}},
     {"q": "compare Mazen Ramy with Seif Yasser on passing", "expect": {"intent": "compare", "players": ["Mazen Ramy", "Seif Yasser"]}},
-    {"q": "top midfielders for key passes, 16+", "expect": {"intent": "leaders", "sport": "football", "position_group": "midfielder", "age_from": 16, "age_to": null, "statistic": "key_passes"}}
+    {"q": "top midfielders for key passes, 16+", "expect": {"intent": "leaders", "sport": "football", "position_group": "midfielder", "age_from": 16, "age_to": null, "statistic": "key_passes"}},
+    {"q": "who broke out this season", "expect": {"intent": "breakouts"}},
+    {"q": "which young pros stepped up in the league this year", "expect": {"intent": "breakouts"}},
+    {"q": "any breakout players I should know about", "expect": {"intent": "breakouts"}},
+    {"q": "مين اللي ظهر بقوة الموسم ده", "expect": {"intent": "breakouts"}},
+    {"q": "show me the late bloomers", "expect": {"intent": "late_bloomers"}},
+    {"q": "which kids are behind in growth but might catch up", "expect": {"intent": "late_bloomers"}},
+    {"q": "late developers flagged by the models", "expect": {"intent": "late_bloomers"}},
+    {"q": "مين اللاعيبة اللي نموهم متأخر", "expect": {"intent": "late_bloomers"}}
   ],
   "test": [
     {"q": "best finishers among U17 forwards", "expect": {"intent": "leaders", "sport": "football", "position_group": "forward", "age_from": null, "age_to": 16, "statistic": "goals"}},
@@ -74,6 +82,14 @@
     {"q": "strikers with the most shots, 17 and under", "expect": {"intent": "leaders", "sport": "football", "position_group": "forward", "age_from": null, "age_to": 17, "statistic": "shots"}},
     {"q": "someone who plays like Hossam Adel, any age", "expect": {"intent": "similar", "players": ["Hossam Adel"]}},
     {"q": "Walid Ashraf against Karim Samy on goals", "expect": {"intent": "compare", "players": ["Walid Ashraf", "Karim Samy"]}},
-    {"q": "fittest defenders over 16", "expect": {"intent": "leaders", "sport": "football", "position_group": "defender", "age_from": 17, "age_to": null, "statistic": "distance_km"}}
+    {"q": "fittest defenders over 16", "expect": {"intent": "leaders", "sport": "football", "position_group": "defender", "age_from": 17, "age_to": null, "statistic": "distance_km"}},
+    {"q": "list this season's breakouts", "expect": {"intent": "breakouts"}},
+    {"q": "who has made a big jump in the league", "expect": {"intent": "breakouts"}},
+    {"q": "players who stepped up this year", "expect": {"intent": "breakouts"}},
+    {"q": "مين الاكتشافات الجديدة في الدوري الموسم ده", "expect": {"intent": "breakouts"}},
+    {"q": "who are the late bloomers", "expect": {"intent": "late_bloomers"}},
+    {"q": "which academy players are small for their age now but could grow into it", "expect": {"intent": "late_bloomers"}},
+    {"q": "flagged late bloomers please", "expect": {"intent": "late_bloomers"}},
+    {"q": "اللاعيبة اللي بيتأخروا في النمو", "expect": {"intent": "late_bloomers"}}
   ]
 }

@@ -11,6 +11,8 @@ import pytest
 from sqlalchemy import select
 
 from app.services import assistant
+from tests.conftest import _add_player
+from tests.test_gaps import league  # noqa: F401  (a fixture)
 
 
 @pytest.fixture
@@ -171,3 +173,141 @@ def test_a_gender_read_into_a_one_gender_sport_is_dropped():
     assert reading.gender is None
     kept = assistant._clean({"intent": "leaders", "sport": "table_tennis", "gender": "female"})
     assert kept.gender == "female"
+
+
+# ---------------------------------------------------------------------------
+# Answers drawn as cards, follow-up questions, and the two flag lists
+# ---------------------------------------------------------------------------
+
+
+def test_leaders_come_as_bars_with_questions_to_ask_next(client, auth, forwards, reads):
+    reads(intent="leaders", sport="football", position_group="forward", statistic="shots")
+    body = _ask(client, auth).json()
+    (bars,) = body["blocks"]
+    assert bars["type"] == "bars"
+    # The bars are the table's rows, in the same order, with the same numbers.
+    assert [i["playerId"] for i in bars["items"]] == [r["playerId"] for r in body["rows"]]
+    assert bars["items"][0]["display"] == body["rows"][0]["cells"][3]
+    top = forwards[-1].full_name
+    assert body["followUps"][0] == f"How is {top} doing"
+    assert len(body["followUps"]) == 3
+
+
+def test_one_player_is_a_card_then_their_bars(client, auth, forwards, reads):
+    reads(intent="player", players=[forwards[-1].full_name])
+    body = _ask(client, auth).json()
+    card, bars = body["blocks"]
+    assert card["type"] == "people" and card["items"][0]["playerId"] == str(forwards[-1].id)
+    assert bars["type"] == "bars" and bars["items"][0]["label"] == body["rows"][0]["cells"][0]
+    assert body["followUps"] == [f"Players like {forwards[-1].full_name}"]
+
+
+def test_a_pro_adult_is_answered_with_the_scouting_reports_verdict(client, auth, league, reads):  # noqa: F811
+    _, strikers = league
+    reads(intent="player", players=[strikers[8].full_name])
+    body = _ask(client, auth, who="scout").json()
+    verdict = next(b for b in body["blocks"] if b["type"] == "verdict")
+    report = client.get(f"/players/{strikers[8].id}/scouting-report", headers=auth("scout")).json()["report"]
+    assert verdict["grade"] == report["levelGrade"]
+    assert verdict["recommendation"] == report["recommendation"]
+    assert verdict["summary"] == report["summary"]
+    assert body["link"]["href"] == f"/players/{strikers[8].id}/report"
+
+
+def test_two_pros_are_compared_on_their_verdicts(client, auth, league, reads):  # noqa: F811
+    _, strikers = league
+    reads(intent="compare", players=[strikers[8].full_name, strikers[0].full_name])
+    body = _ask(client, auth, who="scout").json()
+    assert [b["type"] for b in body["blocks"]] == ["verdict", "verdict"]
+    assert [b["playerId"] for b in body["blocks"]] == [str(strikers[8].id), str(strikers[0].id)]
+
+
+def test_this_seasons_breakouts(client, auth, world, db, reads):
+    from tests.test_pro_seasons import _season, _team, _write
+
+    org = world["orgs"]["a"]
+    previous, last = _team(db, org, "Ask Mate")
+    rising = _add_player(db, org, "Ask Rising", age=20, position="LW", shots=1, n_matches=0)
+    _write(db, rising, org, previous, _season(npxg=1.0, xa=0.5))
+    _write(db, rising, org, last, _season(npxg=9.0, xa=4.5))
+    db.flush()
+    reads(intent="breakouts")
+    body = _ask(client, auth, who="scout").json()
+    assert "breakouts this season" in body["chips"]
+    (people,) = body["blocks"]
+    item = next(i for i in people["items"] if i["playerId"] == str(rising.id))
+    assert "team's chances" in item["text"] and item["tags"] == ["breakout"]
+
+
+def _late_bloomer_flag(db, player):
+    from app.models.enums import FlagStatus, FlagType
+    from app.models.flag import Flag
+
+    db.add(Flag(
+        player_id=player.id, type=FlagType.LATE_BLOOMER.value, status=FlagStatus.OPEN.value,
+        confidence=0.8, reason="Small for 14 now; growth still to come.", evidence={},
+        detector_name="test", detector_version="1", dedupe_key=f"test-lb-{player.id}",
+    ))
+    db.flush()
+
+
+def test_late_bloomers_are_listed_for_staff_and_never_for_a_player(client, auth, db, forwards, reads):
+    _late_bloomer_flag(db, forwards[2])
+    reads(intent="late_bloomers")
+    body = _ask(client, auth, who="federation").json()
+    (people,) = body["blocks"]
+    item = next(i for i in people["items"] if i["playerId"] == str(forwards[2].id))
+    assert item["text"] == "Small for 14 now; growth still to come." and "late bloomer" in item["tags"]
+
+    hidden = _ask(client, auth, who="player_self").json()
+    assert hidden["blocks"] == [] and "not shown here" in hidden["answer"]
+    assert str(forwards[2].id) not in str(hidden)
+
+
+def test_a_flag_list_with_a_name_in_it_is_a_question_about_that_player():
+    assert assistant._clean({"intent": "late_bloomers", "players": ["Omar Hassan"]}).intent == "player"
+    assert assistant._clean({"intent": "breakouts", "players": ["A B", "C D"]}).intent == "compare"
+    assert assistant._clean({"intent": "breakouts"}).intent == "breakouts"
+
+
+@pytest.mark.parametrize(
+    "question, topic",
+    [
+        ("who broke out this season", "breakouts"),
+        ("any breakout players", "breakouts"),
+        ("which pros stepped up", "breakouts"),
+        ("مين اللي ظهر الموسم ده", "breakouts"),
+        ("show me the late bloomers", "late_bloomers"),
+        ("late developers", "late_bloomers"),
+        ("مين نموه متأخر", "late_bloomers"),
+        ("top 5 strikers for goals under 16", None),
+        ("compare Ali Adel and Youssef Samir", None),
+    ],
+)
+def test_the_flag_lists_are_recognised_by_rule(question, topic):
+    assert assistant.topic_in(question) == topic
+
+
+def test_a_flag_list_word_with_a_name_stays_a_question_about_the_player(monkeypatch):
+    """"Is Omar Hassan a late bloomer" is about Omar Hassan: the rule only applies with no name."""
+    import json as _json
+
+    class Reply:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self):
+            reading = {"intent": "player", "players": ["Omar Hassan"]}
+            return _json.dumps({"message": {"content": _json.dumps(reading)}}).encode()
+
+    monkeypatch.setattr(assistant.urllib.request, "urlopen", lambda *a, **k: Reply())
+    reading = assistant.read_question("is Omar Hassan a late bloomer", url="http://x")
+    assert reading.intent == "player" and reading.players == ["Omar Hassan"]
+    monkeypatch.setattr(
+        Reply, "read",
+        lambda self: _json.dumps({"message": {"content": _json.dumps({"intent": "leaders"})}}).encode(),
+    )
+    assert assistant.read_question("show me the late bloomers", url="http://x").intent == "late_bloomers"

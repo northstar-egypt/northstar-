@@ -814,7 +814,13 @@ def test_the_assistant_answers_from_the_records_and_shows_its_reading(sign_in, p
     page.get_by_text("Open in Explore").wait_for(timeout=20000)
     body = text_of(page)
     assert "aged 15 and under" in body and "goals" in body
-    assert page.locator("main table a[href^='/players/']").count() >= 1
+    assert page.locator("main a[href^='/players/']").count() >= 1
+
+    # A follow-up names the top player; asking it answers about that one player.
+    follow = page.get_by_role("button", name=re.compile(r"^How is .+ doing$")).first
+    follow.click()
+    page.get_by_text("How this was read:").nth(1).wait_for(timeout=120000)
+    assert "one player's statistics" in text_of(page)
 
     page.get_by_text("Open in Explore").click()
     page.wait_for_url("**/explore?**ageTo=15**", timeout=20000)

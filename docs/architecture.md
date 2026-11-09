@@ -103,8 +103,16 @@ already know. It never decides what is true. Its first use is the summary on the
 profile: the API builds a fact sheet from the profile the caller may already see, the model
 writes two to four sentences from it, and the API withholds the reply if it contains any
 number, or names any flag, that the fact sheet does not. Heavy to run, so it is optional in
-local dev; without it the profile shows no summary and says why. Answering free questions
-across the database is a later step (Backlog).
+local dev; without it the profile shows no summary and says why.
+
+Its second use is the Ask screen (`apps/api/app/services/assistant.py`). There a smaller model
+(`qwen2.5:3b`) only reads the question into a fixed form: best in a group, one player, players
+like one player, or a comparison, with the sport, position, ages, statistic and names it
+mentions. Ages, this season's breakouts and the late bloomers are recognised by fixed rules,
+which were more reliable than teaching them to a small model. The API then answers that form with the same
+services the other screens use, as the person asking, and draws the result as cards and bars
+with questions to ask next. No word or number of the answer is written by the model. How often
+it reads a question right is measured in `ml/README.md`, "Assistant".
 
 ### API (`apps/api`, FastAPI)
 The one gateway to the data. Serves the frontend, receives coach logging and self-submission,
