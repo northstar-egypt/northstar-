@@ -3,8 +3,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import Field
+from pydantic.alias_generators import to_camel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -54,7 +57,20 @@ class AssistantOut(CamelModel):
     # The screen that shows the same thing, where the reading can be corrected by hand.
     link: AssistantLinkOut | None = None
     note: str = ""
+    # The same results drawn as cards and bars; their shapes are listed at BLOCKS in
+    # services/assistant.py. Keys are camelCase like the rest of the response.
+    blocks: list[dict[str, Any]] = []
+    # Questions to ask next, about the players in this answer.
+    follow_ups: list[str] = []
     model: str
+
+
+def _camel(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {to_camel(k): _camel(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_camel(v) for v in value]
+    return value
 
 
 @router.post("/assistant", response_model=AssistantOut)
@@ -70,4 +86,5 @@ def ask(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)
         ) from None
+    body["blocks"] = _camel(body.get("blocks", []))
     return AssistantOut.model_validate(body)

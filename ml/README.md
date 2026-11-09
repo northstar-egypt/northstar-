@@ -1079,6 +1079,48 @@ sport that registers one, so the screen does what the scoring assumed.
 Not measured: whether people phrase questions the way these 72 do. They were written by one
 person who knew the system, so the real rate on a scout's own words is likely lower.
 
+### Breakouts and late bloomers (added 2026-11-09)
+
+The Ask screen also answers "who broke out this season" (the breakout detector's list) and
+"who are the late bloomers" (the late-bloomer flags, for the roles that may see flags). Eight
+new questions were added to each half before any run, a quarter of them in Arabic, so the set
+is now 88.
+
+These two are recognised **by rule, not by the model** (`TOPICS` in
+`apps/api/app/services/assistant.py`): words like "breakout", "stepped up", "late bloomer",
+"behind in growth", ظهر and تأخر, and only when no player is named. Teaching them to the
+model was tried first, on dev only, and cost it old readings:
+
+| on dev (44 questions) | the 36 old | the 8 new | all |
+| --- | --- | --- | --- |
+| model taught both, two new worked examples | 30 | 8 | 38 of 44 |
+| the same, plus "scorers and players are not positions" | 30 | 8 | 38 of 44 |
+| the same, the two examples placed first | 30 | 8 | 38 of 44 |
+| model told of both, no new examples | 30 | 6 | 36 of 44 |
+| **model unchanged, the two by rule** | **33** | **8** | **41 of 44 (93%)** |
+
+So the model's prompt is unchanged, and so are its readings of the 72 old questions. On the
+held-out half:
+
+| qwen2.5:3b, on test | the 36 old | the 8 new | all | seconds per question, median |
+| --- | --- | --- | --- | --- |
+| before | 32 | | 32 of 36 (89%) | 1.4 |
+| **after** | **32** | **5** | **37 of 44 (84%)** | **1.7** |
+
+The overall rate fell because the new questions are harder for a rule than the old ones were
+for the model, not because an old reading changed. The rule missed three held-out phrasings
+whose words were not on its list: "who has made a big jump", "الاكتشافات الجديدة" (the new
+discoveries) and "small for their age now but could grow into it". Those were left off on
+purpose: the same person wrote both halves, and adding words seen only in the held-out half
+would have made its score a dev score. A missed one falls through to the model, which reads it
+as a best-in-a-group question or as none of these, and the screen says so under "How this was
+read".
+
+The timings above are on the GPU (`docker/docker-compose.gpu.yml`). On the CPU alone the same
+run took a median of 8 to 11 seconds a question, and its held-out score was 30 of 36 instead
+of 32: the model's arithmetic is not identical on the two, so a reported number names the
+hardware it was measured on.
+
 ## Relative age audit
 
 Children born early in the selection year are older, bigger and more mature than team-mates

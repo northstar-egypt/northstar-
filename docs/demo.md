@@ -206,9 +206,11 @@ Each of these works from the same accounts:
 - **Table tennis** (scout or federation): search `table tennis` and open a result. The same
   profile screen, laid out by the table tennis module. Proof the engine is not football
   only.
-- **Ask** (scout): `مين أحسن هداف تحت ١٦ سنة` or `top 5 strikers for goals under 16`. The
-  screen prints how it read the question; every number comes from the database, not the
-  model.
+- **Ask** (scout): `مين أحسن هداف تحت ١٦ سنة`, `who broke out this season?` or `show me the
+  late bloomers`. The screen prints how it read the question and draws the answer as cards and
+  bars; every number comes from the database, not the model. Click a question under **Ask
+  next** to follow a player from the list into their own answer, and for a professional, the
+  scouting report's verdict.
 - **Compare** (scout): tick two results in Search, then **Compare 2**.
 - **Home** (federation): what needs a decision today (the integrity queue, the academies to
   call, the national team), who stepped up, then coverage for all 27 governorates, including the

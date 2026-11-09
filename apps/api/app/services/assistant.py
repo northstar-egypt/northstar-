@@ -30,9 +30,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass, field
 
 from datetime import date
@@ -43,22 +45,26 @@ from sqlalchemy.orm import Session
 from app import ages, names, sports
 from app.config import get_settings
 from app.models.player import Player
-from app.services import explore, radar, similar
-from app.services.access import Caller, may_view, visible_players
+from app.services import explore, flags, radar, scout_home, scouting_report, similar
+from app.services.access import Caller, may_view, permissions, visible_players
 from app.services.cohort import age_label
+from app.services.views import organization_names
 
 log = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 120
 
-INTENTS = ("leaders", "player", "similar", "compare", "unsupported")
+# What the model may answer. The two flag lists are recognised by rule (`topic_in`), not by
+# the model: taught to the model, they cost the 3B model three of its old readings on dev.
+MODEL_INTENTS = ("leaders", "player", "similar", "compare", "unsupported")
+INTENTS = (*MODEL_INTENTS, "breakouts", "late_bloomers")
 GROUPS = ("goalkeeper", "defender", "midfielder", "forward")
 STATISTICS = {key: sport for sport, axes in radar.AXES.items() for key, *_ in axes}
 
 READING_SCHEMA = {
     "type": "object",
     "properties": {
-        "intent": {"type": "string", "enum": list(INTENTS)},
+        "intent": {"type": "string", "enum": list(MODEL_INTENTS)},
         "sport": {"type": ["string", "null"], "enum": ["football", "table_tennis", None]},
         "gender": {"type": ["string", "null"], "enum": ["male", "female", None]},
         "position_group": {"type": ["string", "null"], "enum": [*GROUPS, None]},
@@ -159,6 +165,28 @@ def ages_in(question: str) -> tuple[int | None, int | None] | None:
     return None if match is None else (match.age_from, match.age_to)
 
 
+# The two flag lists, by rule. Written from the dev questions and the plain words for each idea,
+# in English and Egyptian Arabic; scored on the held-out questions like the model's readings.
+TOPICS = (
+    ("late_bloomers", re.compile(
+        r"late[\s-]*(bloom|develop|matur)|behind in (growth|maturity|size)|growth spurt|catch up"
+        r"|تأخر|بلوغ",
+        re.IGNORECASE)),
+    ("breakouts", re.compile(
+        r"\bbr(oke|eak)[\s-]*outs?\b|\bbreakthrough|\bstep(s|ped)?[\s-]*up\b|\brising stars?\b"
+        r"|ظهر|برز|طلع",
+        re.IGNORECASE)),
+)
+
+
+def topic_in(question: str) -> str | None:
+    """"breakouts" or "late_bloomers" when the question asks for that list, else None."""
+    for intent, pattern in TOPICS:
+        if pattern.search(question):
+            return intent
+    return None
+
+
 class OllamaUnavailable(Exception):
     """Ollama is not running, or the model is not pulled. Says which in its message."""
 
@@ -191,6 +219,10 @@ def _clean(raw: dict) -> Reading:
         reading.statistic or reading.position_group or reading.sport or reading.gender
         or reading.age_from is not None or reading.age_to is not None
     )
+    # The two flag lists are about nobody in particular: a name makes it a question about that
+    # player ("is Omar Hassan a late bloomer"), whose answer shows their flags.
+    if reading.intent in ("breakouts", "late_bloomers") and named:
+        reading.intent = "player" if named == 1 else "compare"
     if reading.intent in ("player", "similar", "compare") and named == 0:
         reading.intent = "leaders" if narrowed else "unsupported"
     elif reading.intent == "compare" and named == 1:
@@ -307,6 +339,9 @@ def read_question(question: str, *, model: str | None = None, url: str | None = 
     reading = _clean(raw if isinstance(raw, dict) else {})
     if (ages := ages_in(question)) is not None:
         reading.age_from, reading.age_to = ages
+    # A flag list named in the question, with no player named, is that list.
+    if not reading.players and (topic := topic_in(question)) is not None:
+        reading.intent = topic
     return reading
 
 
@@ -344,6 +379,7 @@ def chips(reading: Reading) -> list[str]:
     words = {
         "leaders": "best in a group", "player": "one player's statistics",
         "similar": "players like one player", "compare": "players compared",
+        "breakouts": "breakouts this season", "late_bloomers": "late bloomers",
         "unsupported": "not a question these records answer",
     }
     out = [words[reading.intent]]
@@ -364,7 +400,7 @@ def chips(reading: Reading) -> list[str]:
                 out.append(f"aged {reading.age_from} to {reading.age_to}")
     if reading.statistic and reading.intent in ("leaders", "player"):
         out.append(STAT_LABELS[reading.statistic][0].lower())
-    if reading.intent != "leaders":
+    if reading.intent not in ("leaders", "breakouts", "late_bloomers"):
         out += [f"player: {name}" for name in reading.players]
     return out
 
@@ -376,11 +412,29 @@ def _role_label(sport: str | None) -> str:
     return module.role_label if module is not None else "Role"
 
 
-def _result(answer: str, *, columns=(), rows=(), link=None, note="") -> dict:
+def _result(answer: str, *, columns=(), rows=(), link=None, note="", blocks=(), follow_ups=()) -> dict:
+    """An answer. `columns` and `rows` are the plain table every answer can fall back to;
+    `blocks` are the same results drawn as cards and bars (see BLOCKS), and `follow_ups` are
+    questions the reader can ask next, built from the answer's own players."""
     return {
         "answer": answer, "columns": list(columns), "rows": list(rows), "link": link,
-        "note": note,
+        "note": note, "blocks": list(blocks), "follow_ups": list(dict.fromkeys(follow_ups))[:3],
     }
+
+
+# BLOCKS: the shapes the Ask screen draws. Every value in them is copied from a service's
+# result, the same as the table's cells.
+#
+# - "bars": {title, items: [{label, sub, display, percentile, player_id}]}, one bar per item,
+#   its length the percentile (null draws no bar and says why in `display`).
+# - "people": {title, items: [{player_id, name, sub, text, tags}]}, a card per player.
+# - "verdict": a pro scouting report's verdict: {player_id, grade, recommendation, confidence,
+#   summary, areas: [{label, grade}]}.
+# - "compare": {players: [{player_id, name}], rows: [{label, cells: [{display, percentile}]}]}.
+
+
+def _sub(*parts) -> str:
+    return " · ".join(str(p) for p in parts if p)
 
 
 def _find(db: Session, caller: Caller, name: str) -> list[Player]:
@@ -469,6 +523,22 @@ def _answer_leaders(db: Session, caller: Caller, reading: Reading) -> dict:
                 link=link, note=body["note"],
             )
         direction = "" if board["higher_is_better"] else " (lower is better)"
+        top = board["leaders"]
+        follow = [f"How is {top[0]['full_name']} doing", f"Players like {top[0]['full_name']}"]
+        if len(top) > 1:
+            follow.append(f"Compare {top[0]['full_name']} and {top[1]['full_name']}")
+        blocks = [{
+            "type": "bars",
+            "title": f"{label}, percentile among {body['population']}",
+            "items": [
+                {
+                    "label": leader["full_name"], "player_id": str(leader["player_id"]),
+                    "sub": _sub(leader["position"], leader["age_label"]),
+                    "display": _value(leader["value"], unit), "percentile": leader["percentile"],
+                }
+                for leader in top
+            ],
+        }]
         return _result(
             f"Best for {label.lower()}{direction} among {body['population']}. "
             f"The median is {_value(board['median'], unit)}.",
@@ -483,7 +553,7 @@ def _answer_leaders(db: Session, caller: Caller, reading: Reading) -> dict:
                 }
                 for leader in board["leaders"]
             ],
-            link=link, note=body["note"],
+            link=link, note=body["note"], blocks=blocks, follow_ups=follow,
         )
 
     rows = [
@@ -500,11 +570,50 @@ def _answer_leaders(db: Session, caller: Caller, reading: Reading) -> dict:
     ]
     if not rows:
         return _result(f"No leaders among {body['population']}.", link=link, note=body["note"])
+    tops = [(board, board["leaders"][0]) for board in body["boards"] if board["leaders"]]
+    blocks = [{
+        "type": "bars",
+        "title": f"The best on each statistic, percentile among {body['population']}",
+        "items": [
+            {
+                "label": leader["full_name"], "player_id": str(leader["player_id"]),
+                "sub": board["label"], "display": _value(leader["value"], board["unit"]),
+                "percentile": leader["percentile"],
+            }
+            for board, leader in tops
+        ],
+    }]
+    first = tops[0][1]["full_name"]
     return _result(
         f"The best on each statistic among {body['population']}.",
         columns=["Player", "Statistic", "Value", "Percentile"], rows=rows, link=link,
-        note=body["note"],
+        note=body["note"], blocks=blocks,
+        follow_ups=[f"How is {first} doing", f"Players like {first}"],
     )
+
+
+def _flags(db: Session, caller: Caller, player: Player) -> tuple[list[str], str | None]:
+    """The model flags on a player, only for a caller the profile would show them to."""
+    if not permissions(db, caller, player)["can_see_flags"]:
+        return [], None
+    return [f["label"] for f in flags.flags_for_player(db, player.id)], flags.flag_reason(db, player.id)
+
+
+def _verdict(db: Session, caller: Caller, player: Player) -> dict | None:
+    """A pro adult's scouting report verdict, or None when there is no report for them."""
+    if player.is_minor or (player.primary_sport or "football") != "football":
+        return None
+    report = scouting_report.player_report(db, caller, player)["report"]
+    if report is None:
+        return None
+    return {
+        "type": "verdict", "player_id": str(player.id), "grade": report["level_grade"],
+        "recommendation": report["recommendation"], "confidence": report["confidence"],
+        "summary": report["summary"],
+        "context": f"{report['competition']} {report['season']}, among {report['population']} "
+                   f"{report['group_label'].lower()}, {report['minutes']:,} minutes",
+        "areas": [{"label": a["label"], "grade": a["grade"]} for a in report["areas"] if a["graded"]],
+    }
 
 
 def _answer_player(db: Session, caller: Caller, reading: Reading) -> dict:
@@ -513,16 +622,53 @@ def _answer_player(db: Session, caller: Caller, reading: Reading) -> dict:
     player, problem = _one(db, caller, reading.players[0])
     if problem:
         return problem
+    today = date.today()
     body = radar.player_radar(db, player)
     link = {"label": "Open profile", "href": f"/players/{player.id}"}
+    clubs = organization_names(db, [player.id])
+    flag_labels, flag_reason = _flags(db, caller, player)
+    verdict = _verdict(db, caller, player)
+    card = {
+        "type": "people", "title": None,
+        "items": [{
+            "player_id": str(player.id), "name": player.full_name,
+            "sub": _sub(player.position, age_label(player.date_of_birth, today), clubs.get(player.id),
+                        f"{player.tier} tier" if player.tier else None),
+            "text": flag_reason or "", "tags": flag_labels,
+        }],
+    }
+    follow = [f"Players like {player.full_name}"]
+    if "late bloomer" in flag_labels:
+        follow.append("Who are the late bloomers")
+    if verdict:
+        follow.append("Who broke out this season")
+
     if not body["axes"]:
-        return _result(f"{player.full_name}: {body['note']}", link=link)
+        if verdict:
+            return _result(
+                f"{player.full_name}: the scouting report's verdict, from the league season.",
+                link={"label": "Open the scouting report", "href": f"/players/{player.id}/report"},
+                blocks=[card, verdict], follow_ups=follow,
+            )
+        return _result(f"{player.full_name}: {body['note']}", link=link, blocks=[card], follow_ups=follow)
     # The statistic asked about first, then the rest as the radar orders them.
     axes = sorted(body["axes"], key=lambda a: a["key"] != reading.statistic)
     who = (
         f"{player.full_name} ({player.position or 'no ' + _role_label(player.primary_sport).lower()}, "
-        f"{age_label(player.date_of_birth, date.today())})"
+        f"{age_label(player.date_of_birth, today)})"
     )
+    bars = {
+        "type": "bars", "title": f"Percentile among {body['population']}",
+        "items": [
+            {
+                "label": a["label"], "player_id": None, "sub": "",
+                "display": _value(a["value"], a["unit"]) if a["percentile"] is not None
+                else f"{_value(a['value'], a['unit'])}, too few players to rank",
+                "percentile": a["percentile"],
+            }
+            for a in axes
+        ],
+    }
     return _result(
         f"{who}, compared among {body['population']}.",
         columns=["Statistic", "Value", "Percentile"],
@@ -538,6 +684,7 @@ def _answer_player(db: Session, caller: Caller, reading: Reading) -> dict:
             for a in axes
         ],
         link=link, note=body["note"],
+        blocks=[card, *([verdict] if verdict else []), bars], follow_ups=follow,
     )
 
 
@@ -565,6 +712,21 @@ def _answer_similar(db: Session, caller: Caller, reading: Reading) -> dict:
             for item in body["items"]
         ],
         link=link, note=body["note"],
+        blocks=[{
+            "type": "people", "title": None,
+            "items": [
+                {
+                    "player_id": str(item["player_id"]), "name": item["full_name"],
+                    "sub": _sub(item["position"], item["age_label"]),
+                    "text": "", "tags": [f"alike on {a.lower()}" for a in item["alike"]],
+                }
+                for item in body["items"]
+            ],
+        }],
+        follow_ups=[
+            f"Compare {player.full_name} and {body['items'][0]['full_name']}",
+            f"How is {body['items'][0]['full_name']} doing",
+        ],
     )
 
 
@@ -582,6 +744,25 @@ def _answer_compare(db: Session, caller: Caller, reading: Reading) -> dict:
         return _result("Those players play different sports, so their statistics do not compare.")
     radars = [radar.player_radar(db, p) for p in players]
     keys = [a["key"] for a in max(radars, key=lambda r: len(r["axes"]))["axes"]]
+    compare_link = {
+        "label": "Open in Compare",
+        "href": "/compare?players=" + ",".join(str(p.id) for p in players),
+    }
+    if not keys:
+        # Pros have league seasons rather than match records: compare their verdicts instead.
+        verdicts = [_verdict(db, caller, p) for p in players]
+        if any(verdicts):
+            return _result(
+                "Their scouting reports side by side, each among their own position group.",
+                link=compare_link,
+                blocks=[
+                    v or {"type": "people", "title": None, "items": [{
+                        "player_id": str(p.id), "name": p.full_name, "sub": "",
+                        "text": "No scouting report: " + r["note"], "tags": []}]}
+                    for p, v, r in zip(players, verdicts, radars)
+                ],
+                follow_ups=[f"Players like {p.full_name}" for p in players],
+            )
     by_player = [{a["key"]: a for a in r["axes"]} for r in radars]
 
     def cell(axes: dict, key: str) -> str:
@@ -603,14 +784,96 @@ def _answer_compare(db: Session, caller: Caller, reading: Reading) -> dict:
             {"player_id": None, "cells": [STAT_LABELS[k][0], *(cell(a, k) for a in by_player)]}
             for k in keys
         ],
-        link={
-            "label": "Open in Compare",
-            "href": "/compare?players=" + ",".join(str(p.id) for p in players),
-        },
+        link=compare_link,
+        blocks=[{
+            "type": "compare",
+            "players": [{"player_id": str(p.id), "name": p.full_name} for p in players],
+            "rows": [
+                {
+                    "label": STAT_LABELS[k][0],
+                    "cells": [
+                        {"display": _value(a[k]["value"], a[k]["unit"]), "percentile": a[k]["percentile"]}
+                        if k in a else {"display": "n/a", "percentile": None}
+                        for a in by_player
+                    ],
+                }
+                for k in keys
+            ],
+        }],
+        follow_ups=[f"Players like {p.full_name}" for p in players],
         note=(
             "Each player is placed among players like them, so two percentiles can come from "
             "different groups."
         ),
+    )
+
+
+def _answer_breakouts(db: Session, caller: Caller, reading: Reading) -> dict:
+    found, season = scout_home._breakouts(db, caller, date.today())
+    link = {"label": "Open the scout home", "href": "/scout"}
+    if not found:
+        return _result("No breakouts this season among the players you may open.", link=link)
+    return _result(
+        f"Players aged 18 to 23 whose share of their team's chances clearly rose in {season} on "
+        "the season before, strongest first. A claim to check, not a verdict.",
+        columns=["Player", "Club", "Age", "Why"],
+        rows=[
+            {"player_id": b["playerId"], "cells": [b["fullName"], b["club"] or "", b["ageLabel"], b["reason"]]}
+            for b in found
+        ],
+        link=link,
+        note="How often the breakout detector is right is in ml/README.md, \"Pro tier\".",
+        blocks=[{
+            "type": "people", "title": None,
+            "items": [
+                {
+                    "player_id": b["playerId"], "name": b["fullName"],
+                    "sub": _sub(b["position"], b["ageLabel"], b["club"]),
+                    "text": b["reason"] + ".", "tags": ["breakout"],
+                }
+                for b in found
+            ],
+        }],
+        follow_ups=[f"How is {found[0]['fullName']} doing", f"Players like {found[0]['fullName']}",
+                    "Who are the late bloomers"],
+    )
+
+
+def _answer_late_bloomers(db: Session, caller: Caller, reading: Reading) -> dict:
+    if caller.is_player:
+        return _result(
+            "The models' flags are for coaches, scouts and federation staff, so they are not "
+            "shown here."
+        )
+    found = [
+        f for f in scout_home._late_bloomers(db, caller, date.today())
+        if permissions(db, caller, db.get(Player, uuid.UUID(f["playerId"])))["can_see_flags"]
+    ]
+    if not found:
+        return _result("No late-bloomer flags among the players you may open.")
+    return _result(
+        "Young players the models think are behind their age group in growth, not in ability. "
+        "Federation staff review each one.",
+        columns=["Player", "Club", "Age", "Why"],
+        rows=[
+            {"player_id": f["playerId"], "cells": [f["fullName"], f["club"] or "", f["ageLabel"], f["reason"]]}
+            for f in found
+        ],
+        note="How often the late-bloomer detector is right is in ml/README.md.",
+        blocks=[{
+            "type": "people", "title": None,
+            "items": [
+                {
+                    "player_id": f["playerId"], "name": f["fullName"],
+                    "sub": _sub(f["position"], f["ageLabel"], f["club"]),
+                    "text": f["reason"],
+                    "tags": ["late bloomer", *(["confirmed"] if f["status"] == "confirmed" else [])],
+                }
+                for f in found
+            ],
+        }],
+        follow_ups=[f"How is {found[0]['fullName']} doing", f"Players like {found[0]['fullName']}",
+                    "Who broke out this season"],
     )
 
 
@@ -619,6 +882,8 @@ _ANSWERS = {
     "player": _answer_player,
     "similar": _answer_similar,
     "compare": _answer_compare,
+    "breakouts": _answer_breakouts,
+    "late_bloomers": _answer_late_bloomers,
 }
 
 

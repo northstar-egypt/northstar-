@@ -639,7 +639,7 @@ export interface Leaders {
 export interface AssistantAnswer {
   question: string;
   reading: {
-    intent: "leaders" | "player" | "similar" | "compare" | "unsupported";
+    intent: "leaders" | "player" | "similar" | "compare" | "breakouts" | "late_bloomers" | "unsupported";
     sport: string | null;
     gender: string | null;
     positionGroup: string | null;
@@ -657,8 +657,39 @@ export interface AssistantAnswer {
   /** The screen that shows the same thing, where the filters can be set by hand. */
   link: { label: string; href: string } | null;
   note: string;
+  /** The same results drawn as cards and bars (BLOCKS in apps/api/app/services/assistant.py). */
+  blocks: AssistantBlock[];
+  /** Questions to ask next, about the players in this answer. */
+  followUps: string[];
   model: string;
 }
+
+export type AssistantBlock =
+  | {
+      type: "bars";
+      title: string;
+      items: { label: string; sub: string; display: string; percentile: number | null; playerId: string | null }[];
+    }
+  | {
+      type: "people";
+      title: string | null;
+      items: { playerId: string; name: string; sub: string; text: string; tags: string[] }[];
+    }
+  | {
+      type: "verdict";
+      playerId: string;
+      grade: string | null;
+      recommendation: string | null;
+      confidence: string;
+      summary: string;
+      context: string;
+      areas: { label: string; grade: string | null }[];
+    }
+  | {
+      type: "compare";
+      players: { playerId: string; name: string }[];
+      rows: { label: string; cells: { display: string; percentile: number | null }[] }[];
+    };
 
 /** One event tagged from match video. See apps/api/app/services/events.py. */
 export interface MatchEvent {
