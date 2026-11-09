@@ -79,10 +79,12 @@ named: the Egyptian club or academy with the most youth players.
 - **Home** opens on measuring day: who is due a reading, each with a box to log a height right
   there. Under it, who is growing fastest, late bloomers in the squad, and the whole squad, with
   how stale each one's readings are.
-- **Add player.** Full name `منير حجازي`, date of birth `2010-06-09`, position **ST**.
+- **Add player.** Full name `منير حجازي`, the date of birth the check printed, position **ST**.
+  The date is not written here because it changes: the seed dates the whole dataset relative
+  to the day it was loaded, so every reset gives each player a slightly different birthday.
   The date makes him a minor, so the form asks for the guardian's consent: type a guardian's
   name and tick the box. Continue stays locked until then.
-- Height: the number the check printed, about 1 cm above his last reading (`164` for منير).
+- Height: the number the check printed, about 1 cm above his last reading.
   Save.
 
 Say: consent is signed at sign-up, by a guardian, before anything is stored.

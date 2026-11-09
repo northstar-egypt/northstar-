@@ -31,10 +31,14 @@ REPO = Path(__file__).resolve().parents[2]
 # names. Rehearsing uses one up (the second entry stays in the database), so the
 # check names the first not yet used. tests/e2e uses a different player, so the suite never
 # uses these up.
-DEMO_PLAYERS = [  # (full name, what the coach types, date of birth, position)
-    ("منير عصام فارس حجازي", "منير حجازي", "2010-06-09", "ST"),
-    ("إسلام هشام لطفي", "إسلام لطفي", "2011-11-16", "ST"),
-    ("هشام أحمد سعد شلبي", "هشام شلبي", "2012-08-13", "LW"),
+#
+# No date of birth here: the seed dates the whole dataset relative to the day before it is
+# loaded (docker/seed.py), so a player's date of birth differs from one reset to the next. The
+# check reads it from the database and prints it for the coach to type.
+DEMO_PLAYERS = [  # (full name, what the coach types, position)
+    ("منير عصام فارس حجازي", "منير حجازي", "ST"),
+    ("إسلام هشام لطفي", "إسلام لطفي", "ST"),
+    ("هشام أحمد سعد شلبي", "هشام شلبي", "LW"),
 ]
 MODELS = ("qwen2.5:3b", "qwen2.5:7b")
 
@@ -121,21 +125,23 @@ def main() -> int:
 
     # 3. Which demo player: the first whose second entry has not been made yet.
     chosen = None
-    for full, typed, born, position in DEMO_PLAYERS:
+    for full, typed, position in DEMO_PLAYERS:
         found = post(f"{API}/search", {"query": typed, "limit": 20}, scout)["results"]
         names = [r["player"]["fullName"] for r in found]
         original = next((r["player"] for r in found if r["player"]["fullName"] == full), None)
-        if original is None or original.get("dateOfBirth") != born:
+        if original is None or not original.get("dateOfBirth"):
             report(None, f"{full} is not in this database as seeded")
             continue
         if names.count(full) != 1 or len(found) != 1:
             report(None, f"{full}: already registered a second time (a rehearsal); skipping")
             continue
-        chosen = (full, typed, born, position, original)
+        chosen = (full, typed, original["dateOfBirth"], position, original)
         break
     if chosen is None:
+        # Not `down -v`: that also deletes the downloaded language models.
         report(False, "every demo player has been used up by rehearsals",
-               "reset the data: docker compose -f docker/docker-compose.yml down -v, then up")
+               "reset the data (docs/demo.md, After a rehearsal): docker compose -f "
+               "docker/docker-compose.yml down, docker volume rm docker_pgdata, then up -d --build")
         return 1
     full, typed, born, position, original = chosen
     # A height just above his last reading, so the merged growth chart does not show him
@@ -177,9 +183,15 @@ def main() -> int:
 
         # The summary is the slow one (about 80 s cold). Written once for the original's
         # profile as the scout sees it, it is then served from the cache during the demo.
+        # The endpoint does not hold the request open: while the model writes, it answers
+        # "pending" at once (so the profile never waits), so ask again until it is written.
         started = time.monotonic()
         try:
-            written = get(f"{API}/players/{original['id']}/summary", scout, timeout=400)
+            while True:
+                written = get(f"{API}/players/{original['id']}/summary", scout, timeout=60)
+                if not written.get("pending") or time.monotonic() - started > 360:
+                    break
+                time.sleep(5)
             seconds = time.monotonic() - started
             report(written.get("summary") is not None,
                    f"summary for {full} ready ({seconds:.0f} s)", written.get("note", ""))
