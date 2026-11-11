@@ -10,10 +10,12 @@ app/
   main.py        FastAPI app, CORS, router mounting
   config.py      env-driven settings (pydantic-settings)
   db.py          engine, session factory, declarative Base, get_db dependency
-  deps.py        who is calling. No real auth yet, see below
+  deps.py        who is calling: reads and checks the session cookie
+  security.py    password hashing and session tokens
+  concepts.py    the search's embedding model (fastembed on ONNX Runtime, no PyTorch)
   models/        ORM models for the shared core schema
   schemas/       response shapes, mirroring apps/web/lib/types.ts
-  services/      access control, cohort statistics, view assembly
+  services/      access control, cohort statistics, views, imports, assistant, summary, forecasts
   routers/       API routers
 tests/           pytest suite, needs a live PostgreSQL
 alembic/         migration environment and versions
@@ -33,21 +35,22 @@ docker compose -f docker/docker-compose.yml up --build api
 
 The API comes up on http://localhost:8000. `GET /docs` has the interactive documentation.
 
-| Endpoint | What it serves |
-| --- | --- |
-| `GET /health`, `GET /health/db` | liveness and database reachability, no caller needed |
-| `GET /me` | the resolved caller |
-| `GET /players` | the coach squad table, scoped to the caller |
-| `GET /players/{id}/profile` | the full player profile, filtered for role and consent |
-| `POST /search` | scout search, filters only |
-| `GET /compare?players=a,b` | two to four players side by side |
-| `GET /oversight?sport=football` | federation aggregates, counts only |
-| `GET /integrity/flags` | the review queue: fraud, duplicate and anomaly |
-| `POST /integrity/flags/{id}/decision` | record a decision, with its reason |
-| `GET /dev/identities` | development only, one demo account per role for the login screen |
+`GET /docs` lists every endpoint with its request and response shapes. The main ones, by area:
 
-Write endpoints for player data (`POST /players`, `POST /players/{id}/measurements`) are not
-built yet.
+| Area | Endpoints |
+| --- | --- |
+| Health | `GET /health`, `GET /health/db`, no caller needed |
+| Sign-in | `POST /auth/login`, `POST /auth/logout`, `GET /me` (see Authentication below) |
+| Players | `GET /players` (the coach squad), `POST /players` (needs the consent form), `POST /players/{id}/measurements`, `POST /players/{id}/consent/withdraw` |
+| Profile | `GET /players/{id}/profile`, `/summary`, `/radar`, `/similar`, `/pro-seasons`, `/scouting-report`, `/events` |
+| Imports | `POST /players/import/preview` and `/players/import`; `POST /results/import/preview` and `/results/import` (table tennis) |
+| Scouting | `POST /search`, `GET /compare?players=a,b`, `GET /explore/scatter`, `GET /explore/leaders`, `GET /home/scout`, `GET`/`PUT`/`DELETE /shortlist` |
+| Match events | `GET`/`POST /events`, `PUT /events/{id}/details`, `DELETE /events/{id}`, `GET /analysis/{sport}/{key}` |
+| Teams | `GET /gaps`, `GET /gaps/club/{id}`, `GET /gaps/national` |
+| Assistant | `POST /assistant` |
+| Federation | `GET /oversight`, `GET /oversight/strongest`, `GET /integrity/flags`, `POST /integrity/flags/{id}/decision`, `POST /integrity/merges/{id}/undo` |
+| Sports | `GET /sports`, the sport modules' metric definitions |
+| Development | `GET /dev/identities`, one demo account per role for the login screen |
 
 ## Flags
 
@@ -144,7 +147,7 @@ SQLite would mean testing a different schema from the one that runs. With no dat
 reachable it skips with a message rather than failing. Each test runs in a transaction that
 is rolled back, so it is safe to run against a database holding the synthetic dataset.
 
-`tests/test_access_control.py` is the start of the graded RBAC deliverable.
+`tests/test_access_control.py` holds the graded access-control tests.
 
 ## Run without Docker
 
@@ -160,10 +163,11 @@ uvicorn app.main:app --reload
 
 ## Migrations
 
-Once the ORM models exist, generate and apply migrations:
+Apply them with `alembic upgrade head`. After changing a model, generate a new revision and
+read it before committing (autogenerate misses some changes, such as renames):
 
 ```bash
-alembic revision --autogenerate -m "create core tables"
+alembic revision --autogenerate -m "short description"
 alembic upgrade head
 ```
 

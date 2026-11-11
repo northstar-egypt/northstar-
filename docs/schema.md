@@ -43,7 +43,7 @@ us index and query inside the blob when a specific metric becomes hot enough to 
 ### Conventions used below
 
 - Primary keys are `UUID` unless noted. UUIDs avoid cross-source id collisions when merging
-  data from FootyStats, scrapers, and manual entry.
+  data from FootyStats, spreadsheet imports, and manual entry.
 - Timestamps are `TIMESTAMPTZ`, stored in UTC.
 - `created_at` and `updated_at` exist on every table and are omitted from the field lists
   for brevity.

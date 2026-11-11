@@ -11,8 +11,7 @@ fetches correctly and then renders nothing.
 
 ## Firefox
 
-Playwright is already pinned in `data/pipelines/requirements.txt` for the ITTF scraper, and it
-drives Firefox natively. **These tests use Firefox because that is the browser the team
+Playwright is pinned in `data/pipelines/requirements.txt`, and it drives Firefox natively. **These tests use Firefox because that is the browser the team
 actually uses.** A pass in a browser nobody opens is worth less than a pass in the one
 everybody does.
 

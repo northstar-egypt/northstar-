@@ -9,22 +9,32 @@ against the sport modules in `packages/shared/sports`, through `app.sports.valid
 synthetic generator already does: every row it writes must pass, and the only rows in a
 dataset that fail are the planted fraud rows.
 
-## Planned pipelines
+## Pipelines
 
-- `footystats/` Pull Egyptian Premier League (pro tier) data from the FootyStats API.
-  Needs `FOOTYSTATS_API_KEY`. TODO.
-- `ittf/` Scrape ITTF/WTT results for table tennis using Playwright. TODO.
-- `diaspora/` Collect Egypt-eligible players from public European sources. TODO.
-- `synthetic/` Generate realistic synthetic data with **planted ground-truth cases**
-  (late bloomers, fraud attempts, duplicates) so detectors and forecasts have a labeled set
-  to be measured against. This is the first one to build; it unblocks the ML workstream
-  before any real data or API subscription exists. TODO.
-- `bulk_import/` Validated CSV/spreadsheet import for academies with existing records. TODO.
+Built:
+
+- `synthetic/` Generates realistic synthetic data with **planted ground-truth cases**
+  (late bloomers, fraud attempts, duplicates, table tennis result tampering) so detectors and
+  forecasts have a labelled set to be measured against. It also generates the pro tier's
+  synthetic Egyptian league in FootyStats' shape. See `synthetic/README.md`.
+- `geo/` Builds the governorate map of Egypt the federation home draws.
+
+Built in the API instead of here, because they run from a screen in the app:
+
+- Players from a spreadsheet: `apps/api/app/services/imports.py` (`POST /players/import`).
+- Table tennis results from a spreadsheet, in place of a scraper: see `docs/results-import.md`
+  for why there is no ITTF/WTT scraper.
+
+Not built yet:
+
+- `footystats/` Pull Egyptian Premier League data from the FootyStats API into the tables the
+  synthetic league already fills. Needs `FOOTYSTATS_API_KEY`. The next pipeline to build.
+- Diaspora: the source is not decided (`docs/project-status.md`).
 
 ## Conventions
 
 - Normalize to the shared core (see `docs/schema.md`) before writing.
 - Never write unvalidated data. Record source and validation outcome on every row.
 - Keep credentials in the environment, never in code. See `.env.example`.
-- Heavy Python deps (pandas, Playwright, Faker) live in `requirements.txt` here, kept
+- Heavy Python deps (pandas, Faker, and Playwright for the browser tests) live in `requirements.txt` here, kept
   separate from the API image so the API stays lean.

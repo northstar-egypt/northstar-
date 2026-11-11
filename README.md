@@ -30,14 +30,28 @@ app for coaches, scouts, federations, and players.
 
 ### Football (deep implementation), three tiers
 - **Pro**: Egyptian Premier League players via the licensed FootyStats API. Trend analysis,
-  sustainability (xG vs actual), similarity, breakout flags.
+  sustainability (xG vs actual), similarity, breakout flags, team gap analysis.
 - **Youth**: academy players logged by coaches, seeded with realistic synthetic data.
   Growth-curve tracking, maturity-aware comparison, late-bloomer detection.
 - **Diaspora**: Egypt-eligible players in foreign leagues, from public European data.
 
 ### Table tennis (generalization proof)
-- ITTF/WTT results (scraped) plus self-submitted profiles for players seeking clubs abroad.
+- ITTF/WTT results plus self-submitted profiles for players seeking clubs abroad.
   Same engine, sport-specific fields.
+
+### Where each source stands today
+
+The scope above is the target. Today every tier runs on synthetic data, and no live outside
+source is connected yet:
+
+| Source | Today |
+| --- | --- |
+| Youth | Synthetic, plus coach entry and spreadsheet import in the app. Stays synthetic by design: real academy data is not obtainable |
+| Pro | A synthetic Egyptian league in FootyStats' shape. The FootyStats client that fills the same tables is the next step |
+| Diaspora | Synthetic players at clubs abroad. The real source is not decided |
+| Table tennis | Spreadsheet import. ITTF and WTT block automated access, so there is no scraper (`docs/results-import.md`) |
+
+`docs/project-status.md` has the detail and the order of what comes next.
 
 ## Architecture in one paragraph
 
@@ -54,14 +68,14 @@ intelligence. See [docs/architecture.md](docs/architecture.md) for the full pict
 
 ```
 apps/
-  web/          Next.js frontend (TypeScript, App Router, Tailwind, Recharts)
-  api/          FastAPI backend (SQLAlchemy 2.0 + Alembic)
+  web/          Next.js 15 frontend (TypeScript, App Router, Tailwind, hand-written SVG charts)
+  api/          FastAPI backend (SQLAlchemy 2.0 + Alembic), including the spreadsheet imports
 packages/
   shared/       Shared types (TS + Python) and the sport modules (sports/*.json)
 data/
-  pipelines/    Ingestion: footystats, ittf scraper, synthetic generator, bulk import
+  pipelines/    The synthetic generator, and the Egypt map builder (geo/)
   migrations/   Migration notes (Alembic migrations live under apps/api)
-ml/             Detectors, the scoring harness, and the flag writer
+ml/             Detectors, forecasts, ratings, the pro tier, the scoring harnesses, the flag writer
 tests/e2e/      Browser tests that run the demo flow end to end, in Firefox
 docs/           architecture, schema, threat model, decisions log
 docker/         docker-compose, Dockerfiles, and the seed container
@@ -176,6 +190,9 @@ Every screen reads from and writes to the real API, behind a real sign-in. What 
 missing on them (these notes used to sit on the screens themselves, and were moved here so the
 screens show the product):
 
+- **Self-submission by players.** The fraud rules already check self-submitted rows, but those
+  rows exist only in the synthetic data. There is no screen yet for a player to add their own
+  results.
 - **Editing an existing player.** The add-player form, loaded with the player's values, once
   the API serves one.
 - **Offline saving on the add-player form.** Drawn in the wireframe. It needs a service
@@ -212,7 +229,8 @@ On Windows, set `PYTHONIOENCODING=utf-8` first: the generated player names are A
 ### Continuous integration
 
 Every pull request, and every push to `main`, runs `.github/workflows/ci.yml`. It can also be
-started by hand from the Actions tab. There are five checks, so a red one says which part broke:
+started by hand from the Actions tab. There are five checks, so a red one says which part broke.
+`api`, `generator`, `ml` and `web` are required before a pull request can merge into `main`:
 
 | Check | What it runs |
 |---|---|
@@ -245,13 +263,13 @@ CI uses no secrets. The FootyStats key must never be added to it.
 NorthStar is built across four tracks. Pick the one that matches your role.
 
 1. **Data engineering.** Unified Postgres schema, ingestion pipelines (FootyStats API,
-   ITTF scraper via Playwright, coach logging, self-submission, bulk import), a validation
+   table tennis results import, coach logging, self-submission, bulk import), a validation
    and cleaning layer, and a synthetic data generator with planted ground-truth cases
    (late bloomers, fraud attempts, duplicates).
-2. **Intelligence / ML.** Performance forecasting, per-position age curves, xG-vs-actual
-   sustainability flags, player similarity via sentence-transformer embeddings, late-bloomer
-   detection, anomaly detection, and an Ollama-hosted assistant for grounded natural-language
-   queries.
+2. **Intelligence / ML.** Height forecasting with uncertainty bands, xG-vs-actual
+   sustainability flags, breakouts, team gap analysis, player similarity from statistical
+   profiles, a table tennis opponent-adjusted rating, late-bloomer, fraud and duplicate
+   detection, and an Ollama-hosted assistant for grounded natural-language queries.
 3. **Security.** JWT/session auth, role-based access control (coach / scout / federation /
    player), audit logging, minors' privacy safeguards, upload validation, fraud detection on
    self-submitted data, and threat model documentation.
@@ -273,6 +291,24 @@ NorthStar is built across four tracks. Pick the one that matches your role.
 
 ## Status
 
-Foundation stage. The repo has the monorepo layout, a working local stack, the data
-contract draft, and near-empty app scaffolds. Feature work starts next. Anything unfinished
-is marked with a `TODO` in code or a checkbox in the docs.
+The product works end to end on synthetic data: log a player, see the profile, find them in
+search, see a flag surface, and review it as the federation. The Firefox end-to-end tests
+drive that flow. No live outside data source is connected yet; the FootyStats client is next.
+`docs/project-status.md` has what is built, what is not, and the order of the work left.
+
+Headline results, from `ml/README.md` (which has the method, the per-seed numbers, the
+limits, and every earlier value where a number changed):
+
+| What | Result |
+| --- | --- |
+| Late-bloomer backtest: flagged at the moment a size-based cut would release them, among players measured 3+ times | late bloomers **41%**, other small players **22%** (5 seeds, 1000 players each) |
+| Late-bloomer detector, F1 | **0.567** (5 reported seeds) |
+| Fraud detector, F1 | **0.744** pooled. By type: implausible self-reported performance 1.000, age misrepresentation 0.400, table tennis result tampering 0.857 (default seed) |
+| Duplicate detector, F1 | **0.973** |
+| Height forecast, MAE under 18 | XGBoost **0.86 cm**, cohort velocity 0.94 cm, last-value baseline 3.14 cm |
+| Table tennis point rating, rank correlation with hidden ability | girls **0.907**, boys **0.893** (Glicko-2: 0.817, 0.800) |
+| Assistant, questions read correctly | **37 of 44** held out (41 of 44 on the development set it was built against) |
+
+All of these are measured on synthetic data with planted ground truth. They say the methods
+work on data generated the way we believe real data behaves, not that they work on real
+players.
