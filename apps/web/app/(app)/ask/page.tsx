@@ -194,10 +194,19 @@ function Answer({ answer, busy, onAsk }: { answer: AssistantAnswer; busy: boolea
         </div>
       ) : null}
 
-      <p className="text-xs text-slate-600">
-        Question read by a local model ({answer.model}). The answer and every number in it come from the
-        platform&apos;s own records, not from the model.
-      </p>
+      {answer.reader === "rules" ? (
+        <p className="text-xs text-slate-500">
+          Question read by fixed rules, because the local model is not running or is switched off on this
+          machine. The rules read fewer
+          phrasings than the model; if the reading above is wrong, rephrase or use the link to set the
+          filters by hand. The answer and every number in it come from the platform&apos;s own records.
+        </p>
+      ) : (
+        <p className="text-xs text-slate-600">
+          Question read by a local model ({answer.model}). The answer and every number in it come from the
+          platform&apos;s own records, not from the model.
+        </p>
+      )}
     </div>
   );
 }

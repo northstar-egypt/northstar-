@@ -223,6 +223,8 @@ ml/**/checkpoints/
 *.db
 data/raw/
 data/exports/
+# Demo database snapshots (docker/demo_snapshot.py). Synthetic, still never committed.
+docker/snapshots/
 
 # Exceptions: synthetic test fixtures, and hand-written schema SQL that contains no
 # player data. Add files under these with `git add -f` if git still refuses them.

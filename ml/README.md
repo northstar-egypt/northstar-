@@ -1121,6 +1121,47 @@ run took a median of 8 to 11 seconds a question, and its held-out score was 30 o
 of 32: the model's arithmetic is not identical on the two, so a reported number names the
 hardware it was measured on.
 
+### Without the model: fixed rules (added 2026-11-11)
+
+```bash
+cd apps/api
+python -m eval.run_assistant_eval --split dev  --reader rules
+python -m eval.run_assistant_eval --split test --reader rules
+```
+
+When Ollama is not running, or `ASSISTANT_READER=rules` is set, the questions are read by word
+lists and patterns instead (`apps/api/app/services/rule_reader.py`), so Ask still answers on a
+machine where the model is missing or too slow. The rules fill in the same form and go through
+the same cleaning and the same age and flag-list rules as the model's reading, and the screen
+says "Question read by fixed rules".
+
+The word lists were written from the field descriptions in the model's prompt and the dev
+questions, without reading the held-out half.
+
+| reader | dev (44) | test, held out (44) |
+| --- | --- | --- |
+| qwen2.5:3b, GPU | 41 | **37 (84%)** |
+| fixed rules, first and only clean held-out run | 44 | **32 (73%)** |
+| fixed rules, after one bug fix found on that run | 44 | 34 (77%) |
+
+The dev score is perfect because the rules were written against those questions; it says
+nothing about questions the rules have not seen. **32 of 44 is the held-out score to quote.**
+Writing up its misses showed a bug, not a gap in the word lists: the word that introduces an
+Arabic name, "بين" (between), was also matched at the end of "لاعبين" (players), so two
+questions read the wrong words as a name. Matching it as a whole word fixed both. Because the
+bug was found on the held-out half, 34 is no longer a clean held-out number, and it is shown
+for what it is. No word was added after the test run.
+
+Of the 10 misses left, 5 are the intent, 4 the statistic and 1 the position ("CDMs", a plural
+code). Three are the same flag-list phrasings the model path misses too. The two that matter
+most: "how much is Hossam Adel worth" and "what did the coach say about Ali Adel" are read as
+questions about that player, so they get his card instead of "not a question these records
+answer". No number is invented either way, and the reading is printed above the answer.
+
+So the rules are a fallback for a demo, not a replacement for the model. Reading a question
+takes under a millisecond; a whole request with Ollama stopped took about 4 seconds, measured
+on the local stack.
+
 ## Relative age audit
 
 Children born early in the selection year are older, bigger and more mature than team-mates

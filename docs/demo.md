@@ -46,10 +46,20 @@ when they are there.
    position and height.** It ends with `ready`,
    or says what to fix.
 
-3. Have two terminals open at the repository root: one for the detector run in step 5,
+3. Once the check says `ready`, save the database as it is now:
+
+   ```bash
+   python docker/demo_snapshot.py save
+   ```
+
+   It takes a few seconds and writes `docker/snapshots/demo.dump` (git ignores the folder).
+   From then on, `restore` puts this exact database back in seconds: after each rehearsal, and
+   on the day if anything goes wrong. Save again only after a reset from the generator.
+
+4. Have two terminals open at the repository root: one for the detector run in step 5,
    one spare.
 
-4. Open Firefox at http://localhost:3000. Use a private window per account if you want to
+5. Open Firefox at http://localhost:3000. Use a private window per account if you want to
    switch without signing out.
 
 The player below is the first one the check offers, منير عصام فارس حجازي. If a rehearsal left
@@ -174,6 +184,10 @@ That is the sentence, end to end. Then show what the review did:
 | `write_flags` raises 0 flags | The date of birth or the name does not match the original. Check both against what `demo_check.py` printed. |
 | The profile shows no banner after the run | Reload the page: the profile was open before the flag was written. |
 | The summary says the model is not running | The stack was started without `--profile llm`. The flow does not need it. |
+| Ask says "Question read by fixed rules" | The model is not running or not reached. Ask still answers; the rules read fewer phrasings, so use the questions under "If there is time", which they read right. |
+| Ask is slow on a machine with no GPU | Start the stack with `ASSISTANT_READER=rules` set in the shell (PowerShell: `$env:ASSISTANT_READER="rules"`), then `up -d`. Ask then never waits on the model. |
+| The data is in a state you did not expect | `python docker/demo_snapshot.py restore`, then `python tests/e2e/demo_check.py`. About ten seconds, plus the check. |
+| The stack will not start at all | Play the recording (below). |
 | Every page is suddenly slow | Summaries are queued on the processor. `docker stats` shows `northstar-ollama` near 400% CPU. Wait a minute or two; it clears by itself. |
 | A step looks wrong in a way that is not here | Run `pytest tests/e2e -k demo_flow_on_one_player` after the demo, not during it. |
 
@@ -187,10 +201,23 @@ That is the sentence, end to end. Then show what the review did:
 
 ## After a rehearsal
 
-A rehearsal that ends with the merge leaves nothing in the way: the second entry is merged,
-out of search, and the check offers the same player again. A rehearsal that stops before the
-merge, or undoes it, leaves the second entry active, and the check moves on to the next demo
-player. If all three are used up, reset the data:
+Put the saved database back:
+
+```bash
+python docker/demo_snapshot.py restore
+python tests/e2e/demo_check.py
+```
+
+The restore stops the API, replaces the database with the snapshot and starts the API again,
+in under ten seconds on the team laptop. The models and their downloads are not touched. The
+check afterwards writes the demo player's summary again, because summaries are kept in the
+API's memory, not in the database. The demo player and the date of birth to type are the same
+as when the snapshot was saved.
+
+Without a snapshot, a rehearsal that ends with the merge leaves nothing in the way: the second
+entry is merged, out of search, and the check offers the same player again. A rehearsal that
+stops before the merge, or undoes it, leaves the second entry active, and the check moves on
+to the next demo player. If all three are used up, reset the data from the generator:
 
 ```bash
 docker compose -f docker/docker-compose.yml down
@@ -200,6 +227,31 @@ docker compose -f docker/docker-compose.yml -f docker/docker-compose.gpu.yml --p
 
 This deletes the database volume only, and the seed container rebuilds it from the generator,
 dated up to yesterday. Do not use `down -v`: it also deletes the downloaded language models.
+After a reset, run the check and save a new snapshot: the old one is a different dataset.
+
+A snapshot ages like its data. Readings in one saved weeks before the demo look weeks old on
+the coach's home, so save it within a few days of presenting.
+
+## A recording to fall back on
+
+If the laptop, Docker or the projector fails on the day, play a recording instead. Make two,
+and keep them off the repository (`out/` is ignored by git):
+
+- **A narrated one, made by a person.** After `restore` and the check, follow the script above
+  with a screen recorder running (Windows: Xbox Game Bar, Win+Alt+R, or OBS), speaking the
+  "Say" lines. This is the one to show an audience.
+- **An automatic one, as proof the flow runs.** The browser test of the same flow can record
+  itself in Firefox:
+
+  ```bash
+  E2E_VIDEO=out/demo-video E2E_SLOW_MO=250 pytest tests/e2e -k demo_flow_on_one_player
+  ```
+
+  (PowerShell: `$env:E2E_VIDEO="out/demo-video"; $env:E2E_SLOW_MO="250"` first.) Each browser
+  window is saved as a `.webm`: one for the coach and federation, one for the scout, about a
+  minute and a half together. It is the test's own player at the test's pace, with no
+  narration, so it shows that every step works, not the story. The test adds data, so run
+  `python docker/demo_snapshot.py restore` afterwards.
 
 ## If there is time
 

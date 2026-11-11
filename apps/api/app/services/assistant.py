@@ -45,7 +45,7 @@ from sqlalchemy.orm import Session
 from app import ages, names, sports
 from app.config import get_settings
 from app.models.player import Player
-from app.services import explore, flags, radar, scout_home, scouting_report, similar
+from app.services import explore, flags, radar, rule_reader, scout_home, scouting_report, similar
 from app.services.access import Caller, may_view, permissions, visible_players
 from app.services.cohort import age_label
 from app.services.views import organization_names
@@ -336,7 +336,32 @@ def read_question(question: str, *, model: str | None = None, url: str | None = 
     except json.JSONDecodeError:
         log.warning("assistant reading was not JSON: %r", text[:200])
         raw = {}
-    reading = _clean(raw if isinstance(raw, dict) else {})
+    return _finish(raw if isinstance(raw, dict) else {}, question)
+
+
+def read_by_rule(question: str) -> Reading:
+    """Fill in the same form with fixed rules (services/rule_reader.py), no model needed."""
+    return _finish(rule_reader.read(question), question)
+
+
+def read(question: str) -> tuple[Reading, str]:
+    """The reading and which reader made it, "model" or "rules".
+
+    The model reads when it can. When it is not running, or `ASSISTANT_READER=rules` says not to
+    use it (a machine where it is too slow), the rules read instead, so Ask still answers and
+    the screen says how the question was read."""
+    if get_settings().assistant_reader == "rules":
+        return read_by_rule(question), "rules"
+    try:
+        return read_question(question), "model"
+    except OllamaUnavailable as error:
+        log.info("assistant reading by rule: %s", error)
+        return read_by_rule(question), "rules"
+
+
+def _finish(raw: dict, question: str) -> Reading:
+    """Clean a raw reading, then apply what is read by rule whichever reader made it."""
+    reading = _clean(raw)
     if (ages := ages_in(question)) is not None:
         reading.age_from, reading.age_to = ages
     # A flag list named in the question, with no player named, is that list.
@@ -889,13 +914,14 @@ _ANSWERS = {
 
 def answer(db: Session, caller: Caller, question: str) -> dict:
     """Read the question, run it as the caller, and say what was read and what was found."""
-    reading = read_question(question)
+    reading, reader = read(question)
     handler = _ANSWERS.get(reading.intent)
     result = handler(db, caller, reading) if handler else _result(CAN_DO)
     return {
         "question": question,
         "reading": dict(reading.__dict__),
         "chips": chips(reading),
-        "model": get_settings().ollama_assistant_model,
+        "reader": reader,
+        "model": get_settings().ollama_assistant_model if reader == "model" else None,
         **result,
     }

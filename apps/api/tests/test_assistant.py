@@ -118,13 +118,37 @@ def test_a_question_the_records_cannot_answer_says_what_can_be_asked(client, aut
     assert body["rows"] == [] and body["answer"] == assistant.CAN_DO
 
 
-def test_no_language_model_is_a_503_with_the_reason(client, auth, monkeypatch):
+def test_without_the_model_the_rules_read_and_the_answer_says_so(client, auth, forwards, monkeypatch):
     def down(question, **_):
         raise assistant.OllamaUnavailable("The local language model is not running.")
 
     monkeypatch.setattr(assistant, "read_question", down)
-    response = _ask(client, auth)
-    assert response.status_code == 503 and "not running" in response.json()["detail"]
+    response = _ask(client, auth, question="which strikers take the most shots")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["reader"] == "rules" and body["model"] is None
+    assert body["reading"]["intent"] == "leaders"
+    assert body["reading"]["positionGroup"] == "forward"
+    assert body["reading"]["statistic"] == "shots"
+    assert body["rows"], "the rules' reading is answered like the model's"
+
+
+def test_assistant_reader_rules_never_asks_the_model(client, auth, monkeypatch):
+    def never(question, **_):
+        raise AssertionError("the model was asked")
+
+    monkeypatch.setattr(assistant, "read_question", never)
+    monkeypatch.setattr(assistant.get_settings(), "assistant_reader", "rules")
+    body = _ask(client, auth, question="players similar to Hassan Gamal").json()
+    assert body["reader"] == "rules"
+    assert body["reading"]["intent"] == "similar"
+    assert body["reading"]["players"] == ["Hassan Gamal"]
+
+
+def test_with_the_model_the_answer_names_it(client, auth, reads):
+    reads(intent="unsupported")
+    body = _ask(client, auth).json()
+    assert body["reader"] == "model" and body["model"]
 
 
 def test_the_reading_is_cleaned_to_allowed_values():

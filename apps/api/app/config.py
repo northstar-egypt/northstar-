@@ -5,6 +5,7 @@ the repo-root .env (see .env.example); in Docker they are injected by docker-com
 """
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -40,6 +41,11 @@ class Settings(BaseSettings):
     # the 3B model does as well as the 7B and about ten times faster: it fits in a 4 GB GPU.
     # Measured by apps/api/eval/run_assistant_eval.py; numbers in ml/README.md, "Assistant".
     ollama_assistant_model: str = "qwen2.5:3b"
+    # Who reads the assistant's questions: "model" (the model above, with fixed rules as the
+    # fallback when it is not running) or "rules" (never ask the model). "rules" is for a
+    # machine where the model is too slow or will not load, such as a demo laptop with no GPU.
+    # How often each reads right: ml/README.md, "Assistant".
+    assistant_reader: Literal["model", "rules"] = "model"
     # How many of the summary model's layers Ollama may put on the GPU; unset lets it choose.
     # The GPU compose file sets 0: on a 4 GB card the 7B summary model and the 3B assistant
     # model do not both fit, and Ollama swapping them made the Ask screen fail for about a

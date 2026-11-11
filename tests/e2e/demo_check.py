@@ -167,20 +167,31 @@ def main() -> int:
             report(model in tags, f"model {model} downloaded",
                    f"docker exec northstar-ollama ollama pull {model}")
     except (urllib.error.URLError, OSError):
-        report(None, f"no Ollama at {OLLAMA}: Ask and the written summary will say the model is "
-               "not running", f"start the stack with --profile llm: {up}")
+        report(None, f"no Ollama at {OLLAMA}: Ask reads questions by fixed rules, and the "
+               "written summary says the model is not running",
+               f"start the stack with --profile llm: {up}")
         tags = set()
 
-    if tags:
-        started = time.monotonic()
-        try:
-            answer = post(f"{API}/assistant", {"question": "strikers under 16"}, scout, timeout=120)
-            seconds = time.monotonic() - started
+    # Ask answers with or without the model: without it, fixed rules read the question
+    # (app/services/rule_reader.py). Say which, so nobody is surprised on the day.
+    started = time.monotonic()
+    try:
+        answer = post(f"{API}/assistant", {"question": "strikers under 16"}, scout, timeout=120)
+        seconds = time.monotonic() - started
+        reader = answer.get("reader")
+        if reader == "rules":
+            report(None if tags else True,
+                   f"Ask answered in {seconds:.0f} s, reading questions by fixed rules",
+                   "the model was not reached, or ASSISTANT_READER=rules is set. The rules read "
+                   "fewer phrasings: keep to the questions in docs/demo.md")
+        else:
             report(bool(answer.get("answer")),
-                   f"Ask answered in {seconds:.0f} s (warm is 2 to 3 s)")
-        except (urllib.error.URLError, OSError) as exc:
-            report(None, f"Ask did not answer: {exc}")
+                   f"Ask answered in {seconds:.0f} s, read by {answer.get('model')} "
+                   "(warm is 2 to 3 s)")
+    except (urllib.error.URLError, OSError) as exc:
+        report(False, f"Ask did not answer: {exc}", "look at: docker logs northstar-api")
 
+    if tags:
         # The summary is the slow one (about 80 s cold). Written once for the original's
         # profile as the scout sees it, it is then served from the cache during the demo.
         # The endpoint does not hold the request open: while the model writes, it answers
