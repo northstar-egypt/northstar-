@@ -28,7 +28,7 @@ Built in the API instead of here, because they run from a screen in the app:
 Not built yet:
 
 - `footystats/` Pull Egyptian Premier League data from the FootyStats API into the tables the
-  synthetic league already fills. Needs `FOOTYSTATS_API_KEY`. The next pipeline to build.
+  synthetic league already fills. Needs `FOOTYSTATS_API_KEY`, so it waits on the API subscription.
 - Diaspora: the source is not decided (`docs/project-status.md`).
 
 ## Conventions

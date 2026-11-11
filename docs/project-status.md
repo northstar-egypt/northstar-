@@ -12,8 +12,9 @@ The product is built end to end on synthetic data. A coach can log a player, a s
 them, the models raise flags, and the federation reviews them, all through the real API behind
 a real sign-in, and the Firefox end-to-end tests drive that flow. What is not yet connected is
 any live outside data source: the professional league, the diaspora tier and table tennis
-results all run on generated data or on spreadsheets a person imports. The next big step is
-the FootyStats connection (see "What to do next").
+results all run on generated data or on spreadsheets a person imports. The FootyStats
+connection is ready to build once the API subscription is taken; until then the pro tier runs
+on the synthetic league (see "What to do next").
 
 ## What is built
 
@@ -67,7 +68,7 @@ the FootyStats connection (see "What to do next").
 | Source in the scope | Today | What it would take |
 | --- | --- | --- |
 | Youth academies | Synthetic, plus coach entry and spreadsheet import in the app | Nothing to build. Real academy data is not obtainable, so the youth tier stays synthetic by design |
-| Pro tier (Egyptian Premier League) | A synthetic league in FootyStats' shape (#88) | A FootyStats client that fills the same tables. Needs the API key, and a check of the real field names first |
+| Pro tier (Egyptian Premier League) | A synthetic league in FootyStats' shape (#88) | A FootyStats client that fills the same tables. Waiting on the API subscription; the real field names are checked first |
 | Diaspora | A tier value on synthetic players abroad | Not decided: a manual entry form with a source link, FootyStats leagues abroad, or future work. Transfermarkt's terms forbid scraping |
 | Table tennis results | Spreadsheet import | ITTF and WTT block automated access (`docs/results-import.md`), so import stays the route |
 | Player self-submission | Only in the synthetic data: rows marked `self_submitted`, which the fraud rules check | A screen where a player adds their own results, for table tennis players seeking clubs abroad |
@@ -76,15 +77,16 @@ No real player data is in this repository, and none ever will be (`CLAUDE.md`).
 
 ## What to do next, in order
 
-1. **FootyStats adapter.** Fill the pro-tier tables from the API instead of the generator. Key
-   in `.env` only, responses cached in a gitignored folder, a test on the field names that
-   uses no real data. Then breakouts, finishing and team gaps run on the real league.
-2. **A demo that cannot fail on the day.** A recorded video of the full flow, Ask working
-   without the GPU (cards only, no model phrasing), and a database snapshot that restores in
-   one command.
-3. **Labelled decisions back into the detectors.** Every decision on the integrity board is a
+1. **A demo that cannot fail on the day.** A recorded video of the full flow, Ask working
+   without the GPU, and a database snapshot that restores in one command.
+2. **Labelled decisions back into the detectors.** Every decision on the integrity board is a
    labelled example with a reason. Measure whether using them improves late-bloomer and
    age-fraud precision, and publish the result either way.
+3. **FootyStats adapter, once the subscription is taken.** Waiting on the API key: the field
+   names cannot be checked without it, and an adapter written against guessed fields would be
+   rewritten. Then fill the pro-tier tables from the API instead of the generator. Key in
+   `.env` only, responses cached in a gitignored folder, a test on the field names that uses no
+   real data. Then breakouts, finishing and team gaps run on the real league.
 4. **Diaspora decision** (see the table above).
 5. Smaller pieces a teammate can pick up alone: split the player profile page
    (`apps/web/app/(app)/players/[id]/page.tsx`) into one component per card, add unit tests

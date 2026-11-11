@@ -47,7 +47,7 @@ source is connected yet:
 | Source | Today |
 | --- | --- |
 | Youth | Synthetic, plus coach entry and spreadsheet import in the app. Stays synthetic by design: real academy data is not obtainable |
-| Pro | A synthetic Egyptian league in FootyStats' shape. The FootyStats client that fills the same tables is the next step |
+| Pro | A synthetic Egyptian league in FootyStats' shape. The FootyStats client that fills the same tables waits on the API subscription |
 | Diaspora | Synthetic players at clubs abroad. The real source is not decided |
 | Table tennis | Spreadsheet import. ITTF and WTT block automated access, so there is no scraper (`docs/results-import.md`) |
 
@@ -293,7 +293,8 @@ NorthStar is built across four tracks. Pick the one that matches your role.
 
 The product works end to end on synthetic data: log a player, see the profile, find them in
 search, see a flag surface, and review it as the federation. The Firefox end-to-end tests
-drive that flow. No live outside data source is connected yet; the FootyStats client is next.
+drive that flow. No live outside data source is connected yet; the FootyStats client is built
+once the API subscription is taken.
 `docs/project-status.md` has what is built, what is not, and the order of the work left.
 
 Headline results, from `ml/README.md` (which has the method, the per-seed numbers, the
