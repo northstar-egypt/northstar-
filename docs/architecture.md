@@ -65,11 +65,19 @@ flowchart TB
 ## Components
 
 ### Data sources
-Five inputs feed the platform. Three are pull-based (FootyStats API for pro football, public
-European data for diaspora, ITTF/WTT scraping for table tennis) and two are push-based (coach
-logging and player self-submission through the app). The synthetic generator is a sixth,
-development-only source that seeds realistic data with planted ground-truth cases so the ML
-and detection work has something to measure against before real data arrives.
+Five inputs feed the platform. Three are outside sources (FootyStats API for pro football,
+public European data for diaspora, ITTF/WTT results for table tennis) and two are push-based
+(coach logging and player self-submission through the app). The synthetic generator is a
+sixth source that seeds realistic data with planted ground-truth cases so the ML and
+detection work has something to measure against.
+
+Where these stand today: coach logging and the generator are built. Self-submission exists only
+in the synthetic data (rows marked `self_submitted`, which the fraud rules check); there is no
+screen yet for a player to submit their own results. Table
+tennis results come in through a spreadsheet import, because ITTF and WTT block automated
+access (`docs/results-import.md`). The pro tier runs on a synthetic league in FootyStats'
+shape until the FootyStats client is built, and diaspora has no outside source yet.
+`docs/project-status.md` keeps this current.
 
 ### Ingestion pipelines (`data/pipelines`)
 Each source has an adapter that normalizes its data into the shared core shape. Everything
@@ -154,8 +162,9 @@ sequenceDiagram
 ## Deployment (local dev today)
 
 `docker-compose` brings up Postgres, the API, the web app, and an optional Ollama service.
-See the README for commands. Production deployment is out of scope for the foundation stage;
-GitHub Actions CI comes later. TODO: CI pipeline, staging environment.
+See the README for commands. GitHub Actions runs the tests, the type-check, the build and the
+linters on every pull request (`.github/workflows/ci.yml`, described in the README).
+Production deployment is out of scope: this is a graduation project and is not deployed.
 
 ## Decisions
 
