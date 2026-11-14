@@ -81,6 +81,26 @@ def player_count() -> int:
         return connection.execute(text("SELECT count(*) FROM player")).scalar_one()
 
 
+# The scout the login screen's "Scout" button signs in as (apps/api/app/routers/dev.py: the
+# first active scout with an organization, by email). The generator names every account at
+# random, and renaming it there would move every later random draw, so the demo account is
+# renamed here, after loading. Only the name changes.
+DEMO_SCOUT_NAME = "Ahmed El-Feki"
+
+
+def name_demo_scout() -> None:
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(DATABASE_URL, future=True)
+    with engine.begin() as connection:
+        email = connection.execute(text(
+            "UPDATE \"user\" SET full_name = :name WHERE id = ("
+            " SELECT id FROM \"user\" WHERE role = 'scout' AND is_active"
+            " AND organization_id IS NOT NULL ORDER BY email LIMIT 1) RETURNING email"
+        ), {"name": DEMO_SCOUT_NAME}).scalar_one_or_none()
+    log(f"demo scout {email} named {DEMO_SCOUT_NAME}")
+
+
 def main() -> int:
     log(f"database: {DATABASE_URL.rsplit('@', 1)[-1]}")
 
@@ -104,6 +124,7 @@ def main() -> int:
              "--database-url", DATABASE_URL, "--truncate", "--reference-date", reference],
             cwd=REPO,
         )
+        name_demo_scout()
 
     # 3. Flags, from the database itself, so they cover whatever is there now (players added
     #    since, and data loaded on another day). Idempotent, so it runs on every boot.
