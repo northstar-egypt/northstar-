@@ -55,13 +55,25 @@ def by_player(rows: list[SeasonRow]) -> dict[str, list[SeasonRow]]:
     return out
 
 
-def consecutive(seasons: list[SeasonRow], first_year: int) -> list[tuple[SeasonRow | None, SeasonRow]]:
+def first_years(rows: list[SeasonRow]) -> dict[str, int]:
+    """The end year of the first season the data covers, per competition."""
+    out: dict[str, int] = {}
+    for r in rows:
+        out[r.competition] = min(out.get(r.competition, r.end.year), r.end.year)
+    return out
+
+
+def consecutive(seasons: list[SeasonRow], first_year: int | dict[str, int]) -> list[tuple[SeasonRow | None, SeasonRow]]:
     """(previous, this) for each of a player's seasons ending after `first_year`, the end year
-    of the first season the data covers. Previous is the season ending the year before, or
-    None when the player has none that year: they did not play, which is itself information,
-    since a breakout can come from the bench."""
-    by_end = {r.end.year: r for r in seasons}
-    return [(by_end.get(r.end.year - 1), r) for r in seasons if r.end.year > first_year]
+    of the first season the data covers (one year, or one per competition: `first_years`).
+    Previous is the season in the same competition ending the year before, or None when the
+    player has none that year: they did not play, which is itself information, since a breakout
+    can come from the bench. A World Cup is never compared with a league season."""
+    def first(r: SeasonRow) -> int:
+        return first_year.get(r.competition, r.end.year) if isinstance(first_year, dict) else first_year
+
+    by_end = {(r.competition, r.end.year): r for r in seasons}
+    return [(by_end.get((r.competition, r.end.year - 1)), r) for r in seasons if r.end.year > first(r)]
 
 
 def from_league(league, players) -> list[SeasonRow]:

@@ -125,13 +125,34 @@ class NoReport(Exception):
     """Why a player has no report, in words a scout can read."""
 
 
-def build(module, rows: list[SeasonRow], player_id: str, min_minutes: int = engine.MIN_MINUTES) -> Report:
-    """The report on a player's latest league season. Raises NoReport with the reason."""
+def _gradable(config, rows: list[SeasonRow], row: SeasonRow, min_minutes: int) -> bool:
+    group = config.group_of(row.position)
+    if group is None or row.minutes < min_minutes:
+        return False
+    population = engine._population(config, rows, row.competition, row.season, group, min_minutes)
+    return len(population) - 1 >= engine.MIN_COHORT
+
+
+def build(module, rows: list[SeasonRow], player_id: str, min_minutes: int = engine.MIN_MINUTES,
+          known_adult: bool = False, prefer_graded: bool = False) -> Report:
+    """The report on a player's latest league season. Raises NoReport with the reason.
+
+    Two options for data whose seasons are not one league year after another (StatsBomb open
+    data, decision 0008), both off by default so the evaluation (report_eval.py) is unchanged:
+    `known_adult` grades a player with no date of birth whom the platform records as an adult,
+    and `prefer_graded` takes the latest season that can be graded (enough minutes, enough peers
+    to compare with) instead of the latest season. A World Cup with 148 minutes in it should not
+    hide a full league season."""
     config, spec = module.team_gaps, module.scouting_report
     row = latest_season(rows, player_id)
     if row is None:
         raise NoReport("No league seasons on record.")
-    if row.age is None or row.age < ADULT_AGE:
+    if prefer_graded:
+        mine = sorted((r for r in rows if r.player_id == player_id), key=lambda r: (r.end, r.minutes), reverse=True)
+        row = next((r for r in mine if _gradable(config, rows, r, min_minutes)), row)
+    if row.age is None and known_adult:
+        pass
+    elif row.age is None or row.age < ADULT_AGE:
         raise NoReport("Scouting reports are for adult players. A young player's profile shows how they are "
                        "growing instead, because grading a child against an adult standard is what hides late "
                        "bloomers.")
@@ -189,5 +210,5 @@ def build(module, rows: list[SeasonRow], player_id: str, min_minutes: int = engi
         level=level, level_grade=grade(level), recommendation=recommendation, confidence=confidence,
         areas=areas, strengths=strengths, weaknesses=weaknesses, summary=" ".join(summary_bits),
         would_change=would_change, not_in_data=list(spec.not_in_data),
-        young=row.age < YOUNG,
+        young=row.age is not None and row.age < YOUNG,
     )

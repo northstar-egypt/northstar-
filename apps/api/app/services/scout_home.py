@@ -32,7 +32,7 @@ from app.services.access import Caller, consent_subquery, may_view
 from app.services.cohort import age_label
 from app.services.views import organization_names
 
-from ml.pro import breakout  # noqa: E402
+from ml.pro import breakout, seasons  # noqa: E402
 
 NOTE_MAX = 1000
 BREAKOUTS_SHOWN = 8
@@ -106,7 +106,7 @@ def _breakouts(db: Session, caller: Caller, today: date) -> tuple[list[dict], st
     rows = [r for r in pro._rows(db) if r.player_id in consented]
     if not rows:
         return [], None
-    first_year = min(r.end.year for r in rows)
+    first_year = seasons.first_years(rows)
     latest = max(r.end for r in rows)
     flagged = [a for a in breakout.detect(rows, first_year) if a.flagged]
     latest_label = next(r.season for r in rows if r.end == latest)

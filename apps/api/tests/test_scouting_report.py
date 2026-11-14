@@ -68,3 +68,31 @@ def test_a_player_with_no_league_season_is_told_so(client, auth, world):
 
 def test_a_player_the_caller_may_not_see_is_404(client, auth, world):
     assert _get(client, auth, world["players"]["minor_no_a"]).status_code == 404
+
+
+def test_a_professional_with_no_date_of_birth_is_graded_on_their_gradable_season(
+    client, auth, db, league,  # noqa: F811
+):
+    """StatsBomb's professionals have no date of birth (decision 0008). One recorded as an adult
+    is graded, and a later tournament with too few minutes does not hide the league season."""
+    import uuid
+    from datetime import date
+
+    from app.models.performance_entry import PerformanceEntry
+
+    _, strikers = league
+    player = strikers[8]
+    player.date_of_birth = None
+    player.is_minor = False
+    db.add(PerformanceEntry(
+        id=uuid.uuid4(), player_id=player.id, sport="football", period_type="season_aggregate",
+        period_start=date(2026, 6, 10), period_end=date(2026, 7, 10), organization_id=None,
+        event="Invented Cup 2026", schema_ref="football.season_aggregate.v2", source="statsbomb",
+        is_validated=True, metrics={**db.query(PerformanceEntry).filter_by(player_id=player.id).first().metrics,
+                                    "minutes_played": 120, "appearances": 2, "starts": 1},
+    ))
+    db.flush()
+    report = _get(client, auth, player).json()["report"]
+    assert report is not None
+    assert report["competition"] == "Gap Test League" and report["season"] == "2025/26"
+    assert report["young"] is False

@@ -55,6 +55,11 @@ outcome, and the module says which rates are worth reading from them (decision 0
                        "success": ["type" or "type.outcome", ...],
                        "rateLabel": "...",               "scored", "won"
                        "minAttempts": n } }              before a player's rate is shown
+
+An event type can also carry measures: numbers a data source supplies with each event, which a
+coach never picks, such as the expected goals of a shot from StatsBomb's event data:
+
+  "measures": { key: { "label": "...", "minimum": n, "maximum": n } }
 """
 
 from __future__ import annotations
@@ -133,6 +138,25 @@ class EventDetail:
 
 
 @dataclass(frozen=True)
+class EventMeasure:
+    """A number a data source supplies with an event (the expected goals of a shot). Not part of
+    tagging: a coach is never asked for one, and the tagging screen does not show them."""
+
+    key: str
+    label: str
+    minimum: float
+    maximum: float
+
+    def problem(self, value) -> str | None:
+        """Why `value` is not a valid measure, or None."""
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or math.isnan(value):
+            return f"{self.label} must be a number"
+        if not self.minimum <= value <= self.maximum:
+            return f"{self.label} must be between {self.minimum} and {self.maximum}"
+        return None
+
+
+@dataclass(frozen=True)
 class EventType:
     key: str
     label: str
@@ -140,6 +164,7 @@ class EventType:
     shortcut: str
     outcomes: dict[str, EventOutcome]
     details: dict[str, EventDetail] = field(default_factory=dict)
+    measures: dict[str, EventMeasure] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -457,8 +482,22 @@ def _events(name: str, raw: dict | None, periods: dict[str, Period]) -> dict[str
         types[key] = EventType(
             key, spec["label"], shortcut, outcomes,
             _details(name, key, spec.get("details") or {}, outcomes),
+            _measures(name, key, spec.get("measures") or {}, spec.get("details") or {}),
         )
     return types
+
+
+def _measures(name: str, kind: str, raw: dict, details: dict) -> dict[str, EventMeasure]:
+    measures = {}
+    for key, spec in raw.items():
+        where = f"{name}: events.{kind}.measures.{key}"
+        if key in details:
+            raise ModuleError(f"{where} has the same key as a detail; both live in an event's details")
+        low, high = spec.get("minimum"), spec.get("maximum")
+        if not isinstance(low, (int, float)) or not isinstance(high, (int, float)) or low > high:
+            raise ModuleError(f"{where} needs a numeric minimum and maximum, minimum first")
+        measures[key] = EventMeasure(key, spec["label"], float(low), float(high))
+    return measures
 
 
 def _details(name: str, kind: str, raw: dict, outcomes: dict) -> dict[str, EventDetail]:

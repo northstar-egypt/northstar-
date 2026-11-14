@@ -125,3 +125,20 @@ def test_on_the_tuning_seeds_v1_beats_both_comparisons():
 def test_on_the_tuning_seeds_xg_predicts_next_season_better_than_goals():
     report = pro_eval.score_finishing(pro_eval.league_data(101))
     assert report.mae["npxG per 90"] < report.mae["goals per 90"]
+
+
+def test_seasons_are_paired_only_within_one_competition():
+    """StatsBomb gives a player a league season, a World Cup and a continental cup: none of them is
+    the season before another (decision 0008). One competition per player, as in the synthetic
+    league, pairs exactly as before."""
+    from ml.pro.seasons import first_years
+
+    league = _row("p", date(2016, 5, 31))
+    cup = SeasonRow("p", "2017", date(2017, 7, 1), "World Cup", "n", "LW", None, dict(league.metrics))
+    next_league = _row("p", date(2017, 5, 31))
+    years = first_years([league, cup, next_league])
+    assert years == {"League": 2016, "World Cup": 2017}
+    pairs = consecutive([league, cup, next_league], years)
+    assert (league, next_league) in pairs
+    assert all(this is not cup for _, this in pairs)  # its competition's first season: not assessed
+    assert consecutive([league, next_league], 2016) == consecutive([league, next_league], years)

@@ -222,7 +222,10 @@ def event_out(event: MatchEvent, name: str | None = None) -> dict:
         "x": event.x,
         "y": event.y,
         "video_seconds": event.video_seconds,
-        "details": event.details or {},
+        # Measures (xG) and details share the stored column; a measure is the number among them.
+        "details": {k: v for k, v in (event.details or {}).items() if isinstance(v, str)},
+        "measures": {k: float(v) for k, v in (event.details or {}).items()
+                     if isinstance(v, (int, float)) and not isinstance(v, bool)},
     }
 
 

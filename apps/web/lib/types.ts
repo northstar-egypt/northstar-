@@ -712,6 +712,8 @@ export interface MatchEvent {
   videoSeconds: number | null;
   /** {detail: value}, as the sport module defines them. */
   details?: Record<string, string>;
+  /** Numbers a data source supplied, by the module's `measures`: a StatsBomb shot's xG. */
+  measures?: Record<string, number>;
 }
 
 /** GET /events: one match's tags for the coach's club. */
