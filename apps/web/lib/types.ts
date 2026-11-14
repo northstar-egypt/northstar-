@@ -661,7 +661,11 @@ export interface AssistantAnswer {
   blocks: AssistantBlock[];
   /** Questions to ask next, about the players in this answer. */
   followUps: string[];
-  model: string;
+  /** "model" when the local language model read the question; "rules" when it was not running
+   * (or ASSISTANT_READER=rules) and fixed rules read it (app/services/rule_reader.py). */
+  reader: "model" | "rules";
+  /** The model that read it; null when the rules did. */
+  model: string | null;
 }
 
 export type AssistantBlock =

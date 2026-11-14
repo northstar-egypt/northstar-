@@ -141,7 +141,10 @@ docker exec northstar-ollama ollama pull qwen2.5:3b
 ```
 
 Without it the profile works as before and says, in small print, that the model is not
-running. On a laptop CPU a summary takes one to two minutes the first time a profile is
+running, and the Ask screen reads questions with fixed rules instead
+(`apps/api/app/services/rule_reader.py`; fewer phrasings, measured in `ml/README.md`). Set
+`ASSISTANT_READER=rules` to use the rules even when the model is running, on a machine where it
+is too slow. On a laptop CPU a summary takes one to two minutes the first time a profile is
 opened, then it is cached.
 
 With an NVIDIA card that Docker can reach, add `-f docker/docker-compose.gpu.yml` to the

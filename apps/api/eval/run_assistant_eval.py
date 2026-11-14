@@ -1,8 +1,9 @@
-"""How often the assistant reads a question right. Needs Ollama running; no database.
+"""How often the assistant reads a question right. No database needed.
 
     cd apps/api
-    python -m eval.run_assistant_eval --split dev
+    python -m eval.run_assistant_eval --split dev                       # the model; needs Ollama
     python -m eval.run_assistant_eval --split test --model qwen2.5:3b
+    python -m eval.run_assistant_eval --split dev --reader rules        # the fallback rules
 
 A reading is right when everything that changes the answer is right: the intent, and for
 that intent the fields in the question's `expect`. Both sides are compared after the defaults
@@ -54,15 +55,27 @@ def main() -> None:
     parser.add_argument("--split", choices=("dev", "test"), default="dev")
     parser.add_argument("--model", default=None)
     parser.add_argument("--url", default="http://localhost:11434")
+    parser.add_argument(
+        "--reader", choices=("model", "rules"), default="model",
+        help="rules: score the fallback reader in app/services/rule_reader.py instead of the model",
+    )
     args = parser.parse_args()
 
     questions = json.loads(QUESTIONS.read_text(encoding="utf-8"))[args.split]
-    # One untimed call first, so loading the model from disk is not counted against question 1.
-    assistant.read_question("warm up", model=args.model, url=args.url)
+    if args.reader == "rules":
+        def read(question):
+            return assistant.read_by_rule(question)
+        label = "rules"
+    else:
+        def read(question):
+            return assistant.read_question(question, model=args.model, url=args.url)
+        label = args.model or "default model"
+        # One untimed call first, so loading the model from disk is not counted against question 1.
+        read("warm up")
     right, by_field, seconds = 0, {}, []
     for item in questions:
         started = time.monotonic()
-        reading = assistant.read_question(item["q"], model=args.model, url=args.url).__dict__
+        reading = read(item["q"]).__dict__
         seconds.append(time.monotonic() - started)
         wrong = score(item["expect"], reading)
         right += not wrong
@@ -74,7 +87,7 @@ def main() -> None:
 
     seconds.sort()
     print(
-        f"\n{args.split}, {args.model or 'default model'}: {right} of {len(questions)} read right "
+        f"\n{args.split}, {label}: {right} of {len(questions)} read right "
         f"({right / len(questions):.0%}). Wrong by field: {by_field or 'none'}. "
         f"Seconds per question: median {seconds[len(seconds) // 2]:.1f}, slowest {seconds[-1]:.1f}."
     )

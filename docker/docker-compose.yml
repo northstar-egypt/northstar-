@@ -45,6 +45,10 @@ services:
       # The profile summary's model (app/services/summary.py). Only answers when the stack is
       # started with --profile llm; otherwise the profile says the model is not running.
       OLLAMA_URL: http://ollama:11434
+      # Who reads Ask's questions: "model", with fixed rules when the model is not running, or
+      # "rules" to never ask the model (a demo machine where it is too slow). Set it in the shell
+      # before `up`: ASSISTANT_READER=rules (bash) or $env:ASSISTANT_READER="rules" (PowerShell).
+      ASSISTANT_READER: ${ASSISTANT_READER:-model}
     ports:
       - "8000:8000"
     volumes:

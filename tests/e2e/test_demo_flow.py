@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import API_URL, SETTLE_MS, WEB_URL, text_of
+from conftest import API_URL, SETTLE_MS, WEB_URL, context_options, text_of
 
 
 _sessions: dict[str, urllib.request.OpenerDirector] = {}
@@ -1037,7 +1037,7 @@ def test_the_demo_flow_on_one_player(sign_in, page, browser, identities):
     assert "at least two height measurements" in text_of(page)
 
     # 3 and 4. Search, as a scout, by the name the coach typed, and find him: both records.
-    scout_page = browser.new_context(viewport={"width": 1280, "height": 900}).new_page()
+    scout_page = browser.new_context(**context_options()).new_page()
     scout_page.goto(f"{WEB_URL}/login", wait_until="networkidle")
     scout_page.get_by_role("button", name="Scout").click()
     scout_page.wait_for_url("**/scout", timeout=20000)
@@ -1156,7 +1156,7 @@ def test_a_coach_adds_where_a_goal_went_and_a_scout_reads_finishing(sign_in, pag
     (event,) = api(f"/events?{query}", identities["coach"]["email"])["events"]
     assert event["details"] == {"placement": "bottom_left", "technique": "placed"}
 
-    scout = browser.new_context(viewport={"width": 1280, "height": 900}).new_page()
+    scout = browser.new_context(**context_options()).new_page()
     scout.goto(f"{WEB_URL}/login", wait_until="networkidle")
     scout.get_by_role("button", name="Scout").click()
     scout.wait_for_url("**/scout", timeout=20000)

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import Field
 from pydantic.alias_generators import to_camel
 from sqlalchemy.orm import Session
@@ -62,7 +62,11 @@ class AssistantOut(CamelModel):
     blocks: list[dict[str, Any]] = []
     # Questions to ask next, about the players in this answer.
     follow_ups: list[str] = []
-    model: str
+    # "model" when the local language model read the question, "rules" when it was not running
+    # (or ASSISTANT_READER=rules) and fixed rules read it (services/rule_reader.py).
+    reader: str
+    # The model that read it; None when the rules did.
+    model: str | None = None
 
 
 def _camel(value: Any) -> Any:
@@ -79,12 +83,9 @@ def ask(
     db: Session = Depends(get_db),
     caller: Caller = Depends(current_user),
 ) -> AssistantOut:
-    """Answer one question as the caller: only what they could open on a screen."""
-    try:
-        body = assistant.answer(db, caller, request.question.strip())
-    except assistant.OllamaUnavailable as error:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)
-        ) from None
+    """Answer one question as the caller: only what they could open on a screen.
+
+    Never fails for want of the language model: without it the question is read by rule."""
+    body = assistant.answer(db, caller, request.question.strip())
     body["blocks"] = _camel(body.get("blocks", []))
     return AssistantOut.model_validate(body)

@@ -18,6 +18,21 @@ import pytest
 WEB_URL = os.environ.get("E2E_WEB_URL", "http://localhost:3000")
 API_URL = os.environ.get("E2E_API_URL", "http://localhost:8000")
 HEADED = os.environ.get("E2E_HEADED") == "1"
+# Recording (docs/demo.md, "A recording to fall back on"): E2E_VIDEO names a folder, and every
+# browser window a test opens is saved there as a .webm when it closes. E2E_SLOW_MO waits that
+# many milliseconds before each action, so a recording can be followed by eye.
+VIDEO_DIR = os.environ.get("E2E_VIDEO")
+SLOW_MO = int(os.environ.get("E2E_SLOW_MO", "0"))
+VIEWPORT = {"width": 1280, "height": 900}
+
+
+def context_options() -> dict:
+    """What every browser window in the suite opens with: the size, and the recording if asked."""
+    options: dict = {"viewport": VIEWPORT}
+    if VIDEO_DIR:
+        options["record_video_dir"] = VIDEO_DIR
+        options["record_video_size"] = VIEWPORT
+    return options
 
 # Generous, because the first paint has to wait on a round trip to the API and then on React
 # hydrating. Too short here produces flakes that look like application bugs.
@@ -55,7 +70,7 @@ def browser():
     )
     with playwright.sync_playwright() as p:
         try:
-            firefox = p.firefox.launch(headless=not HEADED)
+            firefox = p.firefox.launch(headless=not HEADED, slow_mo=SLOW_MO)
         except Exception as exc:  # noqa: BLE001
             pytest.skip(
                 f"Could not launch Firefox ({exc}). Install it with:\n"
@@ -79,7 +94,7 @@ def _from_dev_overlay(error) -> bool:
 @pytest.fixture
 def page(browser):
     """A fresh context per test, so one test's signed-in state cannot leak into another."""
-    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    context = browser.new_context(**context_options())
     page = context.new_page()
 
     # Anything the page throws is a failure worth seeing, even when the assertions pass.
