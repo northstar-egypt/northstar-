@@ -76,6 +76,8 @@ class PerformanceSource(StrEnum):
     IMPORT = "import"
     # A match event tagged by a coach from video (models/match_event.py).
     COACH_TAGGED = "coach_tagged"
+    # StatsBomb open data, loaded by data/pipelines/statsbomb (decision 0008).
+    STATSBOMB = "statsbomb"
 
 
 class UserRole(StrEnum):

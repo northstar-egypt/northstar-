@@ -18,6 +18,19 @@ Built:
   forecasts have a labelled set to be measured against. It also generates the pro tier's
   synthetic Egyptian league in FootyStats' shape. See `synthetic/README.md`.
 - `geo/` Builds the governorate map of Egypt the federation home draws.
+- `statsbomb/` Loads StatsBomb's open event data (real professional matches, research and
+  education licence) into the professional tier's own records: player and team seasons, and
+  every shot with its expected goals. Decision 0008. The data is real, so it is downloaded to a
+  folder **outside the repository** and never committed:
+
+  ```bash
+  python -m data.pipelines.statsbomb.load --data-dir <folder with StatsBomb's data/> \
+      --database-url postgresql+psycopg://northstar:northstar@localhost:5432/northstar
+  ```
+
+  The folder is a copy of StatsBomb's open-data `data/` directory for the competitions wanted
+  (`competitions.json`, `matches/`, `events/`, `lineups/`). Running it again replaces the
+  StatsBomb rows and keeps the same player and team ids.
 
 Built in the API instead of here, because they run from a screen in the app:
 

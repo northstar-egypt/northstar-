@@ -50,6 +50,9 @@ class EventOut(CamelModel):
     y: float | None = None
     video_seconds: float | None = None
     details: dict[str, str] = {}
+    # Numbers a data source supplied with the event, by the sport module's `measures`: a
+    # StatsBomb shot's expected goals. Empty for a coach's tag.
+    measures: dict[str, float] = {}
 
 
 class MatchPlayerOut(CamelModel):

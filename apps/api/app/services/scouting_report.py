@@ -29,7 +29,7 @@ from app.services.access import Caller, has_consent
 
 from ml.pro import breakout, sustainability  # noqa: E402
 from ml.pro import report as reports  # noqa: E402
-from ml.pro.seasons import by_player, consecutive  # noqa: E402
+from ml.pro.seasons import by_player, consecutive, first_years  # noqa: E402
 
 
 def _finishing(f: sustainability.Finishing) -> dict:
@@ -48,13 +48,19 @@ def player_report(db: Session, caller: Caller, player: Player) -> dict:
         return {"report": None, "note": "This sport has no scouting report yet."}
     rows = gap_service._player_rows(db)
     try:
-        rep = reports.build(module, rows, str(player.id))
+        # A player with no date of birth (StatsBomb's professionals) is graded when the platform
+        # records them as an adult; and the latest season that can be graded is reported.
+        rep = reports.build(module, rows, str(player.id),
+                            known_adult=player.date_of_birth is None and not player.is_minor,
+                            prefer_graded=True)
     except reports.NoReport as reason:
         return {"report": None, "note": str(reason)}
 
     mine = by_player(rows)[str(player.id)]
-    latest = max(mine, key=lambda r: (r.end, r.minutes))
-    first_year = min(r.end.year for r in rows)
+    # The season the report graded, which is not always the latest one (prefer_graded above).
+    latest = max((r for r in mine if r.season == rep.season and r.competition == rep.competition),
+                 key=lambda r: r.minutes)
+    first_year = first_years(rows)
     assessed = None
     for previous, this in consecutive(mine, first_year):
         if this is latest:

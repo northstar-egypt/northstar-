@@ -331,6 +331,9 @@
             "label": "Keeper's distance",
             "values": { "under_3": "Under 3 yards", "from_3_to_6": "3 to 6 yards", "over_6": "Over 6 yards" }
           }
+        },
+        "measures": {
+          "xg": { "label": "Expected goals", "minimum": 0, "maximum": 1 }
         }
       },
       "pass": {
