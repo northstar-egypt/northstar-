@@ -563,6 +563,74 @@ much as a modelling one: measure at intake and keep measuring.
     python -m ml.challengers.sitar --seed-sweep 101 202 303 --thresholds 0.6 0.8 1.0 1.2 1.4 1.6 1.8 2.0
     python -m ml.challengers.sitar --seed-sweep 20260827 7 99 404 555
 
+### Reviewers' decisions as training data: no gain at this scale (2026-11-11)
+
+```bash
+python -m ml.run_feedback_eval
+```
+
+Every decision on the integrity board is a labelled example: this player, these features, and
+whether the flag was right. The question was whether those labels make the next round of flags
+better, for the two weakest detectors. `ml/feedback.py` fits a logistic regression on the
+decided cases (the rules' own features, standardised; `C=1`, no class weights, keep a flag at
+an even chance or better, all fixed before the first run) and uses it two ways:
+
+- **filter**: candidates are the v1 rule's flags, and the model drops the ones it expects a
+  reviewer to dismiss. It can raise precision and can only lose recall.
+- **wider net**: the rule's gates are loosened (`NET_LEVELS`), reviewers see more players, and
+  the model picks among them. This is the only way decisions could recover a missed child.
+
+Reviewers are simulated from the answer key, deciding the candidates raised on the calibration
+seeds 101, 202 and 303 (as last season's decisions); the model is scored on the five reported
+seeds (this season). Which net level to use was chosen on the calibration seeds only, by
+fitting on two and scoring the third in turn: level 1 for late bloomers, level 0 (no wider
+net) for age fraud.
+
+| late bloomer, reported seeds | F1 | precision | recall | caught | false flags | reviewed per seed |
+| --- | --- | --- | --- | --- | --- | --- |
+| **v1 rule** | **0.567** | 0.632 | 0.514 | 36 of 70 | 21 | 11.4 |
+| filter, perfect reviewer (43 decisions) | 0.531 | **0.714** | 0.429 | 30 | 12 | 11.4 |
+| filter, 1 decision in 10 wrong | 0.511 | | | | | 11.4 |
+| wider net, perfect reviewer (67 decisions) | 0.538 | 0.674 | 0.443 | 31 | 15 | 19.8 |
+| wider net, 1 decision in 10 wrong | 0.527 | | | | | 19.8 |
+
+| age misrepresentation, reported seeds | F1 | precision | recall | caught | false accusations |
+| --- | --- | --- | --- | --- | --- |
+| **v1 rule** | **0.507** | 0.583 | 0.467 | 21 of 45 | 15 |
+| filter, perfect reviewer (17 decisions) | 0.478 | 0.576 | 0.422 | 19 | 14 |
+| filter, 1 decision in 10 wrong | 0.479 | | | | |
+
+(The age rule's 0.507 is this harness's own run of the unchanged rule on the five reported
+seeds; the section above reports it over 20 seeds.) A reviewer who errs is drawn five times,
+because with a few dozen decisions which ones go wrong moves the result: late-bloomer filter
+0.439 to 0.556, wider net 0.478 to 0.565, age fraud 0.429 to 0.548. That spread was added after
+the first run, in which a single erring reviewer beat the perfect one (0.548 against 0.478 on
+age fraud), a sign of noise, not of a better reviewer. Nothing else changed between the runs.
+
+**What it shows.** Decisions did not improve either detector. For late bloomers the filter
+traded recall for precision: 9 fewer false flags, but 6 fewer late bloomers found, and for
+this detector a missed child is the costlier error. For age fraud it removed 1 false
+accusation and 2 real catches. More decisions did not help in a steady way either: with 25%,
+50% and all of the calibration decisions the wider-net F1 was 0.502, 0.451 and 0.538, which is
+noise around a level below the rule. The reason is visible in the counts: three seasons of
+reviewing give 43 late-bloomer and 17 age-fraud decisions, and the v1 thresholds were tuned on
+the same three datasets with **every** player labelled, which is far more than any reviewer
+sees. A fitted combination of the same features, taught by fewer and one-sided labels, has
+nothing to add.
+
+One row is worth recording and **not** acting on: the wider late-bloomer net with no learner
+at all scored 0.603 on the reported seeds (51 caught, 48 false flags, 20 cases to review a
+season instead of 11). The calibration seeds, where thresholds are chosen, preferred v1's
+gates. Adopting the looser gates because of this row would be tuning on the reported seeds, so
+v1 stays. It does say the v1 gates are near a flat optimum, where recall can be bought for
+precision almost one for one.
+
+So the "system that learns from its reviewers" is not a claim this project can make yet. What
+the decisions are good for today is the other half of the loop: each one, with its reason, is
+a label on real data, and on a real deployment those labels are what would measure the
+detectors (`export_db.py` and "What this means for a backtest on real data", below). The
+learner is kept, tested and runnable, and is not wired into `write_flags.py`.
+
 ### What this says
 
 Neither method was a wasted experiment, and neither is a free win. The more complex forecaster
@@ -1444,6 +1512,7 @@ export_db.py   database to JSON export, for running any harness on real data  do
 rating/        table tennis ratings: Glicko-2 and the point rating          done
 run_rating_eval.py  grades both against hidden ability                       done
 similarity.py  player similarity, run_similarity_eval.py grades it             done
+feedback.py    reviewers' decisions as training data; run_feedback_eval.py   done (null result)
 pro/          pro tier: breakouts, finishing vs xG, trends, team gaps;
               run_pro_eval.py and run_gap_eval.py grade them;
               report.py, the scouting report, run_report_eval.py checks it   done
