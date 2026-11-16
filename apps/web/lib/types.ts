@@ -932,6 +932,8 @@ export interface ScoutingReport {
     touchMap: number[] | null;
     matches: number;
     eventSource: string | null;
+    /** Whose xG the shots carry: "northstar" (our own model) or "statsbomb". */
+    xgModel: string | null;
   } | null;
 }
 

@@ -457,7 +457,8 @@
           }
         },
         "measures": {
-          "xg": { "label": "Expected goals", "minimum": 0, "maximum": 1 }
+          "xg": { "label": "Expected goals", "minimum": 0, "maximum": 1 },
+          "xg_statsbomb": { "label": "StatsBomb's expected goals", "minimum": 0, "maximum": 1 }
         }
       },
       "pass": {

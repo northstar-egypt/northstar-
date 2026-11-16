@@ -422,6 +422,8 @@ class ReportPitchOut(CamelModel):
     matches: int = 0
     # Where the locations come from ("statsbomb"), for the credit the licence asks for.
     event_source: str | None = None
+    # Whose xG the shots carry: "northstar" (ml/xg) or "statsbomb".
+    xg_model: str | None = None
 
 
 ScoutingReportBodyOut.model_rebuild()

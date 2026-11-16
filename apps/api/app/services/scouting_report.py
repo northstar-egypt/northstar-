@@ -174,10 +174,15 @@ def _on_the_pitch(db: Session, player: Player, rep: reports.Report, club: str | 
     if touches is not None:
         grid = [int(touches.metrics.get(f"z{r}_{c}", 0)) for r in range(GRID_ROWS) for c in range(GRID_COLUMNS)]
     sources = {e.source for e in events} | ({touches.source} if touches is not None else set())
+    # Shots that also carry StatsBomb's value were scored by NorthStar's own model (ml/xg).
+    shot_details = [e.details or {} for e in events if e.event_type == "shot"]
+    xg_model = ("northstar" if any("xg_statsbomb" in d for d in shot_details)
+                else "statsbomb" if shot_details and "statsbomb" in sources else None)
     return {"shots": shots, "keyPasses": passes, "touchMap": grid,
             # Appearances in the season, not matches with a shot or key pass in them.
             "matches": int(season.metrics.get("appearances", 0)) if season is not None else 0,
-            "eventSource": "statsbomb" if "statsbomb" in sources else (next(iter(sources)) if sources else None)}
+            "eventSource": "statsbomb" if "statsbomb" in sources else (next(iter(sources)) if sources else None),
+            "xgModel": xg_model}
 
 
 def player_report(db: Session, caller: Caller, player: Player, competition: str | None = None,

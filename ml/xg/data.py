@@ -35,7 +35,7 @@ def read(data_dir: Path, wanted: list[tuple[str, str]]) -> list[dict]:
                 if not feats.is_modelled(e):
                     continue
                 rows.append({
-                    "match": m["match_id"], "competition": f"{name} {season}",
+                    "id": e["id"], "match": m["match_id"], "competition": f"{name} {season}",
                     "features": feats.features(e, by_id),
                     "goal": int(e["shot"]["outcome"]["name"] == "Goal"),
                     "statsbomb_xg": float(e["shot"].get("statsbomb_xg") or 0.0),

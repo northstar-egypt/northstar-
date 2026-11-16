@@ -311,7 +311,9 @@ export default function ScoutingReportPage() {
             <div className={cx(panel, "flex flex-col gap-3 p-5")}>
               <div className="flex items-baseline justify-between">
                 <h3 className="font-semibold">Shots</h3>
-                <span className="text-xs text-slate-400">size = chance quality</span>
+                <span className="text-xs text-slate-400">
+                  size = chance quality{pitch!.xgModel === "northstar" ? ", NorthStar xG" : ""}
+                </span>
               </div>
               <ShotMap shots={pitch!.shots} />
               <div className="grid grid-cols-4 gap-2">
@@ -486,6 +488,9 @@ export default function ScoutingReportPage() {
         now below. Confidence: high at 2,000 minutes, medium at 1,000, low below. Every sentence is a rule over these
         numbers.
         {fromStatsBomb ? " Event data: StatsBomb open data, used under its research and education licence. StatsBomb publishes no dates of birth." : ""}
+        {pitch?.xgModel === "northstar"
+          ? " Expected goals (xG, npxG, xA) are NorthStar's own model, trained on 37,488 shots and graded against StatsBomb's own xG on three tournaments it never saw."
+          : ""}
       </p>
     </div>
   );

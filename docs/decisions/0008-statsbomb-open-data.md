@@ -104,3 +104,17 @@ chosen season, and lists players who play alike. What that added:
   their own second half among the nearest.
 - **A chosen season**: the report takes `competition` and `season`; without them it reports the
   latest season it can grade, as before.
+
+## NorthStar's own xG in the app (2026-11-16)
+
+The loader now trains NorthStar's expected-goals model (ml/xg, graded in ml/README.md,
+"Expected goals") on the 2015/16 league shots as it loads, and every xG the app shows is that
+model's: each shot's (`match_event.details.xg`), and through it players' xG, npxG and xA, teams'
+xG for and against, percentiles, scouting reports and finishing against expected.
+
+- League shots get out-of-fold values, so no player's xG comes from a model that saw their
+  match; tournament shots get the model fitted on all four leagues; penalties get the training
+  leagues' conversion rate.
+- StatsBomb's own value stays beside each shot as a measure, `xg_statsbomb`, so the two can be
+  compared and the change undone: `--statsbomb-xg` loads StatsBomb's values instead.
+- The scouting report says whose xG it shows (`pitch.xgModel`), and the page credits it.

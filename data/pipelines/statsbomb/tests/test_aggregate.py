@@ -165,3 +165,18 @@ def test_touches_are_counted_on_a_12_by_8_grid():
     season = aggregate.season_touches([_read(), _read()])
     assert season[STRIKER][HOME][4 * 12 + 10] == 4
     assert aggregate.zone([0, 0]) == 0 and aggregate.zone([120, 80]) == 95
+
+
+def test_a_supplied_xg_replaces_statsbombs_everywhere_and_statsbombs_is_kept():
+    """NorthStar's own xG (ml/xg) goes into the shot, the player's xG, npxG and xA and the team's
+    xG; a shot without one falls back to StatsBomb's value."""
+    ours = {"e3": 0.5, "e14": 0.1}  # the header, the blocked shot; not the penalty (e10)
+    r = aggregate.read_match(MATCH, EVENTS, LINEUPS, xg=ours)
+    shots = {s.shot_id: s for s in r.shots}
+    assert (shots["e3"].xg, shots["e3"].xg_statsbomb) == (0.5, 0.4)
+    assert shots["e10"].xg == 0.76  # no value supplied: StatsBomb's
+    assert r.players[STRIKER]["xg"] == 0.6 and r.players[STRIKER]["npxg"] == 0.6
+    assert r.players[KEEPER]["xa"] == 0.5  # the assist set up the header
+    (kp,) = r.key_passes
+    assert kp.xa == 0.5
+    assert round(r.teams[HOME]["xg_for"], 2) == 0.6 and round(r.teams[AWAY]["xg_against"], 2) == 0.6

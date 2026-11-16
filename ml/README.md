@@ -1103,7 +1103,16 @@ What this does and does not show:
   without it (FootyStats, for instance, has no shot locations).
 - **StatsBomb's open-data xG is one version of their model**, as published with the data; it is
   the fair comparison on the same shots, not a claim about their current product.
-- **Not yet used by the app**: the profile and the scouting report still show StatsBomb's xG.
+- **Used by the app** (since the StatsBomb loader trains it, 2026-11-16): every StatsBomb shot's
+  xG, and the npxG and xA in season totals, percentiles, scouting reports and finishing, are this
+  model's. The 2015/16 league shots get out-of-fold values (each match scored by a model fitted
+  without it); the tournaments, the model fitted on all four leagues; a penalty, the training
+  leagues' conversion rate, 0.750 from 400 penalties. StatsBomb's value is kept beside each shot.
+  Over all loaded shots the model's total sits closer to the goals scored than StatsBomb's does
+  (La Liga 1,003 xG to 1,014 goals, StatsBomb 980; Premier League 1,009 to 988, StatsBomb 971).
+- **It changes verdicts.** Mohamed Salah's finishing across his three seasons was "above" the
+  usual range on StatsBomb's xG (15 non-penalty goals from 9.46) and is "in line" on ours (from
+  10.74, range 7 to 15). A finishing verdict is only as good as the xG under it.
 
 ## Player similarity
 
