@@ -1114,6 +1114,47 @@ What this does and does not show:
   usual range on StatsBomb's xG (15 non-penalty goals from 9.46) and is "in line" on ours (from
   10.74, range 7 to 15). A finishing verdict is only as good as the xG under it.
 
+## Player similarity, professionals ("plays most like")
+
+```bash
+python -m ml.run_style_eval --data-dir <StatsBomb open data folder>
+```
+
+The scouting report lists the professionals whose season looks most like a player's
+(`ml/pro/style.py`): the position group's statistics per 90 (or as a share), each standardised
+across the group, compared by cosine similarity. Style, not level.
+
+**The test** (`ml/pro/style_eval.py`, decided before it was run): split each complete 2015/16
+league season (Premier League, La Liga, Serie A, Ligue 1, StatsBomb open data) at the date
+halfway through its matches. For every player with 450 or more minutes in both halves at one
+club, compare their first half with every second half in their position group. If the method
+measures style, their own second half should come near the top; if it measured noise, it would
+sit at a random rank. The halves use the loader's own aggregation and StatsBomb's published xG.
+
+| position group | players | own half 1st | in top 5 | in top 10 | median rank | random: top 5 | random: median rank |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| strikers | 131 | 26.0% | **56.5%** | 64.1% | 4 | 3.8% | 66 |
+| central midfielders | 126 | 23.8% | **53.2%** | 68.3% | 5 | 4.0% | 63.5 |
+| wingers | 152 | 21.7% | **49.3%** | 60.5% | 6 | 3.3% | 76.5 |
+| holding midfielders | 150 | 21.3% | **46.7%** | 60.7% | 6 | 3.3% | 75.5 |
+| full backs | 187 | 17.6% | **43.3%** | 56.1% | 7 | 2.7% | 94 |
+| centre backs | 216 | 4.6% | **20.8%** | 30.6% | 26.5 | 2.3% | 108.5 |
+| **all** | **962** | **17.9%** | **42.8%** | **54.5%** | **8** | 3.1% | 76.5 |
+
+A player's own other half is in the five closest 42.8% of the time, against 3.1% by chance,
+and is the single closest 17.9% of the time, against 0.6%. So the list reflects how a player
+plays, not noise.
+
+- **Centre backs are the weak group**: their own half is in the top five only 20.8% of the
+  time (still nine times chance). Their statistics are the ones team gap analysis already
+  marks as repeating poorly between half seasons (tackles, interceptions, clearances, duels,
+  aerials). A centre back's "plays most like" list deserves the least weight.
+- **Half seasons are a harder test than the app's use.** The app compares whole seasons with
+  900 or more minutes, so its rates are steadier than these 450-minute halves.
+- **It says the method finds the same player again, not that its other names are good
+  matches.** That would need a scout's judgement of the lists, which we do not have.
+- Players who changed club in the season are left out: their two halves may be two roles.
+
 ## Player similarity
 
 ```bash

@@ -100,8 +100,9 @@ chosen season, and lists players who play alike. What that added:
 - **Players who play alike**: `ml/pro/style.py`, cosine similarity of the position group's
   statistics per 90, each standardised across the pool, among seasons with 900 or more minutes
   from the same data source, so real players are compared only with real players. Style, not
-  level. Not yet evaluated; the check to run is whether a player's first half season finds
-  their own second half among the nearest.
+  level. Evaluated by half seasons (ml/README.md, "Player similarity, professionals"): a
+  player's own other half is among the five closest 42.8% of the time, against 3.1% by chance;
+  centre backs are the weak group (20.8%).
 - **A chosen season**: the report takes `competition` and `season`; without them it reports the
   latest season it can grade, as before.
 
