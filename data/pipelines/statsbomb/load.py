@@ -26,6 +26,12 @@ matched by their StatsBomb ids, so their platform ids (and anything that points 
 
 Before writing it checks every match: the goals counted from its events must equal the
 published score. A match that disagrees is reported and its result is taken from the score.
+
+Expected goals are NorthStar's own (ml/xg, graded in ml/README.md, "Expected goals"), trained
+here on the 2015/16 league shots: those shots get out-of-fold values (each match scored by a
+model that never saw it), every other shot the model fitted on all of them, and a penalty the
+training leagues' conversion rate. StatsBomb's own value is kept beside each shot
+(`xg_statsbomb`). `--statsbomb-xg` loads StatsBomb's values instead.
 """
 
 from __future__ import annotations
@@ -40,6 +46,11 @@ from pathlib import Path
 
 from data.pipelines.statsbomb import aggregate
 from data.pipelines.statsbomb.countries import iso_code
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from ml.xg import data as xg_data  # noqa: E402
+from ml.xg import features as xg_features  # noqa: E402
+from ml.xg import model as xg_model  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "apps" / "api"))
@@ -75,7 +86,47 @@ def season_label(statsbomb_season: str) -> str:
     return f"{first}/{second[-2:]}" if second else first
 
 
-def read(data_dir: Path) -> list[dict]:
+def our_xg(data_dir: Path) -> tuple[dict[str, float], dict]:
+    """NorthStar's xG for every shot in the directory, by event id, and a summary of the fit."""
+    competitions = json.loads((data_dir / "competitions.json").read_text(encoding="utf-8"))
+    train_keys = set(xg_data.TRAIN)
+    train, others, penalty_ids = [], [], []
+    penalties_taken = penalties_scored = 0
+    for comp in competitions:
+        path = data_dir / "matches" / str(comp["competition_id"]) / f"{comp['season_id']}.json"
+        if not path.exists():
+            continue
+        in_train = (comp["competition_name"], comp["season_name"]) in train_keys
+        for match in json.loads(path.read_text(encoding="utf-8")):
+            ev = data_dir / "events" / f"{match['match_id']}.json"
+            if not ev.exists():
+                continue
+            events = json.loads(ev.read_text(encoding="utf-8"))
+            by_id = {e["id"]: e for e in events}
+            for e in events:
+                if e.get("type", {}).get("name") != "Shot" or e.get("period") == 5:
+                    continue
+                if not xg_features.is_modelled(e):
+                    penalty_ids.append(e["id"])
+                    if in_train:
+                        penalties_taken += 1
+                        penalties_scored += e["shot"]["outcome"]["name"] == "Goal"
+                    continue
+                row = {"id": e["id"], "match": match["match_id"], "features": xg_features.features(e, by_id),
+                       "goal": int(e["shot"]["outcome"]["name"] == "Goal")}
+                (train if in_train else others).append(row)
+            del events, by_id
+    values = xg_model.predict_for_app(train, others)
+    rate = penalties_scored / penalties_taken if penalties_taken else 0.76
+    values.update({pid: rate for pid in penalty_ids})
+    summary = {"trained_on_shots": len(train), "scored_out_of_fold": len(train), "scored_by_full_model": len(others),
+               "penalty_rate": round(rate, 3), "penalties": len(penalty_ids)}
+    print(f"our xG: trained on {len(train)} shots; penalty rate {rate:.3f} from {penalties_taken} penalties",
+          flush=True)
+    return values, summary
+
+
+def read(data_dir: Path, xg: dict[str, float] | None = None) -> list[dict]:
     """Every competition-season in the directory, with its matches read."""
     competitions = json.loads((data_dir / "competitions.json").read_text(encoding="utf-8"))
     out = []
@@ -92,7 +143,7 @@ def read(data_dir: Path) -> list[dict]:
                 missing.append(mid)
                 continue
             result = aggregate.read_match(match, json.loads(ev.read_text(encoding="utf-8")),
-                                          json.loads(lu.read_text(encoding="utf-8")))
+                                          json.loads(lu.read_text(encoding="utf-8")), xg=xg)
             home, away = match["home_team"]["home_team_id"], match["away_team"]["away_team_id"]
             if (result.event_goals[home], result.event_goals[away]) != (match["home_score"], match["away_score"]):
                 disagree.append((mid, match["home_score"], match["away_score"],
@@ -129,8 +180,9 @@ def _team_meta(seasons: list[dict], lineups_dir: Path) -> tuple[dict, dict]:
     return teams, people
 
 
-def load(data_dir: Path, database_url: str) -> dict:
-    seasons = read(data_dir)
+def load(data_dir: Path, database_url: str, statsbomb_xg: bool = False) -> dict:
+    xg, fit = ({}, {"model": "statsbomb"}) if statsbomb_xg else our_xg(data_dir)
+    seasons = read(data_dir, xg or None)
     team_meta, people = _team_meta(seasons, data_dir / "lineups")
     modules = sports.registry()
     shot_type = modules["football"].events["shot"]
@@ -295,7 +347,7 @@ def load(data_dir: Path, database_url: str) -> dict:
         for shot, day, label in all_shots:
             if shot.player_id not in by_pid:
                 continue
-            details = {"situation": shot.situation, "xg": shot.xg}
+            details = {"situation": shot.situation, "xg": shot.xg, "xg_statsbomb": shot.xg_statsbomb}
             if shot.technique:
                 details["technique"] = shot.technique
             if shot.placement:
@@ -331,7 +383,7 @@ def load(data_dir: Path, database_url: str) -> dict:
         "competitions": len(seasons),
         "players": len(by_pid), "new_players": new_players, "teams": len(orgs),
         "player_seasons": len(player_lines), "team_seasons": len(team_lines), "shots": len(all_shots),
-        "key_passes": len(all_passes), "touch_maps": len(touch_lines),
+        "key_passes": len(all_passes), "touch_maps": len(touch_lines), "xg": fit,
         "problems": problems, "unknown_countries": sorted(unknown_countries),
     }
 
@@ -340,8 +392,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--data-dir", required=True, type=Path)
     parser.add_argument("--database-url", required=True)
+    parser.add_argument("--statsbomb-xg", action="store_true",
+                        help="use StatsBomb's published xG instead of NorthStar's own model")
     args = parser.parse_args()
-    summary = load(args.data_dir, args.database_url)
+    summary = load(args.data_dir, args.database_url, statsbomb_xg=args.statsbomb_xg)
     print(json.dumps(summary, indent=1, ensure_ascii=False))
 
 

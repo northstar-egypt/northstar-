@@ -76,10 +76,13 @@ class Shot:
     x: float
     y: float
     outcome: str  # goal | on_target | off_target | blocked
+    # The xG used everywhere (NorthStar's own model when the loader supplies it), and
+    # StatsBomb's published value for the same shot, kept for comparison.
     xg: float
     technique: str | None
     situation: str
     placement: str | None
+    xg_statsbomb: float = 0.0
 
 
 @dataclass
@@ -178,8 +181,18 @@ def _aerial_won(event: dict) -> bool:
     return False
 
 
-def read_match(match: dict, events: list[dict], lineups: list[dict]) -> MatchResult:
-    """Everything one match contributes. See the module docstring for the definitions."""
+def read_match(match: dict, events: list[dict], lineups: list[dict],
+               xg: dict[str, float] | None = None) -> MatchResult:
+    """Everything one match contributes. See the module docstring for the definitions.
+
+    `xg` maps a shot's event id to the expected goals to use for it (NorthStar's own model,
+    ml/xg); a shot not in it, or no map at all, uses StatsBomb's published value. Every xG
+    figure below (players' xG, npxG and xA, teams' xG for and against, each shot's) follows it."""
+
+    def shot_xg(shot_event: dict) -> float:
+        own = xg.get(shot_event["id"]) if xg else None
+        return float(own) if own is not None else float(shot_event["shot"].get("statsbomb_xg") or 0.0)
+
     out = MatchResult()
     home = match["home_team"]["home_team_id"]
     away = match["away_team"]["away_team_id"]
@@ -236,7 +249,7 @@ def read_match(match: dict, events: list[dict], lineups: list[dict]) -> MatchRes
         if kind == "Shot":
             s = e["shot"]
             outcome = _outcome(s["outcome"]["name"])
-            xg = float(s.get("statsbomb_xg") or 0.0)
+            value = shot_xg(e)
             penalty = s.get("type", {}).get("name") == "Penalty"
             goal = outcome == "goal"
             if p is not None:
@@ -244,14 +257,14 @@ def read_match(match: dict, events: list[dict], lineups: list[dict]) -> MatchRes
                 p["shots_on_target"] += outcome in ("goal", "on_target")
                 p["goals"] += goal
                 p["penalty_goals"] += goal and penalty
-                p["xg"] += xg
-                p["npxg"] += 0.0 if penalty else xg
+                p["xg"] += value
+                p["npxg"] += 0.0 if penalty else value
             if team_id in teams:
                 t, against = teams[team_id], teams[other[team_id]]
                 t["shots_for"] += 1
                 against["shots_against"] += 1
-                t["xg_for"] += xg
-                against["xg_against"] += xg
+                t["xg_for"] += value
+                against["xg_against"] += value
                 if goal:
                     out.event_goals[team_id] += 1
                     _goal(t, against, e, set_piece=_situation(s) != "open_play"
@@ -262,8 +275,9 @@ def read_match(match: dict, events: list[dict], lineups: list[dict]) -> MatchRes
                 team_id=team_id, period=e["period"], minute=e["minute"],
                 x=round(loc[0] / 120 * 100, 1) if loc[0] is not None else None,
                 y=round(loc[1] / 80 * 100, 1) if loc[1] is not None else None,
-                outcome=outcome, xg=round(xg, 4), technique=_technique(s), situation=_situation(s),
+                outcome=outcome, xg=round(value, 4), technique=_technique(s), situation=_situation(s),
                 placement=_placement(s, outcome),
+                xg_statsbomb=round(float(s.get("statsbomb_xg") or 0.0), 4),
             ))
         elif kind == "Own Goal Against" and team_id in teams:
             # Credited to the other side: the team that put it in its own net conceded it.
@@ -284,7 +298,7 @@ def read_match(match: dict, events: list[dict], lineups: list[dict]) -> MatchRes
             p["assists"] += bool(q.get("goal_assist"))
             assisted = shots_by_id.get(q.get("assisted_shot_id"))
             if assisted is not None:
-                p["xa"] += float(assisted["shot"].get("statsbomb_xg") or 0.0)
+                p["xa"] += shot_xg(assisted)
             if (q.get("goal_assist") or q.get("shot_assist")) and e.get("location") and q.get("end_location"):
                 origin, target = e["location"], q["end_location"]
                 out.key_passes.append(KeyPass(
@@ -292,7 +306,7 @@ def read_match(match: dict, events: list[dict], lineups: list[dict]) -> MatchRes
                     x=round(origin[0] / 120 * 100, 1), y=round(origin[1] / 80 * 100, 1),
                     end_x=round(min(target[0], 120) / 120 * 100, 1), end_y=round(min(max(target[1], 0), 80) / 80 * 100, 1),
                     outcome="assist" if q.get("goal_assist") else "key_pass",
-                    xa=round(float(assisted["shot"].get("statsbomb_xg") or 0.0), 4) if assisted is not None else 0.0,
+                    xa=round(shot_xg(assisted), 4) if assisted is not None else 0.0,
                 ))
         elif kind == "Dribble":
             p["dribbles_attempted"] += 1

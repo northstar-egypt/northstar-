@@ -113,3 +113,29 @@ def bootstrap_difference(rows: list[dict], p_a: np.ndarray, p_b: np.ndarray, rou
     return float(diff.mean()), draws[int(0.025 * rounds)], draws[int(0.975 * rounds) - 1]
 
 
+
+
+# The setting the published evaluation chose (ml/README.md, "Expected goals"): fixed here, so
+# the app uses exactly the model that was graded, not one re-chosen on every load.
+CHOSEN = BOOSTED[2]
+
+
+def predict_for_app(train: list[dict], others: list[dict], folds: int = FOLDS) -> dict[str, float]:
+    """xG for every shot, by event id, for the app (data/pipelines/statsbomb/load.py).
+
+    Shots in the training leagues get out-of-fold predictions: each match's shots are scored by
+    a model fitted without that match, so a training player's xG is not flattered by a model
+    that saw their shots. Every other shot is scored by the model fitted on all of `train`."""
+    out: dict[str, float] = {}
+    if train:
+        x, y = matrix(train, "boosted"), np.array([r["goal"] for r in train])
+        groups = np.array([r["match"] for r in train])
+        for fit_idx, held_idx in GroupKFold(n_splits=folds).split(x, y, groups):
+            fold = build("boosted", CHOSEN).fit(x[fit_idx], y[fit_idx])
+            for i, p in zip(held_idx, fold.predict_proba(x[held_idx])[:, 1]):
+                out[train[i]["id"]] = float(p)
+    if others:
+        full = build("boosted", CHOSEN).fit(matrix(train, "boosted"), np.array([r["goal"] for r in train]))
+        for r, p in zip(others, full.predict_proba(matrix(others, "boosted"))[:, 1]):
+            out[r["id"]] = float(p)
+    return out

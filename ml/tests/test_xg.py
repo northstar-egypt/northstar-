@@ -89,3 +89,18 @@ def test_the_models_learn_an_invented_rule_and_are_scored():
         assert model.scores(y, p)["log_loss"] < model.scores(y, constant)["log_loss"]
     mean, low, high = model.bootstrap_difference(test, constant, np.array([r["statsbomb_xg"] for r in test]), rounds=200)
     assert low <= mean <= high and mean > 0  # the constant is worse than the true chance
+
+
+def test_app_predictions_cover_every_shot_and_are_out_of_fold():
+    """predict_for_app: every training shot gets a value from a model that never saw its match,
+    every other shot a value from the full model."""
+    rng = random.Random(2)
+    def row(i, match):
+        x, y = rng.uniform(85, 118), rng.uniform(20, 60)
+        f = feats.features(_shot(x, y, frame=[KEEPER]), {})
+        return {"id": f"s{i}", "match": match, "features": f, "goal": int(rng.random() < 0.12)}
+    train = [row(i, i // 20) for i in range(600)]
+    others = [row(1000 + i, 500 + i // 20) for i in range(60)]
+    values = model.predict_for_app(train, others)
+    assert set(values) == {r["id"] for r in train + others}
+    assert all(0.0 < v < 1.0 for v in values.values())
