@@ -385,7 +385,11 @@ export default function ScoutingReportPage() {
           )}
           <p className="text-xs text-slate-500">
             Alike in style, not level: the same statistics per 90, compared after scaling each across the group. Real
-            players are compared only with real players.
+            players are compared only with real players. Tested on half seasons: a player&apos;s own other half is
+            among the five closest 43% of the time, against 3% by chance.
+            {report.group === "centre_backs"
+              ? " Centre backs are the weakest group (21%): their defensive statistics vary a lot from match to match, so weigh this list least."
+              : ""}
           </p>
         </section>
 

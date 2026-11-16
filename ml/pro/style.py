@@ -10,8 +10,9 @@ The pool is the same position group, enough minutes for the rates to mean someth
 same data source: real players are compared with real players and the synthetic league with
 itself, never across.
 
-Not yet evaluated. A check worth running before it is relied on: a player's first half of a
-season should find their own second half among the nearest (the plan in the feature list).
+Evaluated in ml/pro/style_eval.py (ml/README.md, "Player similarity, professionals"): a
+player's first half season finds their own second half among the five closest 42.8% of the time
+against 3.1% by chance; weakest for centre backs (20.8%).
 """
 
 from __future__ import annotations
@@ -43,6 +44,24 @@ def _value(attribute, row: SeasonRow) -> float:
     return num / den if den else 0.0
 
 
+def standardiser(config, pool: list[SeasonRow]):
+    """A function that turns a season into its statistics, each standardised across `pool`."""
+    keys = list(config.attributes)
+    columns = list(zip(*[[_value(config.attributes[k], r) for k in keys] for r in pool]))
+    means = [sum(c) / len(c) for c in columns]
+    spreads = [math.sqrt(sum((x - m) ** 2 for x in c) / len(c)) or 1.0 for c, m in zip(columns, means)]
+
+    def scale(row: SeasonRow) -> list[float]:
+        return [(_value(config.attributes[k], row) - m) / s for k, m, s in zip(keys, means, spreads)]
+
+    return scale
+
+
+def cosine(a: list[float], b: list[float]) -> float:
+    norm = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
+    return sum(x * y for x, y in zip(a, b)) / norm if norm else 0.0
+
+
 def similar(config, rows: list[SeasonRow], row: SeasonRow, shown: int = SHOWN,
             min_minutes: int = MIN_MINUTES) -> list[Match]:
     """The seasons most like `row`'s, closest first; one per player (their closest season)."""
@@ -53,24 +72,13 @@ def similar(config, rows: list[SeasonRow], row: SeasonRow, shown: int = SHOWN,
             and r.source == row.source]
     if len(pool) < 10:
         return []
-    keys = list(config.attributes)
-    values = {id(r): [_value(config.attributes[k], r) for k in keys] for r in pool}
-    columns = list(zip(*values.values()))
-    means = [sum(c) / len(c) for c in columns]
-    spreads = [math.sqrt(sum((x - m) ** 2 for x in c) / len(c)) or 1.0 for c, m in zip(columns, means)]
-    scaled = {k: [(x - m) / s for x, m, s in zip(v, means, spreads)] for k, v in values.items()}
-    me = scaled.get(id(row)) or [(x - m) / s for x, m, s in zip(
-        [_value(config.attributes[k], row) for k in keys], means, spreads)]
-
-    def cosine(a: list[float], b: list[float]) -> float:
-        norm = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
-        return sum(x * y for x, y in zip(a, b)) / norm if norm else 0.0
-
+    scale = standardiser(config, pool)
+    me = scale(row)
     best: dict[str, Match] = {}
     for r in pool:
         if r.player_id == row.player_id:
             continue
-        score = cosine(me, scaled[id(r)])
+        score = cosine(me, scale(r))
         if r.player_id not in best or score > best[r.player_id].similarity:
             best[r.player_id] = Match(r.player_id, r.competition, r.season, r.club, r.minutes, round(score, 3))
     return sorted(best.values(), key=lambda m: -m.similarity)[:shown]

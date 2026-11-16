@@ -174,3 +174,40 @@ def test_style_finds_the_most_alike_season_from_the_same_source_only():
     assert found[0].player_id == "twin" and found[0].similarity > 0.95
     assert "fake" not in {m.player_id for m in found} and "me" not in {m.player_id for m in found}
     assert style.similar(config, pool + [me], winger("short", minutes=300)) == []
+
+
+def test_the_style_evaluation_finds_real_styles_and_not_noise():
+    """ml/pro/style_eval.py on invented wingers: each with a style of their own, measured twice
+    with a little noise, should find their own other half near the top; halves that are pure
+    noise should land about where a random ordering does."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "api"))
+    from app import sports
+    from ml.pro import style_eval
+
+    config = sports.registry()["football"].team_gaps
+    import random
+
+    rng = random.Random(3)
+    keys = ["npxg", "xa", "shots", "key_passes", "crosses", "dribbles_completed", "tackles", "interceptions",
+            "clearances", "passes_attempted"]
+
+    def season(pid, half, style, noise):
+        m = {"minutes_played": 1200, "passes_completed": 300, "duels": 100, "duels_won": 50, "aerial_duels": 20,
+             "aerial_duels_won": 8}
+        for k, base in zip(keys, style):
+            m[k] = max(0.0, base * (1 + rng.gauss(0, noise)))
+        m["passes_attempted"] = max(m["passes_attempted"], m["passes_completed"] + 1)
+        return SeasonRow(pid, half, END_2, "League", "c", "RW", None, m, "statsbomb")
+
+    styles = {f"p{i}": [rng.uniform(1, 30) for _ in keys] for i in range(40)}
+    first = [season(p, "first", s, 0.05) for p, s in styles.items()]
+    second = [season(p, "second", s, 0.05) for p, s in styles.items()]
+    (wingers, overall) = style_eval.evaluate(config, first, second)
+    assert overall.players == 40 and overall.top5 > 0.8 and overall.top5 > 4 * overall.random_top5
+
+    noise = [season(p, "second", [rng.uniform(1, 30) for _ in keys], 0.05) for p in styles]
+    (_, by_chance) = style_eval.evaluate(config, first, noise)
+    assert by_chance.top5 < 0.35
