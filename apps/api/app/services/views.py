@@ -424,6 +424,8 @@ def performance_sections(
     for ref in sorted(grouped, key=lambda r: (order.index(r) if r in order else len(order), r)):
         rows = grouped[ref]
         period = sports.period_for(ref, modules)
+        if period is not None and not period.show_on_profile:
+            continue  # drawn by a screen of its own (a touch map), not listed as records
         problems = {row.id: sports.validate(row.metrics, ref, modules) for row in rows}
         valid = [row.metrics for row in rows if not problems[row.id]]
         if period is not None:

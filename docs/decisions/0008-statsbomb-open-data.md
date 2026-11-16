@@ -73,7 +73,34 @@ complete men's league seasons are all 2015/16.
   following season.
 - **2015/16 is nine years old.** It is the data for building and grading methods, and for a
   real population to compare players against, not a current scouting view.
-- **Only shots are stored as events so far.** Passes, carries and defensive actions, for pass
-  maps and heat maps, are the next step and need a decision on volume (about 1.7 million passes).
+- **Not every pass is stored.** Only key passes (a pass that led to a shot) are events; the
+  other 1.7 million passes are counted into the season totals and the touch map, not kept one
+  by one. A pass network or progressive-pass map would need them.
 - **Possession** in a team season is the share of in-play time in each team's possessions, from
   StatsBomb's own possession numbering.
+
+## Added for the scouting report (2026-11-16)
+
+The approved scouting-report design draws a shot map, a key-pass map and a heat map, grades a
+chosen season, and lists players who play alike. What that added:
+
+- **Key passes as events**: one `match_event` per pass that led to a shot, type `pass`, outcome
+  `key_pass` or `assist`, with three new measures on the pass type: where it arrived (`end_x`,
+  `end_y`, 0 to 100) and the xG of the shot it set up (`xa`).
+- **A touch map per season**: `football.touch_map.v1`, a performance record of 96 counts, the
+  player's events with a location on a 12 by 8 grid (zone `z<row>_<col>`, row 0 the left
+  touchline as the team attacks, column 0 its own goal line, each zone 10 by 10 of StatsBomb's
+  120 by 80 pitch). The heat map is drawn from it. Kept as counts, not 3.5 million events. Its
+  period is marked `"showOnProfile": false`, a new module setting, so the profile does not list
+  96 zone counts as a table of records.
+- **Wording for what stands out**: `scoutingReport.phrases` in the football module, a few plain
+  words per statistic ("gets into scoring positions"), so the report's three lines (what stands
+  out, the weakest area the role needs, a caution about finishing or minutes) are read from the
+  numbers and stay sport-specific configuration.
+- **Players who play alike**: `ml/pro/style.py`, cosine similarity of the position group's
+  statistics per 90, each standardised across the pool, among seasons with 900 or more minutes
+  from the same data source, so real players are compared only with real players. Style, not
+  level. Not yet evaluated; the check to run is whether a player's first half season finds
+  their own second half among the nearest.
+- **A chosen season**: the report takes `competition` and `season`; without them it reports the
+  latest season it can grade, as before.

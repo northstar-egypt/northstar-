@@ -75,7 +75,7 @@ def _rows(db: Session, player_ids: list | None = None, club_ids: list | None = N
             player_id=str(entry.player_id), season=season, end=entry.period_end,
             competition=_competition(entry.event, season),
             club=str(entry.organization_id) if entry.organization_id else None,
-            position=position, date_of_birth=dob, metrics=entry.metrics,
+            position=position, date_of_birth=dob, metrics=entry.metrics, source=entry.source,
         ))
     return out
 

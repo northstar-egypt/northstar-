@@ -355,6 +355,76 @@ class ScoutingReportBodyOut(CamelModel):
     young: bool
     finishing: FinishingOut
     breakout: BreakoutOut | None = None
+    # Three lines read from the numbers above: "strength", "weakness", "caution".
+    case: list[ReportCaseLineOut] = []
+    # Every season on record; `selected` is the one graded here.
+    seasons: list[ReportSeasonOut] = []
+    similar: list[ReportSimilarOut] = []
+    pitch: ReportPitchOut | None = None
+
+
+class ReportCaseLineOut(CamelModel):
+    kind: str
+    headline: str
+    detail: str
+
+
+class ReportSeasonOut(CamelModel):
+    competition: str
+    season: str
+    club: str | None = None
+    minutes: int
+    # Enough minutes, and a position the report grades: the screen can open it.
+    gradable: bool
+    selected: bool
+    goals: int
+    assists: int
+    npxg: float
+    xa: float
+
+
+class ReportSimilarOut(CamelModel):
+    player_id: str
+    full_name: str
+    competition: str
+    season: str
+    club: str | None = None
+    minutes: int
+    # Cosine similarity of the two seasons' statistics, as a percentage (ml/pro/style.py).
+    similarity: int
+
+
+class ReportShotOut(CamelModel):
+    # 0 to 100 along the pitch towards the opponent's goal, and across it left to right.
+    x: float
+    y: float
+    outcome: str
+    xg: float | None = None
+    situation: str | None = None
+
+
+class ReportPassOut(CamelModel):
+    x: float
+    y: float
+    end_x: float
+    end_y: float
+    # "key_pass" or "assist".
+    outcome: str
+    xa: float | None = None
+
+
+class ReportPitchOut(CamelModel):
+    shots: list[ReportShotOut] = []
+    key_passes: list[ReportPassOut] = []
+    # 96 counts, 8 rows (left to right) of 12 columns (own goal to opponent's); null when the
+    # data has no locations for this season.
+    touch_map: list[int] | None = None
+    matches: int = 0
+    # Where the locations come from ("statsbomb"), for the credit the licence asks for.
+    event_source: str | None = None
+
+
+ScoutingReportBodyOut.model_rebuild()
 
 
 class ScoutingReportOut(CamelModel):

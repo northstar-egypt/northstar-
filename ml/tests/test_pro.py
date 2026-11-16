@@ -142,3 +142,35 @@ def test_seasons_are_paired_only_within_one_competition():
     assert (league, next_league) in pairs
     assert all(this is not cup for _, this in pairs)  # its competition's first season: not assessed
     assert consecutive([league, next_league], 2016) == consecutive([league, next_league], years)
+
+
+def test_style_finds_the_most_alike_season_from_the_same_source_only():
+    """ml/pro/style.py: a near copy of a player's season comes first; a synthetic season never
+    turns up among real players' matches; too few minutes means no list at all."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "api"))
+    from app import sports
+    from ml.pro import style
+
+    config = sports.registry()["football"].team_gaps
+    end = date(2016, 5, 31)
+
+    def winger(pid, *, source="statsbomb", minutes=2700, **m):
+        metrics = {"minutes_played": minutes, "npxg": 4.0, "xa": 2.0, "shots": 50, "key_passes": 30,
+                   "crosses": 40, "dribbles_completed": 40, "tackles": 20, "interceptions": 10,
+                   "clearances": 5, "passes_attempted": 900, "passes_completed": 700, "duels": 200,
+                   "duels_won": 90, "aerial_duels": 30, "aerial_duels_won": 10} | m
+        return SeasonRow(pid, "2015/16", end, "League", "c", "RW", None, metrics, source)
+
+    # Statistics that vary independently of one another, so seasons point different ways.
+    pool = [winger(f"w{i}", npxg=1.0 + i, crosses=10 + (i * 7 % 12) * 5, tackles=10 + (i * 5 % 12) * 3,
+                   key_passes=20 + (i * 3 % 12) * 4) for i in range(12)]
+    me = winger("me", npxg=9.0, crosses=58, tackles=16)
+    twin = winger("twin", npxg=9.1, crosses=57, tackles=16)
+    fake = winger("fake", source="api", npxg=9.0, crosses=58, tackles=16)
+    found = style.similar(config, pool + [me, twin, fake], me)
+    assert found[0].player_id == "twin" and found[0].similarity > 0.95
+    assert "fake" not in {m.player_id for m in found} and "me" not in {m.player_id for m in found}
+    assert style.similar(config, pool + [me], winger("short", minutes=300)) == []
