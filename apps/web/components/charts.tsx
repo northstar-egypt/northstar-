@@ -100,6 +100,16 @@ export function GrowthChart({ series, height = 220 }: { series: GrowthSeries; he
   const [box, width] = useDrawnWidth(640);
   const pad = { top: 12, right: 14, bottom: 24, left: 34 };
 
+  // No reading to draw from (a professional loaded from match data, which records no heights):
+  // say so, rather than drawing a chart with nothing anchoring it.
+  if (series.measured.length === 0) {
+    return (
+      <p className="text-sm text-slate-400">
+        No height measurements on record for this player.
+      </p>
+    );
+  }
+
   const all = [
     ...series.measured.map((m) => m.value),
     ...series.forecast.map((f) => f.upper),
