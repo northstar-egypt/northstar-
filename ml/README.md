@@ -1032,6 +1032,79 @@ What this says, including the parts that are not flattering:
 - **Players abroad get no report**: their leagues have too few players on record to rank them.
 - **A role's areas are a judgement**, written by hand in the config and not learned from anything.
 
+## Expected goals (our own model)
+
+```bash
+python -m ml.run_xg_eval --data-dir <StatsBomb open data folder> --cache <file outside the repo>
+```
+
+How likely a shot is to become a goal, learned from real matches (StatsBomb's open event data,
+decision 0008; the data stays outside the repository). Penalties are left out: they have their
+own, near-fixed rate. Code in `ml/xg/`, tests in `ml/tests/test_xg.py`.
+
+**Data.** Trained on every non-penalty shot of the complete 2015/16 Premier League, La Liga,
+Serie A and Ligue 1: 37,488 shots, 3,569 goals, 1,517 matches. Tested once, after every setting
+was fixed, on shots it never saw: the 2018 and 2022 World Cups and the 2023 African Cup of
+Nations, 4,230 shots, 385 goals, 180 matches.
+
+**Features**, only what was known before the ball was struck: distance and the angle the goal
+offers; body part, technique, the kind of situation (open play, free kick, corner); how the
+chance was made (through ball, cross, cut-back, pass height, or no pass); whether the shooter was
+under pressure, shot first time, was one on one or faced an open goal; and from StatsBomb's
+freeze frame of every shot, the defenders and players between the ball and the goal, the nearest
+defender, and where the goalkeeper stood. Never where the shot went.
+
+**Models**, simplest first: a baseline on distance and angle only; a logistic regression on
+every feature; gradient-boosted trees (XGBoost). Settings were chosen by 5-fold cross-validation
+on the training leagues, each match's shots kept in one fold (log loss, lower is better):
+
+| model | settings tried | chosen | cross-validated log loss |
+| --- | --- | --- | --- |
+| baseline | none | | 0.2773 |
+| logistic | C = 0.01, 0.1, 1 | 0.1 | 0.2509 |
+| boosted | depth 3 or 4, 300 or 600 trees | depth 3, 600 trees, rate 0.03 | 0.2480 |
+
+**Held-out tournaments**, against StatsBomb's own xG for the same shots:
+
+| model | log loss | Brier | AUC | calibration error | xG total (385 goals) |
+| --- | --- | --- | --- | --- | --- |
+| baseline (distance, angle) | 0.2726 | 0.0762 | 0.741 | 0.0154 | 427.3 |
+| logistic | 0.2481 | 0.0698 | 0.802 | 0.0072 | 405.3 |
+| **boosted** | **0.2428** | **0.0680** | **0.808** | 0.0081 | 399.6 |
+| StatsBomb xG | 0.2487 | 0.0689 | 0.795 | 0.0133 | 389.1 |
+
+Log loss differences, with 95% intervals from resampling whole matches (negative: the first is
+better):
+
+| comparison | difference | 95% interval |
+| --- | --- | --- |
+| boosted against StatsBomb xG | -0.0060 | -0.0108 to -0.0014 |
+| logistic against StatsBomb xG | -0.0006 | -0.0054 to +0.0040 |
+| boosted against logistic | -0.0054 | -0.0092 to -0.0013 |
+| boosted against baseline | -0.0299 | -0.0373 to -0.0231 |
+
+The boosted model is better than StatsBomb's published xG on these shots, and the interval
+does not include zero. It is better in each tournament on its own too (log loss 0.2317 against
+0.2373 at the 2018 World Cup, 0.2626 against 0.2665 at the 2022 World Cup, 0.2340 against 0.2430
+at the African Cup of Nations). The logistic regression is level with StatsBomb's xG.
+
+What this does and does not show:
+
+- **It is one comparison, on 180 matches of international tournaments.** The interval is from
+  those matches; a different set of competitions could move it.
+- **The model predicts a little too many goals**: 399.6 against 385 scored (4% high), where
+  StatsBomb's xG says 389.1. Its calibration error is still lower, so the excess is spread
+  across many shots rather than in one band of chances.
+- **The training data is nine years older than the test data and from club football.** That
+  the model holds up on later international tournaments is a point in its favour, not a
+  guarantee for any league.
+- **Some features are StatsBomb's own annotations** (one on one, open goal, under pressure) and
+  its freeze frames. The model is only as good as that tagging, and could not run on data
+  without it (FootyStats, for instance, has no shot locations).
+- **StatsBomb's open-data xG is one version of their model**, as published with the data; it is
+  the fair comparison on the same shots, not a claim about their current product.
+- **Not yet used by the app**: the profile and the scouting report still show StatsBomb's xG.
+
 ## Player similarity
 
 ```bash
