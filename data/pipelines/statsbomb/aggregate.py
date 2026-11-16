@@ -8,6 +8,10 @@ turned into:
   (minutes, goals, xG, passes, tackles and the rest). A season is the sum of its match lines.
 - **team match lines**: per team, the counts that make up `football.team_season.v1`.
 - **shots**: one per shot, for `match_event` (where it was taken, what happened, its xG).
+- **key passes**: one per pass that led to a shot, for `match_event` (where it started and
+  arrived, whether it was an assist, the xG of the shot it set up).
+- **touches**: per player, how many of their events with a location fell in each zone of a
+  12 by 8 grid over the pitch (`football.touch_map.v1`), for the heat map.
 
 Every definition is written down here, because "a tackle" or "a duel" is a choice, and the same
 choice must hold for every player. The penalty shootout (period 5) is not part of a match's
@@ -79,12 +83,39 @@ class Shot:
 
 
 @dataclass
+class KeyPass:
+    match_id: int
+    player_id: int
+    team_id: int
+    # Platform units, as Shot: 0 to 100 along the pitch towards the opponent, left to right.
+    x: float
+    y: float
+    end_x: float
+    end_y: float
+    outcome: str  # key_pass | assist
+    xa: float
+
+
+GRID_COLUMNS, GRID_ROWS = 12, 8
+
+
+def zone(location: list) -> int:
+    """The touch-map zone of a StatsBomb location (120 by 80): row by 10 across, column by 10 along."""
+    column = min(GRID_COLUMNS - 1, max(0, int(location[0] // 10)))
+    row = min(GRID_ROWS - 1, max(0, int(location[1] // 10)))
+    return row * GRID_COLUMNS + column
+
+
+@dataclass
 class MatchResult:
     players: dict[int, dict] = field(default_factory=dict)  # player id -> counts
     player_team: dict[int, int] = field(default_factory=dict)
     player_position_seconds: dict[int, dict[str, float]] = field(default_factory=dict)
     teams: dict[int, dict] = field(default_factory=dict)  # team id -> counts
     shots: list[Shot] = field(default_factory=list)
+    key_passes: list[KeyPass] = field(default_factory=list)
+    # player id -> counts per zone, GRID_ROWS * GRID_COLUMNS of them, row by row.
+    touches: dict[int, list[int]] = field(default_factory=dict)
     # Goals counted from the events, by team, to check against the published score.
     event_goals: dict[int, int] = field(default_factory=dict)
 
@@ -194,6 +225,9 @@ def read_match(match: dict, events: list[dict], lineups: list[dict]) -> MatchRes
         kind = e["type"]["name"]
         p = player(e)
         team_id = (e.get("team") or {}).get("id")
+        if p is not None and e.get("location"):
+            grid = out.touches.setdefault(e["player"]["id"], [0] * (GRID_ROWS * GRID_COLUMNS))
+            grid[zone(e["location"])] += 1
         if e.get("possession_team") and e.get("duration"):
             owner = e["possession_team"]["id"]
             if owner in teams:
@@ -251,6 +285,15 @@ def read_match(match: dict, events: list[dict], lineups: list[dict]) -> MatchRes
             assisted = shots_by_id.get(q.get("assisted_shot_id"))
             if assisted is not None:
                 p["xa"] += float(assisted["shot"].get("statsbomb_xg") or 0.0)
+            if (q.get("goal_assist") or q.get("shot_assist")) and e.get("location") and q.get("end_location"):
+                origin, target = e["location"], q["end_location"]
+                out.key_passes.append(KeyPass(
+                    match_id=match["match_id"], player_id=e["player"]["id"], team_id=team_id,
+                    x=round(origin[0] / 120 * 100, 1), y=round(origin[1] / 80 * 100, 1),
+                    end_x=round(min(target[0], 120) / 120 * 100, 1), end_y=round(min(max(target[1], 0), 80) / 80 * 100, 1),
+                    outcome="assist" if q.get("goal_assist") else "key_pass",
+                    xa=round(float(assisted["shot"].get("statsbomb_xg") or 0.0), 4) if assisted is not None else 0.0,
+                ))
         elif kind == "Dribble":
             p["dribbles_attempted"] += 1
             p["dribbles_completed"] += e["dribble"]["outcome"]["name"] == "Complete"
@@ -341,6 +384,25 @@ def team_season(counts: dict) -> dict:
 def main_position(seconds: dict[str, float]) -> str | None:
     """The position a player spent most time in."""
     return max(seconds, key=seconds.get) if seconds else None
+
+
+def touch_map(grid: list[int]) -> dict:
+    """A summed grid as `football.touch_map.v1` metrics: z<row>_<col>, zones with none left out."""
+    return {f"z{i // GRID_COLUMNS}_{i % GRID_COLUMNS}": n for i, n in enumerate(grid) if n}
+
+
+def season_touches(results: list[MatchResult]) -> dict[int, dict[int, list[int]]]:
+    """player id -> team id -> the season's summed touch grid."""
+    out: dict[int, dict[int, list[int]]] = defaultdict(dict)
+    for r in results:
+        for pid, grid in r.touches.items():
+            team = r.player_team.get(pid)
+            if team is None:
+                continue
+            total = out[pid].setdefault(team, [0] * (GRID_ROWS * GRID_COLUMNS))
+            for i, n in enumerate(grid):
+                total[i] += n
+    return out
 
 
 def season_totals(results: list[MatchResult]) -> tuple[dict, dict, dict]:

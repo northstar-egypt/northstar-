@@ -46,8 +46,9 @@ LINEUPS = [
 
 EVENTS = [
     _event(1, "Pass", 10, HOME, KEEPER, pass_={}),
-    _event(2, "Pass", 11, HOME, KEEPER, **{"pass": {"shot_assist": True, "goal_assist": True,
-                                                     "assisted_shot_id": "e3"}}),
+    _event(2, "Pass", 11, HOME, KEEPER, location=[90.0, 60.0],
+           **{"pass": {"shot_assist": True, "goal_assist": True, "assisted_shot_id": "e3",
+                       "end_location": [108.0, 40.0]}}),
     _event(3, "Shot", 11, HOME, STRIKER, location=[108.0, 40.0],
            shot={"outcome": {"name": "Goal"}, "statsbomb_xg": 0.4, "type": {"name": "Open Play"},
                  "body_part": {"name": "Head"}, "end_location": [120, 37, 2.0]}),
@@ -147,3 +148,20 @@ def test_country_names_become_iso_codes():
     assert iso_code("Egypt") == "EG" and iso_code("Wales") == "GB"
     assert iso_code("Côte d'Ivoire") == "CI" and iso_code("Korea\xa0(South)") == "KR"
     assert iso_code("Atlantis") is None and iso_code(None) is None
+
+
+def test_key_passes_are_kept_with_where_they_arrived_and_their_xa():
+    (kp,) = _read().key_passes
+    assert (kp.player_id, kp.team_id, kp.outcome) == (KEEPER, HOME, "assist")
+    assert (kp.x, kp.y, kp.end_x, kp.end_y, kp.xa) == (75.0, 75.0, 90.0, 50.0, 0.4)
+
+
+def test_touches_are_counted_on_a_12_by_8_grid():
+    r = _read()
+    # The striker's two shots from (108, 40) and (100, 40): both in column 10, row 4.
+    assert r.touches[STRIKER][4 * 12 + 10] == 2
+    assert sum(r.touches[STRIKER]) == 2  # the shootout penalty is not counted
+    assert aggregate.touch_map(r.touches[STRIKER]) == {"z4_10": 2}
+    season = aggregate.season_touches([_read(), _read()])
+    assert season[STRIKER][HOME][4 * 12 + 10] == 4
+    assert aggregate.zone([0, 0]) == 0 and aggregate.zone([120, 80]) == 95

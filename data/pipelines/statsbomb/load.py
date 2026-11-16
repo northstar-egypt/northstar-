@@ -16,7 +16,10 @@ What it writes, all with `source = 'statsbomb'`:
   of birth, so `date_of_birth` is left empty and every age-based view says the age is unknown;
 - `performance_entry` rows in `football.season_aggregate.v2`, one per player, team and season;
 - `team_season_stat` rows in `football.team_season.v1`, one per team and season;
-- `match_event` rows, one per shot, with its xG (aggregate.py says how each is counted).
+- `match_event` rows, one per shot with its xG, and one per key pass (a pass that led to a
+  shot) with where it arrived and its xA (aggregate.py says how each is counted);
+- `performance_entry` rows in `football.touch_map.v1`, one per player, team and season: their
+  actions counted on a 12 by 8 grid, which the scouting report draws as a heat map.
 
 It can be run again: StatsBomb rows are deleted and written afresh, and players and teams are
 matched by their StatsBomb ids, so their platform ids (and anything that points at them) stay.
@@ -57,6 +60,7 @@ from app.models.team_season_stat import TeamSeasonStat  # noqa: E402
 SOURCE = PerformanceSource.STATSBOMB.value
 SCHEMA_PLAYER = "football.season_aggregate.v2"
 SCHEMA_TEAM = "football.team_season.v1"
+SCHEMA_TOUCHES = "football.touch_map.v1"
 # The legal basis for holding this data is StatsBomb's open-data licence, accepted by the team,
 # not a player's own consent. The consent rows say so, so the access rules, which read consent,
 # treat these professionals like any other adult professional on the platform.
@@ -161,7 +165,8 @@ def load(data_dir: Path, database_url: str) -> dict:
         positions: dict[int, dict[str, float]] = defaultdict(dict)
         spans: dict[tuple, list[date]] = defaultdict(list)
         played_for: dict[tuple, list[date]] = defaultdict(list)
-        all_shots = []
+        all_shots, all_passes = [], []
+        touch_lines: dict[tuple, list[int]] = {}
         for s in seasons:
             comp = s["comp"]
             key_c = (comp["competition_name"], comp["season_name"])
@@ -173,6 +178,9 @@ def load(data_dir: Path, database_url: str) -> dict:
                 aggregate.add(team_lines[(tid, key_c)], counts)
             for pid, spent in pos.items():
                 aggregate.add(positions[pid], spent)
+            for pid, by_team in aggregate.season_touches([r for _, r in s["results"]]).items():
+                for tid, grid in by_team.items():
+                    touch_lines[(pid, tid, key_c)] = grid
             for match, result in s["results"]:
                 day = date.fromisoformat(match["match_date"])
                 for tid in result.teams:
@@ -182,6 +190,7 @@ def load(data_dir: Path, database_url: str) -> dict:
                 label = (f"{match['home_team']['home_team_name']} {match['home_score']}-"
                          f"{match['away_score']} {match['away_team']['away_team_name']}")
                 all_shots += [(shot, day, label) for shot in result.shots]
+                all_passes += [(kp, day, label) for kp in result.key_passes]
 
         # Players.
         found = {p.external_ids.get("statsbomb"): p for p in db.execute(
@@ -266,6 +275,21 @@ def load(data_dir: Path, database_url: str) -> dict:
             db.add(TeamSeasonStat(organization_id=orgs[tid].id, sport="football", competition=cname,
                                   season=season_label(sname), period_start=start, period_end=end,
                                   schema_ref=SCHEMA_TEAM, metrics=metrics, source=SOURCE))
+        for (pid, tid, (cname, sname)), grid in touch_lines.items():
+            if pid not in by_pid or (pid, tid, (cname, sname)) not in player_lines:
+                continue
+            days = spans[(tid, (cname, sname))]
+            metrics = aggregate.touch_map(grid)
+            errors = sports.validate(metrics, SCHEMA_TOUCHES, modules)
+            if errors:
+                problems += 1
+                continue
+            db.add(PerformanceEntry(
+                id=uuid.uuid4(), player_id=by_pid[pid].id, sport="football", period_type="season_touch_map",
+                period_start=min(days), period_end=max(days), organization_id=orgs[tid].id,
+                event=f"{cname} {season_label(sname)}", metrics=metrics, schema_ref=SCHEMA_TOUCHES,
+                source=SOURCE, is_validated=True,
+            ))
 
         # Shots.
         for shot, day, label in all_shots:
@@ -286,12 +310,28 @@ def load(data_dir: Path, database_url: str) -> dict:
                 outcome=shot.outcome, x=shot.x, y=shot.y, video_seconds=None, details=details,
                 source=SOURCE, tagged_by=None,
             ))
+        # Key passes.
+        pass_type = modules["football"].events["pass"]
+        for kp, day, label in all_passes:
+            if kp.player_id not in by_pid:
+                continue
+            measures = {"end_x": kp.end_x, "end_y": kp.end_y, "xa": kp.xa}
+            if any(pass_type.measures[k].problem(v) for k, v in measures.items()):
+                problems += 1
+                continue
+            db.add(MatchEvent(
+                player_id=by_pid[kp.player_id].id, organization_id=orgs[kp.team_id].id,
+                sport="football", match_date=day, match_label=label, event_type="pass",
+                outcome=kp.outcome, x=kp.x, y=kp.y, video_seconds=None, details=measures,
+                source=SOURCE, tagged_by=None,
+            ))
         db.commit()
 
     return {
         "competitions": len(seasons),
         "players": len(by_pid), "new_players": new_players, "teams": len(orgs),
         "player_seasons": len(player_lines), "team_seasons": len(team_lines), "shots": len(all_shots),
+        "key_passes": len(all_passes), "touch_maps": len(touch_lines),
         "problems": problems, "unknown_countries": sorted(unknown_countries),
     }
 

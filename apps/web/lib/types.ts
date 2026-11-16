@@ -898,6 +898,41 @@ export interface ScoutingReport {
   young: boolean;
   finishing: Finishing;
   breakout: { flagged: boolean; score?: number | null; reason: string; considered: boolean } | null;
+  /** Three lines read from the numbers: what stands out, the weakest area, a caution. */
+  case: { kind: "strength" | "weakness" | "caution"; headline: string; detail: string }[];
+  /** Every season on record; `selected` is the one graded here. */
+  seasons: {
+    competition: string;
+    season: string;
+    club: string | null;
+    minutes: number;
+    gradable: boolean;
+    selected: boolean;
+    goals: number;
+    assists: number;
+    npxg: number;
+    xa: number;
+  }[];
+  /** Seasons that look most alike, style not level (ml/pro/style.py). */
+  similar: {
+    playerId: string;
+    fullName: string;
+    competition: string;
+    season: string;
+    club: string | null;
+    minutes: number;
+    /** Percent. */
+    similarity: number;
+  }[];
+  /** Where the data has locations (StatsBomb): the season's shots, key passes and touch map. */
+  pitch: {
+    shots: { x: number; y: number; outcome: string; xg: number | null; situation: string | null }[];
+    keyPasses: { x: number; y: number; endX: number; endY: number; outcome: string; xa: number | null }[];
+    /** 96 counts, 8 rows of 12, or null when the season has no locations. */
+    touchMap: number[] | null;
+    matches: number;
+    eventSource: string | null;
+  } | null;
 }
 
 /** GET /oversight/strongest: the strongest rated players of one gender. */

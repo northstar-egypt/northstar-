@@ -187,13 +187,17 @@ def player_pro_seasons(
 @router.get("/players/{player_id}/scouting-report", response_model=ScoutingReportOut)
 def player_scouting_report(
     player_id: uuid.UUID,
+    competition: str | None = Query(default=None, max_length=120),
+    season: str | None = Query(default=None, max_length=20),
     db: Session = Depends(get_db),
     caller: Caller = Depends(current_user),
 ) -> ScoutingReportOut:
     """A pro player's scouting report: the verdict first, then the evidence. See
-    app/services/scouting_report.py and ml/pro/report.py."""
+    app/services/scouting_report.py and ml/pro/report.py. `competition` and `season` together
+    pick a season; without them, the latest season that can be graded."""
     player = _viewable_player(db, caller, player_id)
-    return ScoutingReportOut.model_validate(scouting_report.player_report(db, caller, player))
+    return ScoutingReportOut.model_validate(
+        scouting_report.player_report(db, caller, player, competition=competition, season=season))
 
 
 @router.get("/players/{player_id}/similar", response_model=SimilarPlayersOut)

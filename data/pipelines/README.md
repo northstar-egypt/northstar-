@@ -19,8 +19,8 @@ Built:
   synthetic Egyptian league in FootyStats' shape. See `synthetic/README.md`.
 - `geo/` Builds the governorate map of Egypt the federation home draws.
 - `statsbomb/` Loads StatsBomb's open event data (real professional matches, research and
-  education licence) into the professional tier's own records: player and team seasons, and
-  every shot with its expected goals. Decision 0008. The data is real, so it is downloaded to a
+  education licence) into the professional tier's own records: player and team seasons, every
+  shot with its expected goals, every key pass, and a touch map per season for the heat map. Decision 0008. The data is real, so it is downloaded to a
   folder **outside the repository** and never committed:
 
   ```bash

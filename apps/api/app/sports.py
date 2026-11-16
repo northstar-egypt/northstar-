@@ -103,6 +103,9 @@ class Period:
     schema: dict
     invariants: list[dict]
     derived: list[dict]
+    # False for records a screen draws rather than lists, such as a touch map's 96 zone
+    # counts: the profile leaves them out of its tables of records.
+    show_on_profile: bool = True
 
     @property
     def metrics(self) -> list[Metric]:
@@ -285,6 +288,9 @@ class ScoutingReport:
     roles: dict[str, list[str]]
     # What the data cannot say about any player, said on every report.
     not_in_data: list[str]
+    # Statistic -> a few plain words for being strong in it ("gets into scoring positions"),
+    # for the report's lines on what stands out. A statistic without one is named by its label.
+    phrases: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -450,6 +456,7 @@ def _period(ref: str, spec: dict) -> Period:
         schema=spec["schema"],
         invariants=spec.get("invariants", []),
         derived=spec.get("derived", []),
+        show_on_profile=bool(spec.get("showOnProfile", True)),
     )
 
 
@@ -540,7 +547,11 @@ def _scouting_report(name: str, raw: dict | None, gaps: TeamGaps | None) -> Scou
     missing = set(gaps.groups) - set(roles)
     if missing:
         raise ModuleError(f"{name}: scoutingReport does not say how to grade {sorted(missing)}")
-    return ScoutingReport(areas, roles, list(raw.get("notInData", [])))
+    phrases = dict(raw.get("phrases", {}))
+    unknown = set(phrases) - set(gaps.attributes)
+    if unknown:
+        raise ModuleError(f"{name}: scoutingReport phrases name unknown statistics {sorted(unknown)}")
+    return ScoutingReport(areas, roles, list(raw.get("notInData", [])), phrases)
 
 
 def _team_gaps(name: str, raw: dict | None, periods: dict[str, Period],

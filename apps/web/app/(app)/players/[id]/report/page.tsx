@@ -2,44 +2,68 @@
 
 /**
  * A pro player's scouting report (apps/api/app/services/scouting_report.py, running
- * ml/pro/report.py): the verdict first, then the evidence behind it.
+ * ml/pro/report.py), laid out as a report: the verdict and three lines read from the numbers,
+ * then the evidence (every statistic as a percentile, then the pitch), then who plays alike,
+ * finishing, the seasons on record and what the data cannot see.
  *
  * Every grade and sentence is a rule over the numbers shown, and the rules are stated at the foot
- * of the page. What the data cannot say is said too, rather than left out. The API decides who
- * gets a report; when there is none, the page shows the API's reason.
+ * of the page. Where the season has no event locations (the synthetic league), the pitch section
+ * says so instead of drawing empty maps. The API decides who gets a report; when there is none,
+ * the page shows the API's reason.
  */
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { PercentileBar } from "@/components/charts";
-import { Pitch } from "@/components/pitch";
-import { Avatar, Banner, Card, Chip, SectionTitle, Skeleton } from "@/components/ui";
+import {
+  AREA_COLOURS,
+  CHANCE,
+  FinishingLine,
+  GOAL,
+  KeyPassMap,
+  PercentilePizza,
+  ShotMap,
+  TouchHeatMap,
+} from "@/components/pro-charts";
+import { Avatar, Banner, Skeleton } from "@/components/ui";
 import { getProfile, getScoutingReport } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { cx, ordinal } from "@/lib/format";
+import { cx } from "@/lib/format";
 import { ROLE_IDENTITY } from "@/lib/roles";
 import type { PlayerProfile, ReportEvidence, ScoutingReport } from "@/lib/types";
 
 const GRADE_COLOUR: Record<string, string> = {
   A: "text-emerald-300",
   B: "text-emerald-400",
-  C: "text-slate-200",
+  C: "text-slate-100",
   D: "text-amber-400",
 };
 
-function amount(e: ReportEvidence, value: number): string {
-  return e.unit === "%" ? `${value}%` : `${value} per 90`;
+const CASE_STYLE = {
+  strength: { mark: "+", box: "bg-emerald-950 text-emerald-400" },
+  weakness: { mark: "−", box: "bg-amber-950 text-amber-400" },
+  caution: { mark: "!", box: "bg-sky-950 text-sky-300" },
+} as const;
+
+// min-w-0: a card in a grid must not grow to its widest child (the seasons table scrolls instead).
+const panel = "min-w-0 rounded-2xl border border-slate-800 bg-slate-900/70";
+
+function amount(e: ReportEvidence): string {
+  return e.unit === "%" ? `${e.value}%` : e.value.toFixed(2);
 }
 
-function EvidenceLine({ e }: { e: ReportEvidence }) {
+function barColour(p: number): string {
+  if (p >= 70) return "bg-emerald-400";
+  if (p <= 30) return "bg-amber-500";
+  return "bg-sky-400";
+}
+
+function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <li className="text-sm text-slate-300">
-      <span className="font-semibold text-slate-100">{e.label}</span>
-      {e.lowReliability ? " *" : ""}: {amount(e, e.value)},{" "}
-      <span className="tabular-nums">{ordinal(e.percentile)}</span> percentile{" "}
-      <span className="text-slate-500">(median {amount(e, e.median)})</span>
-    </li>
+    <div className="rounded-lg bg-slate-950/70 px-3 py-2.5">
+      <div className="text-[11px] text-slate-400">{label}</div>
+      <div className={cx("font-mono text-xl font-bold tabular-nums", accent)}>{value}</div>
+    </div>
   );
 }
 
@@ -49,13 +73,21 @@ export default function ScoutingReportPage() {
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [report, setReport] = useState<ScoutingReport | null | "loading">("loading");
   const [note, setNote] = useState<string | null>(null);
+  const [choice, setChoice] = useState<{ competition: string; season: string } | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
     getProfile(playerId).then((p) => {
       if (alive && p && !("mergedInto" in p)) setProfile(p);
     });
-    getScoutingReport(playerId)
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  useEffect(() => {
+    let alive = true;
+    getScoutingReport(playerId, choice)
       .then((r) => {
         if (!alive) return;
         setReport(r?.report ?? null);
@@ -69,7 +101,7 @@ export default function ScoutingReportPage() {
     return () => {
       alive = false;
     };
-  }, [playerId]);
+  }, [playerId, choice]);
 
   const accent = ROLE_IDENTITY[user?.role ?? "scout"];
   const back = (
@@ -90,190 +122,387 @@ export default function ScoutingReportPage() {
     );
   }
 
-  const graded = report.areas.filter((a) => a.graded);
-  const others = report.areas.filter((a) => !a.graded);
-  const finishing = report.finishing;
+  const name = profile?.player.fullName ?? "";
+  const pitch = report.pitch;
+  const hasPitch = !!pitch && (pitch.shots.length > 0 || pitch.keyPasses.length > 0 || pitch.touchMap !== null);
+  const goals = pitch?.shots.filter((s) => s.outcome === "goal").length ?? 0;
+  const xg = pitch?.shots.reduce((t, s) => t + (s.xg ?? 0), 0) ?? 0;
+  const assists = pitch?.keyPasses.filter((k) => k.outcome === "assist").length ?? 0;
+  const xa = pitch?.keyPasses.reduce((t, k) => t + (k.xa ?? 0), 0) ?? 0;
+  const actions = pitch?.touchMap?.reduce((a, b) => a + b, 0) ?? 0;
+  const ordered = [...report.areas.filter((a) => a.graded), ...report.areas.filter((a) => !a.graded)];
   const anyStarred = report.areas.some((a) => a.evidence.some((e) => e.lowReliability));
+  const finishing = report.finishing;
+  const fromStatsBomb = pitch?.eventSource === "statsbomb";
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-7">
       {back}
 
-      <div className="flex flex-wrap items-start gap-4">
-        <Avatar size={64} name={profile?.player.fullName} />
-        <div className="min-w-[14rem] flex-1">
-          <p className={cx("text-xs font-medium uppercase tracking-widest", accent.text)}>Scouting report</p>
-          <h1 className="text-2xl font-bold leading-tight tracking-tight"><bdi>{profile?.player.fullName}</bdi></h1>
-          <p className="text-sm text-slate-500">
-            {[report.club, report.groupLabel, profile ? `age ${profile.ageLabel}` : null].filter(Boolean).join(" · ")}
-          </p>
-          <p className="text-sm text-slate-500">
-            {report.competition} {report.season}, compared with {report.population} {report.groupLabel.toLowerCase()},{" "}
-            {report.minutes.toLocaleString()} minutes
-          </p>
-        </div>
-      </div>
-
-      {/* The verdict comes first: a scout should have it in ten seconds. */}
-      <Card className={cx("border-l-4", accent.border)}>
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
-        <div>
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Current level</p>
-            <p className={cx("text-5xl font-bold leading-none", GRADE_COLOUR[report.levelGrade ?? ""] ?? "text-slate-200")}>
-              {report.levelGrade ?? "n/a"}
+      {/* The verdict: who, how good, and the three lines a scout reads first. */}
+      <section aria-label="Verdict" className={cx(panel, "overflow-hidden")}>
+        <div className="grid lg:grid-cols-2">
+          <div className="flex flex-col gap-5 p-6 sm:p-8">
+            <div className="flex items-center gap-5">
+              <Avatar size={80} name={name} />
+              <div className="min-w-0">
+                <p className={cx("text-xs font-semibold uppercase tracking-[0.14em]", accent.text)}>Scouting report</p>
+                <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl"><bdi>{name}</bdi></h1>
+                <p className="text-sm text-slate-400">
+                  {[profile?.player.position, report.club, profile?.ageLabel ? (/^\d/.test(profile.ageLabel) ? `age ${profile.ageLabel}` : profile.ageLabel) : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+            </div>
+            {report.seasons.length > 1 ? (
+              <div role="tablist" aria-label="Season" className="flex flex-wrap gap-2">
+                {report.seasons.map((s) => (
+                  <button
+                    key={`${s.competition}-${s.season}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={s.selected}
+                    disabled={!s.gradable || s.selected}
+                    title={s.gradable ? undefined : "Too few minutes to grade"}
+                    onClick={() => setChoice({ competition: s.competition, season: s.season })}
+                    className={cx(
+                      "min-h-[44px] rounded-lg border px-3.5 py-2 text-left",
+                      s.selected
+                        ? "border-amber-500 bg-amber-950/60 text-amber-100"
+                        : s.gradable
+                          ? "border-slate-700 text-slate-200 hover:border-slate-500"
+                          : "cursor-not-allowed border-slate-800 text-slate-500",
+                    )}
+                  >
+                    <span className="block text-sm font-semibold">
+                      {s.competition} {s.season}
+                    </span>
+                    <span className="block text-xs opacity-80">
+                      {[s.club, `${s.minutes.toLocaleString()} min`].filter(Boolean).join(" · ")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <p className="text-sm text-slate-400">
+              {report.competition} {report.season}: graded against {report.population}{" "}
+              {report.groupLabel.toLowerCase()} with 450+ minutes, from {report.minutes.toLocaleString()} minutes.
             </p>
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Recommendation</p>
-            <p className="text-2xl font-bold">{report.recommendation ?? "None"}</p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Confidence</p>
-            <p className="text-lg font-semibold capitalize">{report.confidence}</p>
-            <p className="text-xs text-slate-500">from {report.minutes.toLocaleString()} minutes</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {graded.map((a) => (
-              <div key={a.key} className="rounded-md border border-slate-800 px-3 py-1.5 text-center">
-                <p className={cx("text-xl font-bold leading-none", GRADE_COLOUR[a.grade ?? ""] ?? "text-slate-400")}>
-                  {a.grade ?? "n/a"}
-                </p>
-                <p className="mt-1 text-[0.7rem] text-slate-400">{a.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        <p className="mt-4 text-slate-200">{report.summary}</p>
-        {report.young && report.recommendation !== "Shortlist" ? (
-          <p className="mt-1 text-sm text-slate-400">Aged under 23: development years ahead, so the level can still rise.</p>
-        ) : null}
-        <p className="mt-2 text-xs text-slate-500">A claim to check, not a decision: the data sees only part of a player.</p>
-        </div>
-        <Pitch group={report.group} groupLabel={report.groupLabel} className={accent.text} />
-        </div>
-      </Card>
 
-      <div className="grid gap-5 md:grid-cols-2">
-        <Card>
-          <SectionTitle>Strengths</SectionTitle>
-          {report.strengths.length === 0 ? (
-            <p className="text-sm text-slate-400">Nothing at the 70th percentile or above.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {report.strengths.map((e) => (
-                <EvidenceLine key={e.key} e={e} />
-              ))}
-            </ul>
-          )}
-        </Card>
-        <Card>
-          <SectionTitle>Weaknesses</SectionTitle>
-          {report.weaknesses.length === 0 ? (
-            <p className="text-sm text-slate-400">Nothing at the 30th percentile or below.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {report.weaknesses.map((e) => (
-                <EvidenceLine key={e.key} e={e} />
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-
-      <Card>
-        <SectionTitle>The numbers, against the position</SectionTitle>
-        <p className="mb-4 text-xs text-slate-500">
-          Each bar is where the player ranks among {report.population} {report.groupLabel.toLowerCase()} in{" "}
-          {report.competition} {report.season}. The current level is graded on the areas this role needs; the others
-          are shown for information.
-        </p>
-        <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
-          {[...graded, ...others].map((area) => (
-            <div key={area.key}>
-              <div className="mb-2 flex items-baseline justify-between gap-2">
-                <h3 className="font-semibold">
-                  {area.label}
-                  {area.graded ? <span className={cx("ml-2 text-xs font-normal", accent.text)}>graded for this role</span> : null}
-                </h3>
-                <span className="text-sm tabular-nums text-slate-400">
-                  {area.grade ?? "n/a"}
-                  {area.score != null ? `, average ${ordinal(Math.round(area.score))}` : ""}
+          <div className="flex flex-col gap-5 border-t border-slate-800 bg-slate-950/40 p-6 sm:p-8 lg:border-l lg:border-t-0">
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="flex h-28 w-28 flex-col items-center justify-center rounded-2xl border border-slate-700 bg-slate-950">
+                <span className={cx("text-6xl font-bold leading-none", GRADE_COLOUR[report.levelGrade ?? ""] ?? "text-slate-300")}>
+                  {report.levelGrade ?? "n/a"}
                 </span>
+                {report.level != null ? (
+                  <span className="mt-1.5 text-[11px] tracking-wider text-slate-400">LEVEL {Math.round(report.level)}/100</span>
+                ) : null}
               </div>
-              <div className="flex flex-col gap-2.5">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-slate-400">Recommendation</p>
+                <p className="text-3xl font-bold text-amber-200">{report.recommendation ?? "None"}</p>
+                <p className="text-sm capitalize text-slate-300">{report.confidence} confidence</p>
+              </div>
+            </div>
+            {report.case.length > 0 ? (
+              <ul className="flex flex-col gap-3.5">
+                {report.case.map((line) => (
+                  <li key={line.headline} className="flex items-start gap-3.5">
+                    <span
+                      aria-hidden
+                      className={cx("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm font-bold", CASE_STYLE[line.kind].box)}
+                    >
+                      {CASE_STYLE[line.kind].mark}
+                    </span>
+                    <p className="text-[15px] leading-relaxed">
+                      <span className="font-semibold">{line.headline}</span>{" "}
+                      <span className="text-slate-400">{line.detail}</span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-slate-300">{report.summary}</p>
+            )}
+            <p className="text-xs text-slate-500">Each line is read from the numbers below. A claim to check, not a decision.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Every statistic against the position. */}
+      <section aria-label="Against the position" className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="text-xl font-bold tracking-tight">
+            Against {report.population} {report.competition} {report.groupLabel.toLowerCase()}
+          </h2>
+          <span className="text-sm text-slate-400">Percentile: higher is better on every statistic.</span>
+        </div>
+        <div className="grid gap-5 xl:grid-cols-2">
+          <div className={cx(panel, "flex flex-col gap-3 p-5")}>
+            <PercentilePizza areas={report.areas} />
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-xs text-slate-300">
+              {report.areas.map((a, i) => (
+                <span key={a.key} className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: AREA_COLOURS[i % AREA_COLOURS.length] }} />
+                  {a.label}
+                </span>
+              ))}
+              <span className="text-slate-500">dashed ring = middle of the group</span>
+            </div>
+          </div>
+          <div className={cx(panel, "flex flex-col gap-5 p-5")}>
+            {ordered.map((area, i) => (
+              <div key={area.key} className={cx("flex flex-col gap-2", i === report.areas.filter((a) => a.graded).length && "border-t border-slate-800 pt-4")}>
+                <div className="flex items-baseline justify-between">
+                  <span className={cx("text-sm font-semibold", !area.graded && "text-slate-300")}>
+                    {area.label}
+                    {area.graded ? <span className={cx("ml-2 text-[11px] font-medium tracking-wider", accent.text)}>GRADED</span> : null}
+                  </span>
+                  <span className={cx("text-sm font-bold tabular-nums", GRADE_COLOUR[area.grade ?? ""] ?? "text-slate-400")}>
+                    {area.grade ?? "n/a"}
+                    {area.score != null ? ` · ${Math.round(area.score)}` : ""}
+                  </span>
+                </div>
                 {area.evidence.map((e) => (
-                  <div key={e.key}>
-                    <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-                      <span className="text-slate-300">
-                        {e.label}
-                        {e.lowReliability ? " *" : ""}
-                      </span>
-                      <span className="tabular-nums text-slate-400">
-                        {amount(e, e.value)}
-                        <span className="ml-2 font-semibold text-slate-200">{ordinal(e.percentile)}</span>
-                      </span>
-                    </div>
-                    <PercentileBar percentile={e.percentile} higherIsBetter />
+                  <div key={e.key} className="grid grid-cols-[minmax(0,9.5rem)_4rem_minmax(0,1fr)_2.25rem] items-center gap-2.5 text-[13px]">
+                    <span className="truncate text-slate-300">
+                      {e.label}
+                      {e.lowReliability ? "*" : ""}
+                    </span>
+                    <span className="font-mono tabular-nums text-slate-100">{amount(e)}</span>
+                    <span className="relative block h-2 rounded bg-slate-800" title={`median ${e.unit === "%" ? `${e.median}%` : e.median}`}>
+                      <span className={cx("absolute inset-y-0 left-0 rounded", barColour(e.percentile))} style={{ width: `${e.percentile}%` }} />
+                      <span className="absolute -inset-y-1 left-1/2 w-px bg-slate-500" aria-hidden />
+                    </span>
+                    <span className="text-right font-mono font-semibold tabular-nums">{e.percentile}</span>
                   </div>
                 ))}
               </div>
-            </div>
-          ))}
+            ))}
+            <p className="text-xs text-slate-500">
+              The line on each bar is the group&apos;s middle.
+              {anyStarred ? " * Repeats poorly from one half season to the next: weigh it less." : ""} Graded areas are the
+              ones this position is judged on.
+            </p>
+          </div>
         </div>
-        {anyStarred ? (
-          <p className="mt-4 text-xs text-slate-500">
-            * Repeats poorly from one half of a season to the other, so weigh it less.
-          </p>
-        ) : null}
-      </Card>
+      </section>
 
-      <div className="grid gap-5 md:grid-cols-2">
-        <Card>
-          <SectionTitle>Finishing and form</SectionTitle>
-          <p className="text-sm text-slate-300">
-            {finishing.seasons > 1 ? `Over ${finishing.seasons} seasons` : "This season"}: {finishing.npGoals} non-penalty goals
-            from chances worth {finishing.npxg.toFixed(1)}.{" "}
+      {/* The pitch: where the season happened, when the data has locations. */}
+      <section aria-label="On the pitch" className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="text-xl font-bold tracking-tight">On the pitch</h2>
+          {hasPitch ? (
+            <span className="text-sm text-slate-400">
+              {pitch!.matches} {report.competition} matches · every event placed{fromStatsBomb ? " by StatsBomb" : ""}
+            </span>
+          ) : null}
+        </div>
+        {!hasPitch ? (
+          <div className={cx(panel, "p-5 text-sm text-slate-400")}>
+            No event locations for {report.competition} {report.season}: this league&apos;s figures are season totals, so
+            there is no shot map or heat map to draw. Leagues with event data (StatsBomb) have them.
+          </div>
+        ) : (
+          <div className="grid gap-5 lg:grid-cols-3">
+            <div className={cx(panel, "flex flex-col gap-3 p-5")}>
+              <div className="flex items-baseline justify-between">
+                <h3 className="font-semibold">Shots</h3>
+                <span className="text-xs text-slate-400">size = chance quality</span>
+              </div>
+              <ShotMap shots={pitch!.shots} />
+              <div className="grid grid-cols-4 gap-2">
+                <Stat label="Shots" value={String(pitch!.shots.length)} />
+                <Stat label="Goals" value={String(goals)} accent="text-amber-300" />
+                <Stat label="xG per shot" value={pitch!.shots.length ? (xg / pitch!.shots.length).toFixed(2) : "n/a"} />
+                <Stat label="Conversion" value={pitch!.shots.length ? `${Math.round((goals / pitch!.shots.length) * 100)}%` : "n/a"} />
+              </div>
+              <Legend items={[{ colour: GOAL, label: "Goal", filled: true }, { colour: CHANCE, label: "No goal" }]} />
+            </div>
+            <div className={cx(panel, "flex flex-col gap-3 p-5")}>
+              <div className="flex items-baseline justify-between">
+                <h3 className="font-semibold">Chances created</h3>
+                <span className="text-xs text-slate-400">attacking to the right</span>
+              </div>
+              <KeyPassMap passes={pitch!.keyPasses} />
+              <div className="grid grid-cols-3 gap-2">
+                <Stat label="Key passes" value={String(pitch!.keyPasses.length)} />
+                <Stat label="Assists" value={String(assists)} accent="text-amber-300" />
+                <Stat label="xA" value={xa.toFixed(2)} />
+              </div>
+              <Legend items={[{ colour: GOAL, label: "Assist", filled: true }, { colour: CHANCE, label: "Pass that led to a shot" }]} />
+            </div>
+            <div className={cx(panel, "flex flex-col gap-3 p-5")}>
+              <div className="flex items-baseline justify-between">
+                <h3 className="font-semibold">Where they play</h3>
+                <span className="text-xs text-slate-400">attacking to the right</span>
+              </div>
+              {pitch!.touchMap ? <TouchHeatMap grid={pitch!.touchMap} /> : <p className="text-sm text-slate-400">No touch map.</p>}
+              <div className="grid grid-cols-3 gap-2">
+                <Stat label="Actions" value={actions.toLocaleString()} />
+                <Stat label="Matches" value={String(pitch!.matches)} />
+                <Stat label="Minutes" value={report.minutes.toLocaleString()} />
+              </div>
+              <p className="text-xs text-slate-500">Every event with a location: passes, carries, shots, duels. Brighter = more.</p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section aria-label="Plays most like" className={cx(panel, "flex flex-col gap-3 p-6")}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-semibold">Plays most like</h2>
+            <span className="text-xs text-slate-400">{report.groupLabel.toLowerCase()} with 900+ minutes</span>
+          </div>
+          {report.similar.length === 0 ? (
+            <p className="text-sm text-slate-400">Not enough comparable seasons to say.</p>
+          ) : (
+            <ul className="flex flex-col">
+              {report.similar.map((s) => (
+                <li key={`${s.playerId}-${s.season}`} className="grid grid-cols-[2.5rem_minmax(0,1fr)_minmax(4rem,7rem)_3rem] items-center gap-3 border-b border-slate-800 py-2.5 last:border-0">
+                  <Avatar size={36} name={s.fullName} />
+                  <div className="min-w-0">
+                    <Link href={`/players/${s.playerId}/report`} className="block truncate font-semibold hover:underline">
+                      <bdi>{s.fullName}</bdi>
+                    </Link>
+                    <p className="truncate text-xs text-slate-400">
+                      {[s.club, `${s.competition} ${s.season}`, `${s.minutes.toLocaleString()} min`].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
+                  <span className="relative block h-2 rounded bg-slate-800">
+                    <span className="absolute inset-y-0 left-0 rounded bg-amber-500" style={{ width: `${Math.max(0, s.similarity)}%` }} />
+                  </span>
+                  <span className="text-right font-mono font-semibold tabular-nums">{s.similarity}%</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-slate-500">
+            Alike in style, not level: the same statistics per 90, compared after scaling each across the group. Real
+            players are compared only with real players.
+          </p>
+        </section>
+
+        <section aria-label="Finishing" className={cx(panel, "flex flex-col gap-4 p-6")}>
+          <h2 className="text-lg font-semibold">Finishing against expected</h2>
+          <div className="flex flex-wrap gap-8">
+            <div>
+              <div className="text-xs text-slate-400">Non-penalty goals</div>
+              <div className="font-mono text-4xl font-bold text-amber-300">{finishing.npGoals}</div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-400">Expected (npxG)</div>
+              <div className="font-mono text-4xl font-bold text-sky-300">{finishing.npxg.toFixed(2)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-400">Difference</div>
+              <div className="font-mono text-4xl font-bold">
+                {finishing.npGoals - finishing.npxg >= 0 ? "+" : ""}
+                {(finishing.npGoals - finishing.npxg).toFixed(1)}
+              </div>
+            </div>
+          </div>
+          {finishing.low != null && finishing.high != null ? (
+            <FinishingLine goals={finishing.npGoals} expected={finishing.npxg} low={finishing.low} high={finishing.high} />
+          ) : null}
+          <p className="text-sm leading-relaxed text-slate-300">
+            {finishing.seasons > 1 ? `Across ${finishing.seasons} seasons on record. ` : ""}
             {finishing.low != null && finishing.high != null
-              ? `An ordinary finisher scores ${finishing.low} to ${finishing.high} from those, so this is ${
-                  finishing.verdict === "in line" ? "within what chance makes" : `${finishing.verdict} expected`
-                }.`
+              ? finishing.verdict === "in line"
+                ? `Within the range ordinary finishing gives (${finishing.low} to ${finishing.high}).`
+                : `${finishing.verdict === "above" ? "Above" : "Below"} the range ordinary finishing gives (${finishing.low} to ${finishing.high}, 10th to 90th percentile), which mostly does not last.`
               : "Too few chances to judge the finishing."}
           </p>
-          {report.breakout ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-300">
-              {report.breakout.flagged ? <Chip tone="brand">Breakout</Chip> : null}
-              <span>{report.breakout.flagged ? `${report.breakout.reason}.` : `No breakout flagged: ${report.breakout.reason}.`}</span>
-            </div>
-          ) : null}
-        </Card>
-        <Card>
-          <SectionTitle>What would change this verdict</SectionTitle>
-          <ul className="flex list-disc flex-col gap-1.5 pl-4 text-sm text-slate-300">
-            {report.wouldChange.map((w) => (
-              <li key={w}>{w}</li>
-            ))}
-          </ul>
-        </Card>
+        </section>
       </div>
 
-      <Card>
-        <SectionTitle>Not in our data</SectionTitle>
-        <ul className="flex list-disc flex-col gap-1 pl-4 text-sm text-slate-400">
-          {report.notInData.map((n) => (
-            <li key={n}>{n}</li>
-          ))}
-        </ul>
-      </Card>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section aria-label="Seasons on record" className={cx(panel, "flex flex-col gap-3 p-6")}>
+          <h2 className="text-lg font-semibold">Seasons on record</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[30rem] border-collapse text-[13px]">
+              <thead>
+                <tr className="text-left text-slate-400">
+                  <th className="border-b border-slate-700 px-2.5 py-2 font-medium">Competition</th>
+                  <th className="border-b border-slate-700 px-2.5 py-2 text-right font-medium">Min</th>
+                  <th className="border-b border-slate-700 px-2.5 py-2 text-right font-medium">G</th>
+                  <th className="border-b border-slate-700 px-2.5 py-2 text-right font-medium">A</th>
+                  <th className="border-b border-slate-700 px-2.5 py-2 text-right font-medium">npxG</th>
+                  <th className="border-b border-slate-700 px-2.5 py-2 text-right font-medium">xA</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono tabular-nums">
+                {report.seasons.map((s) => (
+                  <tr key={`${s.competition}-${s.season}`} className={s.selected ? "bg-amber-950/30" : undefined}>
+                    <td className="border-b border-slate-800 px-2.5 py-2.5 font-sans">
+                      <span className="font-semibold">
+                        {s.competition} {s.season}
+                      </span>
+                      {s.club ? <span className="text-slate-400"> · {s.club}</span> : null}
+                    </td>
+                    <td className="border-b border-slate-800 px-2.5 py-2.5 text-right">{s.minutes.toLocaleString()}</td>
+                    <td className="border-b border-slate-800 px-2.5 py-2.5 text-right">{s.goals}</td>
+                    <td className="border-b border-slate-800 px-2.5 py-2.5 text-right">{s.assists}</td>
+                    <td className="border-b border-slate-800 px-2.5 py-2.5 text-right">{s.npxg.toFixed(2)}</td>
+                    <td className="border-b border-slate-800 px-2.5 py-2.5 text-right">{s.xa.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {report.seasons.some((s) => !s.gradable) ? (
+            <p className="text-xs text-slate-500">Seasons under 450 minutes are listed but too short to grade.</p>
+          ) : null}
+        </section>
 
-      <p className="text-xs text-slate-500">
-        How this was built: per-90 rates and shares from the league season, as percentiles among players of the same
-        position group, league and season with 450 minutes or more. Grades: A at an average of 85 or more, B at 70, C at
-        50, D below. The current level averages the areas the role needs. Shortlist at a level of 70 or more, Monitor at
-        50, Not now below. Confidence: high at 2,000 minutes, medium at 1,000, low below. Every sentence is a rule over
-        these numbers.
+        <section aria-label="What this data cannot see" className={cx(panel, "flex flex-col gap-3 p-6")}>
+          <h2 className="text-lg font-semibold">What this data cannot see</h2>
+          <ul className="list-disc space-y-1.5 pl-5 text-sm text-slate-300">
+            {report.notInData.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+          {report.wouldChange.length > 0 ? (
+            <>
+              <h3 className="mt-2 text-sm font-semibold">What would change this verdict</h3>
+              <ul className="list-disc space-y-1.5 pl-5 text-sm text-slate-300">
+                {report.wouldChange.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </section>
+      </div>
+
+      <p className="text-xs leading-relaxed text-slate-500">
+        How this was built: per-90 rates and shares from the season, as percentiles among players of the same position
+        group, competition and season with 450 minutes or more. Grades: A at an average of 85 or more, B at 70, C at 50, D
+        below. The level averages the areas the position needs. Shortlist at a level of 70 or more, Monitor at 50, Not
+        now below. Confidence: high at 2,000 minutes, medium at 1,000, low below. Every sentence is a rule over these
+        numbers.
+        {fromStatsBomb ? " Event data: StatsBomb open data, used under its research and education licence. StatsBomb publishes no dates of birth." : ""}
       </p>
+    </div>
+  );
+}
+
+function Legend({ items }: { items: { colour: string; label: string; filled?: boolean }[] }) {
+  return (
+    <div className="flex flex-wrap gap-4 text-xs text-slate-300">
+      {items.map((i) => (
+        <span key={i.label} className="flex items-center gap-2">
+          <span
+            className="h-3 w-3 rounded-full"
+            style={i.filled ? { background: i.colour } : { background: `${i.colour}29`, border: `1px solid ${i.colour}` }}
+          />
+          {i.label}
+        </span>
+      ))}
     </div>
   );
 }

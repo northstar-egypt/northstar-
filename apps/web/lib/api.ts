@@ -267,9 +267,13 @@ export async function getNationalGaps(needs: string[]): Promise<NationalGaps> {
 /** A pro player's scouting report, or the API's reason there is none; null if not visible. */
 export async function getScoutingReport(
   playerId: string,
+  choice?: { competition: string; season: string },
 ): Promise<{ report: ScoutingReport | null; note: string | null } | null> {
+  const query = choice
+    ? `?${new URLSearchParams({ competition: choice.competition, season: choice.season })}`
+    : "";
   try {
-    return await request(`/players/${encodeURIComponent(playerId)}/scouting-report`);
+    return await request(`/players/${encodeURIComponent(playerId)}/scouting-report${query}`);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;

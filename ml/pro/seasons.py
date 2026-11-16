@@ -25,6 +25,9 @@ class SeasonRow:
     position: str | None
     date_of_birth: date | None
     metrics: dict
+    # Where the season came from ("api" for the synthetic league, "statsbomb"), so real players
+    # are compared with real players. None when not known.
+    source: str | None = None
 
     @property
     def minutes(self) -> int:

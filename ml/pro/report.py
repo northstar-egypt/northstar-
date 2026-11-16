@@ -134,7 +134,8 @@ def _gradable(config, rows: list[SeasonRow], row: SeasonRow, min_minutes: int) -
 
 
 def build(module, rows: list[SeasonRow], player_id: str, min_minutes: int = engine.MIN_MINUTES,
-          known_adult: bool = False, prefer_graded: bool = False) -> Report:
+          known_adult: bool = False, prefer_graded: bool = False,
+          season: tuple[str, str] | None = None) -> Report:
     """The report on a player's latest league season. Raises NoReport with the reason.
 
     Two options for data whose seasons are not one league year after another (StatsBomb open
@@ -147,7 +148,13 @@ def build(module, rows: list[SeasonRow], player_id: str, min_minutes: int = engi
     row = latest_season(rows, player_id)
     if row is None:
         raise NoReport("No league seasons on record.")
-    if prefer_graded:
+    if season is not None:
+        # One season asked for by name: (competition, season label).
+        row = max((r for r in rows if r.player_id == player_id and (r.competition, r.season) == season),
+                  key=lambda r: r.minutes, default=None)
+        if row is None:
+            raise NoReport(f"No {season[0]} {season[1]} season on record for this player.")
+    elif prefer_graded:
         mine = sorted((r for r in rows if r.player_id == player_id), key=lambda r: (r.end, r.minutes), reverse=True)
         row = next((r for r in mine if _gradable(config, rows, r, min_minutes)), row)
     if row.age is None and known_adult:
