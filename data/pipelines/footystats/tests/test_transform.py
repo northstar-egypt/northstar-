@@ -22,7 +22,7 @@ def _player(**over):
 def test_player_season_keeps_only_published_fields():
     metrics, why = t.player_season(_player())
     assert why is None
-    assert metrics == {"appearances": 20, "minutes_played": 1500, "goals": 4, "assists": 3, "penalty_goals": 1,
+    assert metrics == {"position_group": "midfielder", "appearances": 20, "minutes_played": 1500, "goals": 4, "assists": 3, "penalty_goals": 1,
                        "penalty_misses": 0, "yellow_cards": 2, "red_cards": 0, "clean_sheets": 5,
                        "goals_conceded": 18}
 
@@ -30,6 +30,11 @@ def test_player_season_keeps_only_published_fields():
 def test_unknown_optional_field_is_left_out_not_zeroed():
     metrics, _ = t.player_season(_player(penalty_misses=-1, conceded_overall=None))
     assert "penalty_misses" not in metrics and "goals_conceded" not in metrics
+
+
+def test_position_group_is_the_sources_own():
+    assert t.player_season(_player(position="Goalkeeper"))[0]["position_group"] == "goalkeeper"
+    assert "position_group" not in t.player_season(_player(position="Unknown"))[0]
 
 
 def test_rejections_say_why():
