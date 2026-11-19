@@ -32,6 +32,20 @@ from ml.pro import breakout, sustainability, trends  # noqa: E402
 from ml.pro.seasons import SeasonRow  # noqa: E402
 
 SCHEMA = "football.season_aggregate.v2"
+# Seasons from a source with no event data (FootyStats): appearances, minutes, goals, assists,
+# cards. The profile's performance table shows them; nothing here can be computed from them.
+BASIC = "football.season_basic.v1"
+NO_SEASONS = "No league seasons on record."
+BASIC_ONLY = ("This player's league seasons come from a source that publishes only appearances, minutes, "
+              "goals, assists and cards, shown in the performance table. This view needs shots, expected "
+              "goals and passing, which that source does not have.")
+
+
+def no_seasons_note(db: Session, player: Player) -> str:
+    """Why there is nothing to judge: no league seasons at all, or only basic ones."""
+    basic = db.execute(select(PerformanceEntry.id).where(
+        PerformanceEntry.player_id == player.id, PerformanceEntry.schema_ref == BASIC).limit(1)).first()
+    return BASIC_ONLY if basic else NO_SEASONS
 
 
 def _competition(event: str | None, season: str) -> str:
@@ -91,7 +105,7 @@ def player_seasons(db: Session, player: Player) -> dict:
                 "Analytics consent is not in effect for this player, so their seasons are not analysed."}
     mine = _rows(db, player_ids=[player.id])
     if not mine:
-        return {"seasons": [], "career": None, "trends": [], "note": "No league seasons on record."}
+        return {"seasons": [], "career": None, "trends": [], "note": no_seasons_note(db, player)}
 
     clubs = {r.club for r in mine if r.club}
     team_rows = _rows(db, club_ids=list(clubs)) if clubs else []

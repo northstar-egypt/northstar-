@@ -35,6 +35,7 @@ from app.models.performance_entry import PerformanceEntry
 from app.models.player import Player
 from app.services import forecast  # noqa: F401  (puts ml/ on the path)
 from app.services import gaps as gap_service
+from app.services import pro as pro_service
 from app.services.access import Caller, has_consent, may_view
 
 from ml.pro import breakout, style, sustainability  # noqa: E402
@@ -205,7 +206,10 @@ def player_report(db: Session, caller: Caller, player: Player, competition: str 
                             prefer_graded=True,
                             season=(competition, season) if competition and season else None)
     except reports.NoReport as reason:
-        return {"report": None, "note": str(reason)}
+        note = str(reason)
+        if note == pro_service.NO_SEASONS:
+            note = pro_service.no_seasons_note(db, player)
+        return {"report": None, "note": note}
 
     mine = by_player(rows)[str(player.id)]
     # The season the report graded, which is not always the latest one (prefer_graded above).

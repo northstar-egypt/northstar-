@@ -150,5 +150,26 @@ def test_a_player_with_no_league_seasons_is_told_so(client, auth, world):
     assert body["seasons"] == [] and body["note"] == "No league seasons on record."
 
 
+def test_basic_seasons_only_says_what_is_missing(client, auth, world, db):
+    """A FootyStats-style season (no shots, xG or passing) is not judged, and the note says why."""
+    from app.models.performance_entry import PerformanceEntry
+
+    org = world["orgs"]["a"]
+    _, last = seasons_before(TODAY)[-2:]
+    player = _add_player(db, org, "Pro Basic", age=26, position=None, shots=1, n_matches=0)
+    db.add(PerformanceEntry(
+        id=uuid.uuid4(), player_id=player.id, sport="football", period_type="season_aggregate",
+        period_start=last.start, period_end=last.end, organization_id=org.id,
+        event=f"Invented League {last.label}", schema_ref="football.season_basic.v1", source="footystats",
+        metrics={"appearances": 30, "minutes_played": 2400, "goals": 9, "assists": 4, "yellow_cards": 3,
+                 "red_cards": 0}, is_validated=True,
+    ))
+    db.flush()
+    body = _get(client, auth, player).json()
+    assert body["seasons"] == [] and "only appearances, minutes, goals, assists and cards" in body["note"]
+    report = client.get(f"/players/{player.id}/scouting-report", headers=auth("federation")).json()
+    assert report["report"] is None and report["note"] == body["note"]
+
+
 def test_a_player_the_caller_may_not_see_is_404(client, auth, world):
     assert _get(client, auth, world["players"]["minor_no_a"], who="scout").status_code == 404

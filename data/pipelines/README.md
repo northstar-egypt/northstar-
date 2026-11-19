@@ -32,6 +32,19 @@ Built:
   (`competitions.json`, `matches/`, `events/`, `lineups/`). Running it again replaces the
   StatsBomb rows and keeps the same player and team ids.
 
+- `footystats/` The professional tier's real source. `fetch.py` downloads every season the
+  API key unlocks into a local cache **outside the repository** (the data is about real
+  people); `load.py` loads the cache into basic player seasons and team seasons (decision
+  0009). Until the Egyptian league subscription, the team develops on the seasons the public
+  test key unlocks (Premier League 2018/19 to 2024/25), which come in the same format.
+  See `footystats/README.md` for what the data holds and what it does not.
+
+  ```bash
+  python -m data.pipelines.footystats.fetch --cache-dir D:/northstar-data/footystats
+  python -m data.pipelines.footystats.load --cache-dir D:/northstar-data/footystats \
+      --database-url postgresql+psycopg://northstar:northstar@localhost:5432/northstar
+  ```
+
 Built in the API instead of here, because they run from a screen in the app:
 
 - Players from a spreadsheet: `apps/api/app/services/imports.py` (`POST /players/import`).
@@ -40,8 +53,6 @@ Built in the API instead of here, because they run from a screen in the app:
 
 Not built yet:
 
-- `footystats/` Pull Egyptian Premier League data from the FootyStats API into the tables the
-  synthetic league already fills. Needs `FOOTYSTATS_API_KEY`, so it waits on the API subscription.
 - Diaspora: the source is not decided (`docs/project-status.md`).
 
 ## Conventions
