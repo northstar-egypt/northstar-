@@ -113,7 +113,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r data/pipelines/requirements.txt
       - name: Run the generator tests
-        run: pytest -q -rs data/pipelines/synthetic/tests data/pipelines/statsbomb/tests --junitxml="$RUNNER_TEMP/generator.xml"
+        run: pytest -q -rs data/pipelines/synthetic/tests data/pipelines/statsbomb/tests data/pipelines/footystats/tests --junitxml="$RUNNER_TEMP/generator.xml"
       - name: Summarise
         if: ${{ !cancelled() }}
         run: python .github/scripts/pytest_report.py "$RUNNER_TEMP/generator.xml" --title "Generator tests"
