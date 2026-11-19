@@ -78,6 +78,8 @@ class PerformanceSource(StrEnum):
     COACH_TAGGED = "coach_tagged"
     # StatsBomb open data, loaded by data/pipelines/statsbomb (decision 0008).
     STATSBOMB = "statsbomb"
+    # FootyStats, loaded by data/pipelines/footystats (the professional tier's real source).
+    FOOTYSTATS = "footystats"
 
 
 class UserRole(StrEnum):

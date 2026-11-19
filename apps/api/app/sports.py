@@ -204,6 +204,9 @@ class GapAttribute:
     low_reliability: bool = False
 
     def value(self, metrics: dict) -> float | None:
+        # A statistic the source does not publish is unknown, not zero.
+        if any(k not in metrics for k in self.numerator + self.denominator):
+            return None
         top = sum(float(metrics.get(k, 0)) for k in self.numerator)
         if self.per90:
             minutes = float(metrics.get("minutes_played", 0))
@@ -246,6 +249,10 @@ class GapMetric:
     stable: bool = True
 
     def value(self, metrics: dict) -> float | None:
+        # A statistic the source does not publish (set piece goals from FootyStats) is unknown,
+        # not zero: the team is left out of that ranking rather than ranked last.
+        if any(k not in metrics for k in self.numerator + self.minus + self.denominator):
+            return None
         top = sum(float(metrics.get(k, 0)) for k in self.numerator) - sum(
             float(metrics.get(k, 0)) for k in self.minus)
         if not self.denominator:

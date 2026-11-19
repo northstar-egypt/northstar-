@@ -263,6 +263,37 @@
         { "key": "pass_completion", "label": "Pass completion", "numerator": ["passes_completed"], "denominator": ["passes_attempted"], "format": "percent" },
         { "key": "duels_won_share", "label": "Duels won", "numerator": ["duels_won"], "denominator": ["duels"], "format": "percent" }
       ]
+    },
+    "football.season_basic.v1": {
+      "periodType": "season_aggregate",
+      "label": "League seasons (basic)",
+      "description": "A season as a data provider with no event data publishes it (FootyStats): appearances, minutes, goals, assists, cards. No shots, passes or defensive actions, so nothing that needs them is computed from it.",
+      "schema": {
+        "type": "object",
+        "required": ["appearances", "minutes_played", "goals", "assists", "yellow_cards", "red_cards"],
+        "additionalProperties": false,
+        "properties": {
+          "appearances": { "type": "integer", "minimum": 0, "maximum": 70, "title": "Apps" },
+          "minutes_played": { "type": "integer", "minimum": 0, "maximum": 6300, "title": "Minutes", "x-unit": "min" },
+          "goals": { "type": "integer", "minimum": 0, "title": "Goals" },
+          "assists": { "type": "integer", "minimum": 0, "title": "Assists" },
+          "penalty_goals": { "type": "integer", "minimum": 0, "title": "Pen goals" },
+          "penalty_misses": { "type": "integer", "minimum": 0, "title": "Pens missed" },
+          "yellow_cards": { "type": "integer", "minimum": 0, "title": "Yellow" },
+          "red_cards": { "type": "integer", "minimum": 0, "title": "Red" },
+          "clean_sheets": { "type": "integer", "minimum": 0, "title": "Clean sheets" },
+          "goals_conceded": { "type": "integer", "minimum": 0, "title": "Conceded" }
+        }
+      },
+      "invariants": [
+        { "lte": ["penalty_goals", "goals"], "message": "more penalty goals than goals" },
+        { "lte": ["clean_sheets", "appearances"], "message": "more clean sheets than appearances" },
+        { "ifZero": "minutes_played", "thenZero": ["goals", "assists"], "message": "goals or assists with no minutes played" }
+      ],
+      "derived": [
+        { "key": "goals_per_90", "label": "Goals per 90", "numerator": ["goals"], "denominator": ["minutes_played"], "scale": 90, "format": "number" },
+        { "key": "assists_per_90", "label": "Assists per 90", "numerator": ["assists"], "denominator": ["minutes_played"], "scale": 90, "format": "number" }
+      ]
     }
   },
   "teamGaps": {
@@ -381,8 +412,7 @@
         "required": [
           "matches", "wins", "draws", "losses", "points", "goals_for", "goals_against", "xg_for", "xg_against",
           "shots_for", "shots_against", "possession_pct", "clean_sheets", "home_points", "away_points",
-          "goals_for_first_half", "goals_against_first_half", "goals_against_last_15", "set_piece_goals_for",
-          "set_piece_goals_against"
+          "goals_for_first_half", "goals_against_first_half", "goals_against_last_15"
         ],
         "additionalProperties": false,
         "properties": {

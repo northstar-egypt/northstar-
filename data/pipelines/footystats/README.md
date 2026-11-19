@@ -5,8 +5,8 @@ season statistics through an API (https://api.football-data-api.com). The Egypti
 League will come from here once the subscription is bought; until then the team develops on
 the seasons FootyStats' public test key unlocks, which arrive in exactly the same format.
 
-Built so far: **downloading into a local cache** (`fetch.py`). Loading the cache into the
-database is the next step.
+Two steps: **download** into a local cache (`fetch.py`), then **load** the cache into the
+database (`load.py`, with the rules in `transform.py`). Decision 0009 records the design.
 
 ## Download
 
@@ -36,6 +36,38 @@ What lands in the cache, per season (`<cache-dir>/<season_id>/`):
 
 Each file keeps the API's rows untouched, plus the endpoint, the parameters (never the key),
 when it was downloaded and how many rows. `manifest.json` lists every season downloaded.
+
+## Load
+
+```bash
+python -m data.pipelines.footystats.load --cache-dir D:/northstar-data/footystats \
+    --database-url postgresql+psycopg://northstar:northstar@localhost:5432/northstar
+```
+
+What it writes, all with `source = 'footystats'`:
+
+- **clubs** (`organization`), found again by `external_ids.footystats_team`;
+- **players**, found again by `external_ids.footystats`, with date of birth and nationality.
+  An Egyptian national in a league outside Egypt is the diaspora tier. FootyStats gives four
+  position groups; only a goalkeeper maps to a platform position code, so outfield players
+  keep no position rather than a guessed one;
+- **player seasons** in `football.season_basic.v1`: appearances, minutes, goals, assists,
+  penalties, cards, clean sheets, goals conceded. Coaches and players with 0 minutes are left
+  out;
+- **team seasons** in `football.team_season.v1`, computed from the season's completed matches
+  and checked against FootyStats' own totals (matches, wins, draws, losses, goals, clean
+  sheets). A team season that disagrees is not written. Set-piece goals are not published by
+  FootyStats, so they are absent.
+
+Nothing is filled in. Every row not loaded is counted with its reason in the load report,
+printed and saved as `load_report.json` in the cache folder. Running it again replaces the
+FootyStats rows and keeps the same player and club ids.
+
+Match-by-match data stays in the cache files for now; there is no matches table yet.
+
+Loaded on 2026-11-19 from the test key's seasons: 2,000 players, 48 clubs, 4,261 player
+seasons, 159 team seasons (all 159 agreed with FootyStats' totals), 1,031 rows of players who
+never played and 34 coaches left out.
 
 ## What the test key unlocks, and what the data does not have
 

@@ -34,12 +34,15 @@ Built:
 
 - `footystats/` The professional tier's real source. `fetch.py` downloads every season the
   API key unlocks into a local cache **outside the repository** (the data is about real
-  people). Until the Egyptian league subscription, the team develops on the seasons the
-  public test key unlocks (Premier League 2018/19 to 2024/25), which come in the same format.
+  people); `load.py` loads the cache into basic player seasons and team seasons (decision
+  0009). Until the Egyptian league subscription, the team develops on the seasons the public
+  test key unlocks (Premier League 2018/19 to 2024/25), which come in the same format.
   See `footystats/README.md` for what the data holds and what it does not.
 
   ```bash
   python -m data.pipelines.footystats.fetch --cache-dir D:/northstar-data/footystats
+  python -m data.pipelines.footystats.load --cache-dir D:/northstar-data/footystats \
+      --database-url postgresql+psycopg://northstar:northstar@localhost:5432/northstar
   ```
 
 Built in the API instead of here, because they run from a screen in the app:
@@ -50,7 +53,6 @@ Built in the API instead of here, because they run from a screen in the app:
 
 Not built yet:
 
-- `footystats/` loading: the downloaded seasons into the database, so the app runs on them.
 - Diaspora: the source is not decided (`docs/project-status.md`).
 
 ## Conventions
