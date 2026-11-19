@@ -267,12 +267,13 @@
     "football.season_basic.v1": {
       "periodType": "season_aggregate",
       "label": "League seasons (basic)",
-      "description": "A season as a data provider with no event data publishes it (FootyStats): appearances, minutes, goals, assists, cards. No shots, passes or defensive actions, so nothing that needs them is computed from it.",
+      "description": "A season as a data provider with no event data publishes it (FootyStats): the position group it lists the player in that season, appearances, minutes, goals, assists, cards. No shots, passes or defensive actions, so nothing that needs them is computed from it.",
       "schema": {
         "type": "object",
         "required": ["appearances", "minutes_played", "goals", "assists", "yellow_cards", "red_cards"],
         "additionalProperties": false,
         "properties": {
+          "position_group": { "type": "string", "enum": ["goalkeeper", "defender", "midfielder", "forward"], "title": "Position" },
           "appearances": { "type": "integer", "minimum": 0, "maximum": 70, "title": "Apps" },
           "minutes_played": { "type": "integer", "minimum": 0, "maximum": 6300, "title": "Minutes", "x-unit": "min" },
           "goals": { "type": "integer", "minimum": 0, "title": "Goals" },

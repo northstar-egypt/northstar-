@@ -51,7 +51,8 @@ What it writes, all with `source = 'footystats'`:
   An Egyptian national in a league outside Egypt is the diaspora tier. FootyStats gives four
   position groups; only a goalkeeper maps to a platform position code, so outfield players
   keep no position rather than a guessed one;
-- **player seasons** in `football.season_basic.v1`: appearances, minutes, goals, assists,
+- **player seasons** in `football.season_basic.v1`: the position group FootyStats lists the
+  player in that season (goalkeeper, defender, midfielder, forward), appearances, minutes, goals, assists,
   penalties, cards, clean sheets, goals conceded. Coaches and players with 0 minutes are left
   out;
 - **team seasons** in `football.team_season.v1`, computed from the season's completed matches

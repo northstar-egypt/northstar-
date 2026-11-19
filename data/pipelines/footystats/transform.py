@@ -1,8 +1,8 @@
 """FootyStats rows as NorthStar records: pure functions, no database. load.py writes them.
 
 - A player season becomes `football.season_basic.v1` metrics: only what FootyStats publishes
-  for players (appearances, minutes, goals, assists, penalties, cards, clean sheets, goals
-  conceded). Nothing is filled in: a field FootyStats marks unknown (-1) is left out, and a
+  for players (the position group it lists them in that season, appearances, minutes, goals,
+  assists, penalties, cards, clean sheets, goals conceded). Nothing is filled in: a field FootyStats marks unknown (-1) is left out, and a
   missing required field rejects the row with a reason.
 - A team season becomes `football.team_season.v1` metrics, computed from the season's
   completed matches, then checked against FootyStats' own season totals for the team. A
@@ -37,6 +37,9 @@ EXTRA_CODES = {
 # codes; "Defender" could be a centre back or a full back, so outfield players keep no code
 # rather than a guessed one.
 POSITIONS = {"Goalkeeper": "GK"}
+# The source's own four groups, kept on each season (players move between them).
+POSITION_GROUPS = {"Goalkeeper": "goalkeeper", "Defender": "defender", "Midfielder": "midfielder",
+                   "Forward": "forward"}
 NOT_PLAYERS = {"Coach"}
 
 
@@ -93,6 +96,9 @@ def player_season(row: dict) -> tuple[dict | None, str | None]:
         return None, f"missing {', '.join(missing)}"
     if metrics["minutes_played"] == 0:
         return None, "never played (0 minutes)"
+    group = POSITION_GROUPS.get(row.get("position"))
+    if group:
+        metrics["position_group"] = group
     return metrics, None
 
 
