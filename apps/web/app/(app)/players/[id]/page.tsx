@@ -15,7 +15,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { GrowthChart, PercentileBar, Pitch, Radar, ShareRange, TennisTable } from "@/components/charts";
+import { GrowthChart, PercentileBar, PercentileRangeBar, Pitch, Radar, ShareRange, TennisTable } from "@/components/charts";
 import {
   Avatar,
   Banner,
@@ -35,6 +35,7 @@ import {
   getPlayerEvents,
   getProfile,
   getEventAnalysis,
+  getEstimates,
   getProSeasons,
   getRadar,
   getScoutingReport,
@@ -61,6 +62,7 @@ import type {
   PlayerProfile,
   PlayerRadar,
   ProSeasons,
+  TalentEstimates,
   ProfileSummary,
   ScoutingReport,
   Rating,
@@ -277,7 +279,8 @@ export default function PlayerProfilePage() {
         ) : null}
       </div>
 
-      {/* percentiles */}
+      {/* percentiles: a professional with no age-group comparison gets no empty card */}
+      {data.percentiles.length || data.percentilesNote ? (
       <Card>
         <SectionTitle>Against their age group</SectionTitle>
         {data.percentilesNote ? (
@@ -310,12 +313,14 @@ export default function PlayerProfilePage() {
           ))}
         </div>
       </Card>
+      ) : null}
 
       {/* strength against other players, for sports that have a rating */}
       {data.rating ? <RatingCard rating={data.rating} /> : null}
 
       <RadarCard playerId={playerId} />
 
+      {data.player.primarySport === "football" ? <EstimatesCard playerId={playerId} /> : null}
       {data.player.primarySport === "football" ? <LeagueSeasonsCard playerId={playerId} /> : null}
       {data.player.primarySport === "football" ? <ShotMapCard playerId={playerId} /> : null}
       {data.player.primarySport === "table_tennis" ? <PointsCard playerId={playerId} /> : null}
@@ -945,6 +950,85 @@ const FINISHING_WORDS: Record<string, { label: string; tone: "good" | "warn" | "
  * chances' expected goals with the range chance makes, the breakout detector's view of each
  * season, and how the player's rates moved. Shown only to players with league seasons.
  */
+const GROUP_PLURAL: Record<string, string> = {
+  defender: "defenders",
+  midfielder: "midfielders",
+  forward: "forwards",
+  goalkeeper: "goalkeepers",
+};
+
+/**
+ * A professional's rates against their league peers, each pulled towards the peer average by
+ * how little has been seen (app/services/estimates.py, graded in ml/README.md, "Talent
+ * estimates"). No minutes cut-off: a short season shows a wide range instead of disappearing.
+ */
+function EstimatesCard({ playerId }: { playerId: string }) {
+  const [data, setData] = useState<TalentEstimates | null | "loading">("loading");
+  const [picked, setPicked] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    getEstimates(playerId)
+      .then((d) => alive && setData(d))
+      .catch(() => alive && setData(null));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (data === "loading" || data === null) return null;
+  if (data.seasons.length === 0 && !data.note) return null;
+  const season = data.seasons[Math.min(picked, data.seasons.length - 1)];
+  const peers = season ? (GROUP_PLURAL[season.group ?? ""] ?? "players") : "";
+
+  return (
+    <Card>
+      <SectionTitle>Against league peers</SectionTitle>
+      {data.note ? <p className="text-sm text-slate-500">{data.note}</p> : null}
+      {data.seasons.length > 1 ? (
+        <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Season">
+          {data.seasons.map((s, i) => (
+            <Chip key={`${s.competition} ${s.season}`} active={i === picked} onClick={() => setPicked(i)}>
+              {s.season}
+            </Chip>
+          ))}
+        </div>
+      ) : null}
+      {season ? (
+        <>
+          <p className="mb-3 text-xs text-slate-500">
+            {season.competition} {season.season}, {num(season.minutes)} minutes. Each rate is pulled
+            towards the {peers}&apos; average by how little of the player has been seen, so a short
+            season is not mistaken for a talent or for a lack of one. The mark is the best estimate;
+            the band is where its percentile likely sits (80%).
+          </p>
+          {season.note ? <p className="text-sm text-slate-500">{season.note}</p> : null}
+          <div className="grid gap-5 sm:grid-cols-2">
+            {season.measures.map((m) => (
+              <div key={m.key} className="flex flex-col gap-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-sm">{m.label}</span>
+                  <span className="tabular-nums text-sm text-slate-400">
+                    {num(m.estimate, 2)}
+                    <span className="ml-2 font-semibold text-slate-200">{ordinal(m.percentile)}</span>
+                  </span>
+                </div>
+                <PercentileRangeBar percentile={m.percentile} low={m.percentileLow} high={m.percentileHigh} />
+                <span className="text-[0.7rem] leading-relaxed text-slate-500">
+                  Likely between the {ordinal(m.percentileLow)} and the {ordinal(m.percentileHigh)}{" "}
+                  percentile of {m.peers} {peers}. {m.count} {m.words} in {num(season.minutes)} minutes
+                  {m.raw === null ? "" : ` is ${num(m.raw, 2)} per 90`}; the {peers}&apos; average is{" "}
+                  {num(m.peerRate, 2)}, and {Math.round(m.weight * 100)}% of the estimate is this
+                  season&apos;s own record.
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </Card>
+  );
+}
+
 function LeagueSeasonsCard({ playerId }: { playerId: string }) {
   const [data, setData] = useState<ProSeasons | null | "loading">("loading");
   useEffect(() => {

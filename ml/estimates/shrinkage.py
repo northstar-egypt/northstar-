@@ -143,16 +143,19 @@ def predictive_coverage(count: int, exposure: float, prior: Prior, next_exposure
     return float(stats.nbinom.cdf(high, shape, p)) - below
 
 
-def percentile_range(est: Estimate, peers: list[float]) -> tuple[int, int] | None:
-    """The player's percentile among `peers`' estimates, as a range from the interval's two ends.
-
-    The same rule as every percentile in the app (1 to 99, ties counted half). None with no peers."""
+def percentile_of(value: float, peers: list[float]) -> int | None:
+    """Where `value` sits among `peers`, 1 to 99, ties counted half: the same rule as every
+    percentile in the app. None with no peers."""
     if not peers:
         return None
+    below = sum(1 for p in peers if p < value)
+    equal = sum(1 for p in peers if p == value)
+    return max(1, min(99, round(100 * (below + equal / 2) / len(peers))))
 
-    def pct(value: float) -> int:
-        below = sum(1 for p in peers if p < value)
-        equal = sum(1 for p in peers if p == value)
-        return max(1, min(99, round(100 * (below + equal / 2) / len(peers))))
 
-    return pct(est.low), pct(est.high)
+def percentile_range(est: Estimate, peers: list[float]) -> tuple[int, int] | None:
+    """The player's percentile among `peers`' estimates, as a range from the interval's two ends.
+    None with no peers."""
+    if not peers:
+        return None
+    return percentile_of(est.low, peers), percentile_of(est.high, peers)

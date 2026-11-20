@@ -21,6 +21,7 @@ from app.schemas.core import MeasurementOut, PlayerOut
 from app.schemas.views import (
     PlayerProfileOut,
     ProfileSummaryOut,
+    EstimatesOut,
     ProSeasonsOut,
     ScoutingReportOut,
     RadarOut,
@@ -38,7 +39,7 @@ from app.schemas.writes import (
     PlayerImportIn,
     PlayerImportOut,
 )
-from app.services import imports, pro, radar, scouting_report, similar, summary, views, writes
+from app.services import estimates, imports, pro, radar, scouting_report, similar, summary, views, writes
 from app.services.access import (
     Caller,
     consent_state,
@@ -182,6 +183,18 @@ def player_pro_seasons(
     """League seasons judged: finishing against xG, trends, breakouts. See app/services/pro.py."""
     player = _viewable_player(db, caller, player_id)
     return ProSeasonsOut.model_validate(pro.player_seasons(db, player))
+
+
+@router.get("/players/{player_id}/estimates", response_model=EstimatesOut)
+def player_estimates(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> EstimatesOut:
+    """A professional's rates against their league peers, shrunk by how much has been seen, with
+    80% ranges. See app/services/estimates.py and ml/README.md, "Talent estimates"."""
+    player = _viewable_player(db, caller, player_id)
+    return EstimatesOut.model_validate(estimates.player_estimates(db, player))
 
 
 @router.get("/players/{player_id}/scouting-report", response_model=ScoutingReportOut)

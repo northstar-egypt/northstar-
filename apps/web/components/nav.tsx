@@ -117,7 +117,7 @@ export function Nav() {
 
       <div className={cx("h-0.5", identity.bar)} aria-hidden />
       <div className="border-t border-amber-900/30 bg-amber-950/20 px-4 py-0.5 text-center text-[0.68rem] text-amber-300/80">
-        Prototype. All player data is synthetic.
+        Prototype. Youth players are synthetic; professionals come from FootyStats and StatsBomb test data.
       </div>
     </header>
   );
