@@ -1,0 +1,407 @@
+"""Which records are the same person: find candidates, score them, group them into people.
+
+The duplicate detector v1 (ml/detectors/duplicate.py) handles the duplicates the generator
+plants: the same Arabic name typed again with a spelling difference, a date of birth a few days
+off. A national register meets harder ones, and the platform already holds some: the same
+person spelled in Latin by one source and in Arabic by another, a source with no date of birth
+(StatsBomb), a player registered at a different club. v1 cannot see any of them: it blocks on
+the birth year and needs the Arabic-normalised names to match outright.
+
+1. Candidates (blocking)
+------------------------
+Every name word gets a key that is the same in both scripts: its first two consonant sounds,
+read by app/names.py, without h, w and y (which Latin spellings drop or turn into vowels). So
+محمد and Mohamed are both "mm", and أحمد and Ahmed both "md". Two records are compared when they
+share as many keys as the shorter name has words (two at most), are not of different sexes, and
+were born within a year of each other when both dates are known. Records with no date are
+compared on names alone, which is what lets a StatsBomb player meet their FootyStats record.
+
+2. Score (Fellegi-Sunter)
+-------------------------
+The standard probabilistic method of record linkage. Each candidate pair is described by how far
+it agrees on each piece of evidence, as a level:
+
+- name: every word of the shorter name matches a word of the longer, in either script (app/
+  names.py), with two words or more; the same with one word only; most words; some; none;
+- given name: the first word the same, different, or unknown (Egyptian names run given name,
+  father, grandfather, so relatives share everything but this);
+- date of birth: exact; day and month transposed; within a week; both known and none of these
+  (a conflict); unknown (either side has none);
+- nationality, club (any organisation name in common), sport and sex: the same, different, or
+  unknown.
+
+For each level the method needs two probabilities: how often a true pair shows it (m) and how
+often a false pair does (u). They are not set by hand: they are estimated from the candidate
+pairs themselves by expectation-maximisation, which needs no labelled pairs. That matters,
+because on real data there are none. The pair's score is then the probability that it is one
+person, assuming the pieces of evidence are independent given the answer (the method's standard
+assumption, and its known weakness).
+
+3. Group
+--------
+Pairs scoring at least `link` are joined into groups (one person, any number of records),
+strongest link first, and a link that would put two records that conflict outright (different
+known sexes, or both dates known and unrelated) into one group is refused.
+"""
+
+from __future__ import annotations
+
+import math
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import date
+
+from ml import sport_modules  # noqa: F401  (puts apps/api on the path)
+from ml.detectors.duplicate import dob_relation, name_tokens
+
+from app import names  # noqa: E402
+
+DOB_WINDOW_DAYS = 7
+MAX_POSTING = 5000
+
+
+@dataclass
+class Record:
+    id: str
+    names: list[str]
+    sex: str | None = None
+    sport: str | None = None
+    date_of_birth: date | None = None
+    nationality: frozenset[str] = frozenset()
+    clubs: frozenset[str] = frozenset()
+    source: str | None = None
+    words: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        if not self.words:
+            seen = []
+            for n in self.names:
+                for w in names.words(n or ""):
+                    if w not in seen:
+                        seen.append(w)
+            self.words = seen
+
+
+# ---------------------------------------------------------------------------
+# 1. Candidates
+# ---------------------------------------------------------------------------
+
+
+def _sounds(word: str) -> list[str]:
+    if names._is_arabic(word):
+        units = names._arabic_units(word)
+    else:
+        units = names._latin_units(word.lower())
+    return [u[1] for u in units if u[0] == "c" and u[1] not in ("h", "w", "y")]
+
+
+def word_key(word: str) -> str:
+    """The first two consonant sounds, the same for محمد and Mohamed ("mm")."""
+    return "".join(_sounds(word)[:2])
+
+
+def keys(record: Record) -> set[str]:
+    return {k for w in record.words if (k := word_key(w))}
+
+
+def _compatible(a: Record, b: Record) -> bool:
+    if a.sex and b.sex and a.sex != b.sex:
+        return False
+    if a.date_of_birth and b.date_of_birth and abs(a.date_of_birth.year - b.date_of_birth.year) > 1:
+        return False
+    return True
+
+
+def candidates(records: list[Record]) -> list[tuple[Record, Record]]:
+    """Pairs worth scoring: enough shared name keys, and nothing ruling them out cheaply."""
+    index: dict[str, list[int]] = defaultdict(list)
+    record_keys = [keys(r) for r in records]
+    for i, ks in enumerate(record_keys):
+        for k in ks:
+            index[k].append(i)
+    shared: dict[tuple[int, int], int] = defaultdict(int)
+    for posting in index.values():
+        if len(posting) > MAX_POSTING:
+            continue
+        for x in range(len(posting)):
+            for y in range(x + 1, len(posting)):
+                shared[(posting[x], posting[y])] += 1
+    out = []
+    for (i, j), n in shared.items():
+        need = min(2, len(record_keys[i]), len(record_keys[j]))
+        if n >= need and _compatible(records[i], records[j]):
+            out.append((records[i], records[j]))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 2. Comparison levels and Fellegi-Sunter
+# ---------------------------------------------------------------------------
+
+FIELDS = ("name", "given", "dob", "nationality", "club", "sport", "sex")
+
+
+_NAME_ORDER = ("all", "all-one-word", "most", "some", "none")
+
+
+def _level(hits: int, of: int) -> str:
+    if not of:
+        return "none"
+    if hits == of:
+        return "all" if hits >= 2 else "all-one-word"
+    return "most" if hits / of >= 0.6 else "some" if hits else "none"
+
+
+def name_level(a: Record, b: Record) -> str:
+    """The better of two readings: name words matched across scripts (app/names.py, which keeps
+    عبد with the word after it), and the plain words v1 compares after Arabic normalisation. A
+    name with part of a compound dropped ("عبد" left without "الرحمن") only matches the second
+    way, so the engine never sees less than v1 does."""
+    short, long = (a.words, b.words) if len(a.words) <= len(b.words) else (b.words, a.words)
+    cross = _level(sum(1 for w in short if any(names.word_matches(w, v) for v in long)), len(short))
+    ta = [t for n in a.names for t in name_tokens(n)]
+    tb = [t for n in b.names for t in name_tokens(n)]
+    ts, tl = (ta, tb) if len(set(ta)) <= len(set(tb)) else (tb, ta)
+    plain = _level(len(set(ts) & set(tl)), len(set(ts))) if ts else "none"
+    return min(cross, plain, key=_NAME_ORDER.index)
+
+
+def given_level(a: Record, b: Record) -> str:
+    """The first word of the full name, the given name. Egyptian names run given name, father,
+    grandfather: brothers and cousins share all but the first word, so a different given name is
+    strong evidence of a different person even when the rest matches."""
+    fa = names.words(a.names[0])[:1] if a.names else []
+    fb = names.words(b.names[0])[:1] if b.names else []
+    if not fa or not fb:
+        return "unknown"
+    return "same" if names.word_matches(fa[0], fb[0]) else "different"
+
+
+def dob_level(a: Record, b: Record) -> str:
+    if a.date_of_birth is None or b.date_of_birth is None:
+        return "unknown"
+    relation = dob_relation(a.date_of_birth, b.date_of_birth, DOB_WINDOW_DAYS)
+    return {"exact": "exact", "within_days": "near", "day_month_transposed": "transposed"}.get(relation, "conflict")
+
+
+def _set_level(x: frozenset, y: frozenset) -> str:
+    if not x or not y:
+        return "unknown"
+    return "same" if x & y else "different"
+
+
+def _value_level(x, y) -> str:
+    if not x or not y:
+        return "unknown"
+    return "same" if x == y else "different"
+
+
+def compare(a: Record, b: Record) -> dict[str, str]:
+    return {
+        "name": name_level(a, b),
+        "given": given_level(a, b),
+        "dob": dob_level(a, b),
+        "nationality": _set_level(a.nationality, b.nationality),
+        "club": _set_level(a.clubs, b.clubs),
+        "sport": _value_level(a.sport, b.sport),
+        "sex": _value_level(a.sex, b.sex),
+    }
+
+
+LEVELS = {
+    "name": ("all", "all-one-word", "most", "some", "none"),
+    "given": ("same", "different", "unknown"),
+    "dob": ("exact", "transposed", "near", "conflict", "unknown"),
+    "nationality": ("same", "different", "unknown"),
+    "club": ("same", "different", "unknown"),
+    "sport": ("same", "different", "unknown"),
+    "sex": ("same", "different", "unknown"),
+}
+
+# Starting points for EM only: a true pair mostly agrees, a false one mostly does not.
+_M0 = {
+    "name": {"all": 0.8, "all-one-word": 0.05, "most": 0.1, "some": 0.04, "none": 0.01},
+    "given": {"same": 0.9, "different": 0.05, "unknown": 0.05},
+    "dob": {"exact": 0.4, "transposed": 0.1, "near": 0.25, "conflict": 0.05, "unknown": 0.2},
+    "nationality": {"same": 0.85, "different": 0.05, "unknown": 0.1},
+    "club": {"same": 0.5, "different": 0.3, "unknown": 0.2},
+    "sport": {"same": 0.95, "different": 0.03, "unknown": 0.02},
+    "sex": {"same": 0.97, "different": 0.01, "unknown": 0.02},
+}
+_U0 = {
+    "name": {"all": 0.05, "all-one-word": 0.05, "most": 0.2, "some": 0.5, "none": 0.2},
+    "given": {"same": 0.3, "different": 0.65, "unknown": 0.05},
+    "dob": {"exact": 0.01, "transposed": 0.005, "near": 0.03, "conflict": 0.75, "unknown": 0.205},
+    "nationality": {"same": 0.7, "different": 0.2, "unknown": 0.1},
+    "club": {"same": 0.1, "different": 0.7, "unknown": 0.2},
+    "sport": {"same": 0.7, "different": 0.28, "unknown": 0.02},
+    "sex": {"same": 0.9, "different": 0.08, "unknown": 0.02},
+}
+
+
+@dataclass
+class Model:
+    m: dict[str, dict[str, float]]
+    u: dict[str, dict[str, float]]
+    prior: float
+    iterations: int = 0
+    # Levels that occurred among the candidate pairs; any other says nothing.
+    seen: dict[str, frozenset[str]] = field(default_factory=dict)
+
+    def weight(self, field_: str, level: str) -> float:
+        """How much a level says, in log odds: positive for evidence of one person.
+
+        Missing evidence ("unknown") is neutral by definition, the standard treatment in record
+        linkage: whether a source records a date of birth says nothing about whether two records
+        are one person. So is a level that never occurred, whose estimate would be only the
+        smoothing."""
+        if level == "unknown" or (self.seen and level not in self.seen.get(field_, frozenset())):
+            return 0.0
+        return math.log(self.m[field_][level] / self.u[field_][level])
+
+    def probability(self, vector: dict[str, str]) -> float:
+        log_odds = math.log(self.prior / (1 - self.prior)) + sum(self.weight(f, vector[f]) for f in FIELDS)
+        return 1 / (1 + math.exp(-max(-50.0, min(50.0, log_odds))))
+
+
+def fit(vectors: list[dict[str, str]], iterations: int = 200, prior: float = 0.05, smoothing: float = 0.5) -> Model:
+    """Estimate m, u and the share of true pairs by expectation-maximisation, with no labels.
+
+    `smoothing` adds a small count to every level, so a level never seen in one class does not
+    get a probability of zero (which would make it infinitely decisive)."""
+    m = {f: dict(_M0[f]) for f in FIELDS}
+    u = {f: dict(_U0[f]) for f in FIELDS}
+    seen = {f: frozenset(v[f] for v in vectors) for f in FIELDS}
+    model = Model(m, u, prior, seen=seen)
+    if not vectors:
+        return model
+    for it in range(iterations):
+        posts = [model.probability(v) for v in vectors]
+        total = sum(posts)
+        new_prior = min(0.5, max(1e-4, total / len(vectors)))
+        new_m, new_u = {}, {}
+        for f in FIELDS:
+            cm = {lvl: smoothing for lvl in LEVELS[f]}
+            cu = {lvl: smoothing for lvl in LEVELS[f]}
+            for v, p in zip(vectors, posts):
+                cm[v[f]] += p
+                cu[v[f]] += 1 - p
+            sm, su = sum(cm.values()), sum(cu.values())
+            new_m[f] = {k: c / sm for k, c in cm.items()}
+            new_u[f] = {k: c / su for k, c in cu.items()}
+        change = abs(new_prior - model.prior)
+        model = Model(new_m, new_u, new_prior, it + 1, seen)
+        if change < 1e-7:
+            break
+    return model
+
+
+@dataclass
+class ScoredPair:
+    a: str
+    b: str
+    probability: float
+    levels: dict[str, str]
+
+
+def score(records: list[Record], model: Model | None = None) -> tuple[list[ScoredPair], Model]:
+    """Every candidate pair with its probability of being one person. Fits the model on these
+    candidates unless one is given."""
+    pairs = candidates(records)
+    vectors = [compare(a, b) for a, b in pairs]
+    model = model or fit(vectors)
+    return [ScoredPair(a.id, b.id, model.probability(v), v) for (a, b), v in zip(pairs, vectors)], model
+
+
+# ---------------------------------------------------------------------------
+# 3. Group
+# ---------------------------------------------------------------------------
+
+
+def _conflict(a: Record, b: Record) -> bool:
+    if a.sex and b.sex and a.sex != b.sex:
+        return True
+    return dob_level(a, b) == "conflict"
+
+
+def _components(ids: list[str], edges: list[tuple[str, str]]) -> list[set[str]]:
+    parent = {i: i for i in ids}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for a, b in edges:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+    groups: dict[str, set[str]] = defaultdict(set)
+    for i in ids:
+        groups[find(i)].add(i)
+    return [g for g in groups.values() if len(g) > 1]
+
+
+def group(records: list[Record], pairs: list[ScoredPair], link: float) -> list[set[str]]:
+    """People: groups of two or more records, each free of outright conflicts.
+
+    Links are taken strongest first; two groups are joined by a link only if no record of one
+    conflicts with a record of the other (different known sexes, or both dates known and
+    unrelated). A plain chain of links could join two people through a third record that looks
+    like both; this cannot."""
+    by_id = {r.id: r for r in records}
+    members: dict[str, set[str]] = {r.id: {r.id} for r in records}
+    for p in sorted((p for p in pairs if p.probability >= link), key=lambda p: -p.probability):
+        ga, gb = members[p.a], members[p.b]
+        if ga is gb:
+            continue
+        if any(_conflict(by_id[x], by_id[y]) for x in ga for y in gb):
+            continue
+        merged = ga | gb
+        for x in merged:
+            members[x] = merged
+    seen, out = set(), []
+    for g in members.values():
+        if len(g) > 1 and id(g) not in seen:
+            seen.add(id(g))
+            out.append(g)
+    return out
+
+
+def pairs_of(groups: list[set[str]]) -> set[tuple[str, str]]:
+    out = set()
+    for g in groups:
+        members = sorted(g)
+        for i in range(len(members)):
+            for j in range(i + 1, len(members)):
+                out.add((members[i], members[j]))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Reading records from an export (players, affiliations, organisations)
+# ---------------------------------------------------------------------------
+
+
+def records_from_tables(tables: dict[str, list[dict]]) -> list[Record]:
+    """Records from the tables ml/detectors/features.py reads. Never `status` or `merged_into`:
+    those are the record of a merge a person already made (see ml/detectors/duplicate.py)."""
+    org_names = {o["id"]: o.get("name") for o in tables.get("organizations", [])}
+    clubs: dict[str, set[str]] = defaultdict(set)
+    for a in tables.get("affiliations", []):
+        name = org_names.get(a.get("organization_id"))
+        if name:
+            clubs[a["player_id"]].add(name)
+    out = []
+    for p in tables.get("players", []):
+        dob = p.get("date_of_birth")
+        if isinstance(dob, str):
+            dob = date.fromisoformat(dob)
+        out.append(Record(
+            id=p["id"], names=[n for n in (p.get("full_name"), p.get("known_as")) if n],
+            sex=p.get("sex"), sport=p.get("primary_sport"), date_of_birth=dob,
+            nationality=frozenset(p.get("nationality") or []), clubs=frozenset(clubs.get(p["id"], set())),
+            source=p.get("source"),
+        ))
+    return out

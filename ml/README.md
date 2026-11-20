@@ -1312,6 +1312,90 @@ seeds (about 520 at today's budget), all of them because there were more overdue
 places. Scout allocation (the other half of decision support) needs the pathway model and comes
 later.
 
+## Player identity (one person, one record, across sources)
+
+```bash
+python -m ml.run_identity_eval           # the 20 reported seeds, both worlds
+python -m ml.run_identity_eval --tune    # the calibration seeds, every threshold
+```
+
+A national register is only as good as its identity layer. The duplicate detector v1 handles
+the duplicates the generator plants, and its score (above) is high because they are easy: the
+same Arabic name with a spelling difference, a date of birth a few days off. The register will
+also meet the same person **spelled in Latin** by one source and in Arabic by another, **with no
+date of birth** (StatsBomb has none), or **at another club**. The platform already holds such
+pairs: some professionals are in both the StatsBomb and the FootyStats data, as two records.
+
+`ml/identity/engine.py` is the identity engine:
+
+1. **Candidates.** Every name word gets a key that is the same in both scripts, its first two
+   consonant sounds as app/names.py reads them (محمد and Mohamed are both "mm"). Records are
+   compared when they share enough keys, are not of different sexes, and were born within a year
+   of each other when both dates are known. A record with no date is compared on names alone.
+2. **Score: Fellegi-Sunter**, the standard probabilistic method of record linkage. Each pair is
+   described by levels of agreement: the name (across scripts, and as plain words the way v1
+   reads it, whichever is better); the given name, the first word, because Egyptian names run
+   given name, father, grandfather and relatives share everything but it; the date of birth
+   (exact, day and month transposed, within a week, conflicting, unknown); nationality; club;
+   sport; sex. How much each level counts is **estimated from the data by
+   expectation-maximisation, with no labelled pairs**, which is what lets it run on real data.
+   Missing evidence counts for nothing either way.
+3. **Group.** Links of at least 0.8 join records into people, strongest first, and a link that
+   would put two records that conflict outright (different known sexes, dates both known and
+   unrelated) into one person is refused.
+
+**How it is graded.** Two worlds from the same generated datasets. *As generated*: the planted
+duplicates. *Hard* (`ml/identity/hard.py`): the same datasets with, independently, half the
+duplicate clones spelled in Latin, 40% without a date of birth and 40% at another club; and,
+so that none of this is a give-away, 15% of ordinary players spelled in Latin and 10% without a
+date. Latin spellings come from the real-world spellings in apps/api/tests/name_spellings.py,
+**only the held-out half and the fresh set**, since the name matcher was written looking at the
+other half. The generator is untouched. The one setting, the link threshold, was chosen on the
+calibration seeds 101, 202 and 303: every value from 0.6 to 0.95 gave the best mean F1 there
+(0.986 in both worlds), and the middle of that plateau, 0.8, was taken.
+
+**Results, the 20 reported seeds (20260827, 7, 99, 404, 555, 1000 to 1014), 240 true pairs:**
+
+| | pairs found | wrong | missed | precision | recall | F1 | per person (B-cubed) F1 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| *as generated* | | | | | | | |
+| duplicate v1 | 223 | 0 | 17 | 1.000 | 0.929 | **0.963** | 0.981 |
+| identity engine | 223 | 5 | 17 | 0.978 | 0.929 | 0.953 | 0.978 |
+| *hard* | | | | | | | |
+| duplicate v1 | 89 | 0 | 151 | 1.000 | 0.371 | 0.541 | 0.812 |
+| identity engine | 218 | 27 | 22 | 0.890 | 0.908 | **0.899** | **0.957** |
+
+Recall in the hard world by what the duplicate clone had changed (a clone can have several):
+
+| changed | pairs | v1 | engine |
+| --- | --- | --- | --- |
+| nothing | 64 | 92.2% | 92.2% |
+| spelled in Latin | 82 | 0.0% | 81.7% |
+| no date of birth | 95 | 0.0% | 90.5% |
+| at another club | 97 | 30.9% | 90.7% |
+
+What this says:
+
+- **On the hard duplicates the engine finds what v1 cannot.** v1 finds no duplicate spelled in
+  Latin or without a date of birth, because it compares Arabic letters and blocks on the birth
+  year. The engine finds 82% and 91% of them, and its F1 is 0.899 against 0.541.
+- **The price is precision.** v1 never links two different people, because it accepts only
+  near-identical records with dates. The engine links 27 wrong pairs in the hard world (precision
+  0.890) and 5 among the generated duplicates, where it is slightly worse than v1 (0.953 against
+  0.963). Looking at them, the wrong links are mostly a record **with no date of birth** whose
+  name is the name of someone else in the register with one middle name missing ("آدم منير
+  منصور" with no date against "آدم منير جمال منصور"). Without a date nothing in the two records
+  tells a relative from a re-entry; v1 avoids the mistake only by refusing every record without a
+  date. This is why the engine proposes and a person decides (the integrity board), rather than
+  merging on its own.
+- Each misses 17 of the generated duplicates. Whether they are the same 17 was not checked; on
+  the calibration seeds, the misses looked at were dates with the day and month transposed
+  **and** shifted by days, which neither method reads as one date.
+
+**On real data.** The model is fitted afresh on whatever records it is given, so it runs on the
+StatsBomb and FootyStats professionals as they are. How well it does there needs real labels:
+pairs a person has checked. That is the next step, before anything is merged in the database.
+
 ## Player similarity, professionals ("plays most like")
 
 ```bash
@@ -1836,6 +1920,7 @@ similarity.py  player similarity, run_similarity_eval.py grades it             d
 feedback.py    reviewers' decisions as training data; run_feedback_eval.py   done (null result)
 estimates/     talent estimates (shrinkage by evidence), run_estimate_eval.py grades it   done
 decisions/     who to measure next (integer program), run_measurement_eval.py grades it  done
+identity/      one person, one record across sources (Fellegi-Sunter), run_identity_eval.py  done
 pro/          pro tier: breakouts, finishing vs xG, trends, team gaps;
               run_pro_eval.py and run_gap_eval.py grade them;
               report.py, the scouting report, run_report_eval.py checks it   done
