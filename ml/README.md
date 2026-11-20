@@ -1207,6 +1207,111 @@ short season is shown with a wide range and a low weight on the player's own rec
 rates are fitted on the whole group, the player included, as in the evaluation; the percentile
 is among the others.
 
+## Who to measure next (decision support)
+
+```bash
+python -m ml.run_measurement_eval                     # the five reported seeds
+python -m ml.run_measurement_eval --fresh             # the replication on five fresh seeds
+python -m ml.run_measurement_eval --seeds 101 202 303 # the calibration seeds
+```
+
+The backtest above found the practical limit of the late-bloomer detector: it needs three
+height readings, and more than half the late bloomers a size cut would have released had fewer.
+Measuring sessions are limited, so the question is operational: **with the readings a coach can
+take, whom should they measure?** `ml/decisions/measurement.py` answers it with an integer
+program, the first operations research in the project.
+
+**The setting.** Each academy holds a measuring session every 28 days, and a session can
+measure a fixed number of players (its capacity). Capacity is set so every schedule takes the
+same total number of readings as the generated data does (budget 1.0), or half or one and a
+half times that. Every player is at the academy over exactly the dates they are in the
+generated data. A reading is the player's true growth curve on that day plus the generator's
+measurement noise, the noise fixed by player and day, so the schedules differ only in who is
+measured when. Then the unchanged backtest runs on each version.
+
+**The schedules.**
+
+- *rota*: a fixed rotation through the squad.
+- *nudge*: longest since the last reading first, never measured first of all. This is what the
+  squad screen's "due a reading" does today.
+- *random*: the floor.
+- *optimised*: at every session, an integer program (`scipy.optimize.milp`) plans the next
+  three sessions and carries out the first. It maximises the value of the readings, subject to
+  each session's capacity (this session's places all used), one reading per player in the plan,
+  and a rule that nobody goes more than six months without a reading (soft, so it holds
+  whenever capacity allows). A reading's value uses only what a coach could see, the recorded
+  birth date and the readings so far: players aged 11 to 16.5 count most (the ages of the size
+  cut), smaller ones for their age more, players with fewer than three readings in the last year
+  most of all, plus a little for time since the last reading. Every constant was set before
+  the first run and none was tuned.
+
+"As generated" is the generated data's own dates, re-measured the same way, for reference. On
+the reported seeds it reproduces the published backtest (17.1% here, 35 of 199 = 17.6% there),
+which is the check that the re-measuring is faithful.
+
+**Results at today's budget (1.0), pooled; 95% Wilson intervals:**
+
+| | late bloomers flagged at the cut | too few readings at the cut | other small players flagged |
+| --- | --- | --- | --- |
+| *reported seeds (20260827, 7, 99, 404, 555), 1,000 players each* | | | |
+| as generated | 17.1% (34 of 199) | 57.3% | 11.0% (29 of 263) |
+| rota | 21.0% (38 of 181) | 53.6% | 10.3% |
+| nudge | 18.5% (36 of 195) | 55.9% | 11.2% |
+| random | 16.5% (31 of 188) | 53.7% | 10.8% |
+| **optimised** | **21.0%** (41 of 195) | **26.2%** | 11.9% (33 of 278) |
+| *fresh seeds (3001 to 3005), version 1 unchanged* | | | |
+| as generated | 20.9% (44 of 211) | 54.0% | 12.4% |
+| rota | 18.4% (36 of 196) | 57.1% | 11.5% |
+| nudge | 20.5% (43 of 210) | 54.3% | 12.0% |
+| random | 20.0% (38 of 190) | 53.2% | 12.0% |
+| **optimised** | **23.6%** (49 of 208) | **24.5%** | 13.1% (36 of 275) |
+
+The pooled intervals overlap, so the stronger comparison is **paired**: every schedule runs on
+the same seeds with the same planted late bloomers (70 per seed), so the difference can be
+taken seed by seed. Over all ten seeds, extra late bloomers flagged at the cut per seed by the
+optimiser, at the same number of readings (95% bootstrap interval over seeds; seeds won, ties):
+
+| budget | against nudge | against rota | against random | extra false alarms per seed (against nudge) |
+| --- | --- | --- | --- | --- |
+| 0.5 | **+2.6** (+1.7 to +3.5), 9 won, 1 tie | +1.9 (+1.1 to +2.7), 9, 1 | +1.9 (+0.8 to +3.1), 8, 1 | +2.1 |
+| 1.0 | **+1.1** (+0.4 to +1.8), 7 won, 2 ties | +1.6 (+0.6 to +2.7), 8, 1 | +2.1 (+1.1 to +3.2), 9, 1 | +0.5 |
+| 1.5 | **+1.5** (+1.0 to +2.0), 9 won, 1 tie | +2.2 (+1.5 to +2.9), 9, 1 | +1.7 (+1.0 to +2.5), 8, 2 | +1.6 |
+
+(The paired comparison was chosen after the pooled tables were seen; it changes how the same
+runs are compared, not the method.)
+
+What this says:
+
+- **The robust effect is on readings.** At every budget and in every set of seeds, the
+  optimiser halves the share of late bloomers who reach the size cut with too few readings for
+  the detector to say anything (about 25% against 53 to 57% at today's budget).
+- **That turns into more catches, but modestly.** Two or three more of 70 late bloomers per
+  seed, at the same cost in readings, against every simpler schedule, at every budget. Most of
+  the extra readings go to players the detector then does not flag, because the detector, not
+  the schedule, is now the limit.
+- **It costs false alarms:** between 0.5 and 2 more of the other small players flagged per
+  seed. More players with enough history means more chances to be right and to be wrong.
+- **What did not hold up.** On the calibration seeds, the optimiser at half the budget matched
+  the generated schedule at the full one. On the reported and fresh seeds it does not (3.3 fewer
+  late bloomers per seed), so that claim is not made.
+
+**A second version that lost.** After version 1's first report, a version 2 (`value_span`) was
+written from the detector's own definition of a growth rate (readings of the last 400 days,
+nothing under 60 days apart): it values a reading by how much it lengthens that span rather
+than by count. On the calibration seeds it flagged fewer late bloomers than version 1 (14.8%
+against 26.8% at today's budget, with fewer false alarms, 6.1% against 11.3%), so it was never
+run on a reported seed and is not the method. Spreading readings out cost more readings near
+the moment that matters than the longer span gained. Version 1's replication on fresh seeds
+was decided instead, before it was run.
+
+**Limits.** The world is the generator's: real academies have absences, injuries, and players
+who arrive and leave in ways the generator does not draw. The capacity per session is a stated
+assumption, varied from half to one and a half times today's readings. The six-month rule
+cannot always hold: at half the budget the optimiser breaks it about 3,900 times over five
+seeds (about 520 at today's budget), all of them because there were more overdue players than
+places. Scout allocation (the other half of decision support) needs the pathway model and comes
+later.
+
 ## Player similarity, professionals ("plays most like")
 
 ```bash
@@ -1730,6 +1835,7 @@ run_rating_eval.py  grades both against hidden ability                       don
 similarity.py  player similarity, run_similarity_eval.py grades it             done
 feedback.py    reviewers' decisions as training data; run_feedback_eval.py   done (null result)
 estimates/     talent estimates (shrinkage by evidence), run_estimate_eval.py grades it   done
+decisions/     who to measure next (integer program), run_measurement_eval.py grades it  done
 pro/          pro tier: breakouts, finishing vs xG, trends, team gaps;
               run_pro_eval.py and run_gap_eval.py grade them;
               report.py, the scouting report, run_report_eval.py checks it   done
