@@ -3,7 +3,7 @@
     python -m ml.run_identity_eval                       # reported seeds, both worlds
     python -m ml.run_identity_eval --seeds 101 202 303   # calibration seeds, picks the threshold
     python -m ml.run_identity_eval --tune
-    python -m ml.run_identity_eval --fit-m                # measure m on the calibration seeds
+    python -m ml.run_identity_eval --fit-m --anchors DIR  # measure m: calibration seeds + anchors
     python -m ml.run_identity_eval --real-export DIR      # the label-free check on a DB export
 
 Two worlds from the same generated datasets:
@@ -37,7 +37,7 @@ from pathlib import Path
 
 from ml.detectors import duplicate
 from ml.detectors.features import TABLES, FeatureSet
-from ml.identity import engine, hard
+from ml.identity import engine, hard, labels
 
 REPORTED = [20260827, 7, 99, 404, 555] + list(range(1000, 1015))
 CALIBRATION = [101, 202, 303]
@@ -106,7 +106,7 @@ def bcubed(ids: list[str], found: list[set[str]], true: list[set[str]]) -> dict:
     return {"precision": p, "recall": r, "f1": 2 * p * r / (p + r) if p + r else 0.0}
 
 
-METHODS = ("em", "measured")
+METHODS = ("em", "measured", "measured-tf")
 
 
 def evaluate_seed(seed: int, players: int | None, links: list[float]) -> list[dict]:
@@ -201,9 +201,22 @@ def render(rows: list[dict], link: float) -> str:
 SMOOTHING = 0.5
 
 
-def fit_m(players: int | None) -> int:
+# Fields the anchors can measure. Anchors are chosen by their names, so they say nothing about
+# how a true pair agrees on the name or the given name; they are taken as they come on these.
+ANCHOR_FIELDS = ("nationality", "club")
+
+
+def _load_export(folder: Path) -> dict[str, list[dict]]:
+    names = ("players", "affiliations", "organizations", "performance_entries")
+    return {n: json.loads((folder / f"{n}.json").read_text(encoding="utf-8"))
+            for n in names if (folder / f"{n}.json").exists()}
+
+
+def fit_m(players: int | None, anchor_export: Path | None = None) -> int:
     """m, how often a true pair shows each level, counted on the calibration seeds' known
-    duplicate pairs in both worlds, with a small count added to every level."""
+    duplicate pairs in both worlds, with a small count added to every level. With a database
+    export, the anchors' nationality and club levels are counted in too (ml/identity/labels.py):
+    the generated data never varies either, and real sources do."""
     counts = {f: {lvl: SMOOTHING for lvl in engine.LEVELS[f]} for f in engine.FIELDS}
     n = 0
     for seed in CALIBRATION:
@@ -216,10 +229,21 @@ def fit_m(players: int | None) -> int:
                 for f, lvl in engine.compare(records[a], records[b]).items():
                     counts[f][lvl] += 1
                 n += 1
+    about = {"seeds": CALIBRATION, "true_pairs": n}
+    if anchor_export:
+        tables = _load_export(anchor_export)
+        pairs = labels.anchors(tables)
+        records = {r.id: r for r in engine.records_from_tables(tables)}
+        for a, b in pairs:
+            levels = engine.compare(records[a], records[b])
+            for f in ANCHOR_FIELDS:
+                counts[f][levels[f]] += 1
+        about.update({"anchor_pairs": len(pairs), "anchor_fields": list(ANCHOR_FIELDS)})
+        print(f"{len(pairs)} anchor pairs from {anchor_export}: {', '.join(ANCHOR_FIELDS)}")
     m = {f: {lvl: round(c / sum(cs.values()), 6) for lvl, c in cs.items()} for f, cs in counts.items()}
     engine.M_FILE.write_text(json.dumps({
         "about": "m for ml/identity/engine.py, written by python -m ml.run_identity_eval --fit-m",
-        "seeds": CALIBRATION, "true_pairs": n, "smoothing": SMOOTHING, "m": m,
+        **about, "smoothing": SMOOTHING, "m": m,
     }, indent=1) + "\n", encoding="utf-8", newline="\n")
     print(f"{n} true pairs from seeds {CALIBRATION}, both worlds; wrote {engine.M_FILE}")
     return 0
@@ -231,24 +255,32 @@ def _source(player: dict) -> str:
 
 
 def real_check(folder: Path, link: float = LINK) -> str:
-    """Links proposed on a database export, by the sources of the two records."""
-    tables = {n: json.loads((folder / f"{n}.json").read_text(encoding="utf-8"))
-              for n in ("players", "affiliations", "organizations")}
+    """Links proposed on a database export, by the sources of the two records, and how many
+    anchor pairs (ml/identity/labels.py) the engine links."""
+    tables = _load_export(folder)
     tables["players"] = [p for p in tables["players"] if p.get("status") != "merged"]
     source = {p["id"]: _source(p) for p in tables["players"]}
     records = engine.records_from_tables(tables)
+    by_id = {r.id: r for r in records}
+    anchor_pairs = labels.anchors(tables)
+    differs = {pair for pair in anchor_pairs
+               if engine.compare(by_id[pair[0]], by_id[pair[1]])["nationality"] == "different"}
     per = defaultdict(int)
     for s in source.values():
         per[s] += 1
-    lines = [f"{len(records)} records: " + ", ".join(f"{k} {v}" for k, v in sorted(per.items()))]
+    lines = [f"{len(records)} records: " + ", ".join(f"{k} {v}" for k, v in sorted(per.items())),
+             f"{len(anchor_pairs)} anchor pairs, {len(differs)} with different nationalities recorded"]
     for method in METHODS:
         scored, model = engine.score(records, method=method)
         found = engine.pairs_of(engine.group(records, scored, link))
         kinds: dict[tuple, int] = defaultdict(int)
         for a, b in found:
             kinds[tuple(sorted((source[a], source[b])))] += 1
+        linked = {tuple(sorted(p)) for p in anchor_pairs} & found
+        linked_differs = {tuple(sorted(p)) for p in differs} & found
         lines.append(f"{method}: {len(found)} links at {link}; certainly wrong (two StatsBomb records) "
-                     f"{kinds[('statsbomb', 'statsbomb')]}")
+                     f"{kinds[('statsbomb', 'statsbomb')]}; anchors linked {len(linked)} of {len(anchor_pairs)}, "
+                     f"with different nationalities {len(linked_differs)} of {len(differs)}")
         lines.append("  " + ", ".join(f"{a}-{b} {n}" for (a, b), n in sorted(kinds.items(), key=lambda x: -x[1])))
     return "\n".join(lines)
 
@@ -261,10 +293,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tune", action="store_true", help="the calibration seeds, every link in the grid")
     parser.add_argument("--json", type=Path, default=None)
     parser.add_argument("--fit-m", action="store_true", help="measure m on the calibration seeds and save it")
+    parser.add_argument("--anchors", type=Path, default=None,
+                        help="with --fit-m: a DB export whose anchor pairs measure nationality and club")
     parser.add_argument("--real-export", type=Path, default=None, help="the label-free check on a DB export")
     args = parser.parse_args(argv)
     if args.fit_m:
-        return fit_m(args.players)
+        return fit_m(args.players, args.anchors)
     if args.real_export:
         print(real_check(args.real_export))
         return 0
