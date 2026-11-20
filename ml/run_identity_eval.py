@@ -220,7 +220,7 @@ def fit_m(players: int | None) -> int:
     engine.M_FILE.write_text(json.dumps({
         "about": "m for ml/identity/engine.py, written by python -m ml.run_identity_eval --fit-m",
         "seeds": CALIBRATION, "true_pairs": n, "smoothing": SMOOTHING, "m": m,
-    }, indent=1) + "\n", encoding="utf-8")
+    }, indent=1) + "\n", encoding="utf-8", newline="\n")
     print(f"{n} true pairs from seeds {CALIBRATION}, both worlds; wrote {engine.M_FILE}")
     return 0
 
