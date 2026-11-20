@@ -515,6 +515,24 @@ export interface Finishing {
   seasons: number;
 }
 
+/** GET /squad/measuring-plan: whom to measure today, and why (ml/decisions/measurement.py). */
+export interface MeasuringPlan {
+  capacity: number;
+  /** Enough places for everyone to be measured about every three months. */
+  suggested: number;
+  squad: number;
+  plannedFrom: number;
+  /** Squad members whose analytics consent is not in effect: not planned. */
+  withoutConsent: number;
+  players: {
+    player: Player;
+    ageLabel: string;
+    readingsLastYear: number;
+    daysSinceLast: number | null;
+    reasons: string[];
+  }[];
+}
+
 /** GET /players/{id}/estimates: rates against league peers, shrunk by how much has been seen. */
 export interface TalentEstimates {
   /** Newest first. */

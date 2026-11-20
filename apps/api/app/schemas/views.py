@@ -45,6 +45,28 @@ class SquadRowOut(CamelModel):
     consent_complete: bool = False
 
 
+class PlannedReadingOut(CamelModel):
+    player: PlayerOut
+    age_label: str
+    readings_last_year: int
+    days_since_last: int | None = None
+    # Why the plan chose them, in plain words (app/services/measuring_plan.py).
+    reasons: list[str]
+
+
+class MeasuringPlanOut(CamelModel):
+    """GET /squad/measuring-plan: whom to measure today (ml/decisions/measurement.py)."""
+
+    capacity: int
+    # Enough places for everyone to be measured about every three months.
+    suggested: int
+    squad: int
+    planned_from: int
+    # Squad members whose analytics consent is not in effect: counted, not planned.
+    without_consent: int
+    players: list[PlannedReadingOut] = []
+
+
 class ForecastPointOut(CamelModel):
     """A forecast point. The band is what makes it honest, so it is not optional."""
 

@@ -22,6 +22,7 @@ from app.schemas.views import (
     PlayerProfileOut,
     ProfileSummaryOut,
     EstimatesOut,
+    MeasuringPlanOut,
     ProSeasonsOut,
     ScoutingReportOut,
     RadarOut,
@@ -39,7 +40,18 @@ from app.schemas.writes import (
     PlayerImportIn,
     PlayerImportOut,
 )
-from app.services import estimates, imports, pro, radar, scouting_report, similar, summary, views, writes
+from app.services import (
+    estimates,
+    imports,
+    measuring_plan,
+    pro,
+    radar,
+    scouting_report,
+    similar,
+    summary,
+    views,
+    writes,
+)
 from app.services.access import (
     Caller,
     consent_state,
@@ -86,6 +98,23 @@ def list_players(
 
     rows = views.build_squad(db, caller, stmt)
     return [SquadRowOut.model_validate(row) for row in rows]
+
+
+@router.get("/squad/measuring-plan", response_model=MeasuringPlanOut)
+def squad_measuring_plan(
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+    capacity: int | None = Query(
+        default=None, ge=0, le=measuring_plan.MAX_CAPACITY,
+        description="How many players the coach can measure today. Without it, the suggestion.",
+    ),
+) -> MeasuringPlanOut:
+    """Whom to measure today, and why: the optimiser graded in ml/README.md, "Who to measure
+    next", on the coach's own squad. For a coach only: it plans their academy's sessions."""
+    if not caller.is_coach:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="A measuring plan is for an academy's coach.")
+    return MeasuringPlanOut.model_validate(measuring_plan.plan(db, caller, capacity))
 
 
 def _viewable_player(db: Session, caller: Caller, player_id: uuid.UUID) -> Player:

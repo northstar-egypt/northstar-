@@ -46,6 +46,7 @@ import type {
   PlayerRadar,
   ProSeasons,
   TalentEstimates,
+  MeasuringPlan,
   ScoutHome,
   ScoutingReport,
   StrongestGroup,
@@ -187,6 +188,12 @@ export async function getDevIdentities(): Promise<DevIdentity[]> {
 export async function getSquad(organizationId?: string): Promise<SquadRow[]> {
   const query = organizationId ? `?organization_id=${encodeURIComponent(organizationId)}` : "";
   return request<SquadRow[]>(`/players${query}`);
+}
+
+/** Whom the coach should measure today. Without `capacity`, the API's suggestion. */
+export async function getMeasuringPlan(capacity?: number): Promise<MeasuringPlan> {
+  const query = capacity == null ? "" : `?capacity=${encodeURIComponent(String(capacity))}`;
+  return request<MeasuringPlan>(`/squad/measuring-plan${query}`);
 }
 
 /* ------------------------------------------------------------------ profile */

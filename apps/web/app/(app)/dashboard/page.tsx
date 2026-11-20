@@ -4,7 +4,8 @@
  * The coach's home. See docs/wireframes/02-coach-dashboard.html.
  *
  * The screen answers one question on arrival: who needs my attention today. So it opens with
- * measuring day, the players due a reading, each with a box to log their height right there:
+ * measuring day, the players the measuring plan picks for today (ml/decisions/measurement.py),
+ * each with the reason and a box to log their height right there:
  * a coach at the pitch side with a phone should not have to open twenty profiles. Then the
  * good news (who is growing fastest, who the models think is a late bloomer), then the squad.
  *
@@ -28,11 +29,11 @@ import {
   Td,
   Th,
 } from "@/components/ui";
-import { getSquad, logMeasurement, writeRefusal, type MeasurementWarning } from "@/lib/api";
+import { getMeasuringPlan, getSquad, logMeasurement, writeRefusal, type MeasurementWarning } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { STALE_DAYS, cx, daysLabel, flagsByType, isStale, times } from "@/lib/format";
 import { ROLE_IDENTITY } from "@/lib/roles";
-import type { SquadRow } from "@/lib/types";
+import type { MeasuringPlan, SquadRow } from "@/lib/types";
 
 const coach = ROLE_IDENTITY.coach;
 
@@ -302,86 +303,136 @@ function RowChips({ row }: { row: SquadRow }) {
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
-const MEASURE_SHOWN = 6;
 
 /**
- * The players due a reading (not measured in STALE_DAYS, or short of the readings the
- * late-bloomer check needs), each with a height box. The list is fixed when the page loads, so a
+ * Measuring day: the players the measuring plan picks for today, each with why and a height
+ * box. The plan is the optimiser graded in ml/README.md, "Who to measure next": for the same
+ * number of readings it caught more of the late bloomers a size cut would release than
+ * measuring the longest-waiting first, which is what this card used to do. The coach says how
+ * many they can measure; the plan says who. The list is fixed until that number changes, so a
  * row does not jump away the moment it is saved; it shows what was saved instead.
  */
 function MeasuringDay({ rows, onSaved }: { rows: SquadRow[]; onSaved: () => void }) {
-  const [due] = useState(() =>
-    rows
-      .filter((r) => isStale(r.daysSinceLastLog) || r.heightReadingsNeeded > 0)
-      .sort((a, b) => (b.daysSinceLastLog ?? 9999) - (a.daysSinceLastLog ?? 9999)),
-  );
+  const [capacity, setCapacity] = useState<number | null>(null);
+  const [draft, setDraft] = useState("");
+  const [plan, setPlan] = useState<MeasuringPlan | null | "error">(null);
   const [measuredAt, setMeasuredAt] = useState(today);
   const [saved, setSaved] = useState<Record<string, number>>({});
-  const [all, setAll] = useState(false);
-  const left = due.filter((r) => saved[r.player.id] == null).length;
-  // A big squad would bury the rest of the page; the stalest come first anyway.
-  const shown = all ? due : due.slice(0, MEASURE_SHOWN);
 
-  if (due.length === 0) {
+  useEffect(() => {
+    let alive = true;
+    getMeasuringPlan(capacity ?? undefined)
+      .then((p) => {
+        if (!alive) return;
+        setPlan(p);
+        setDraft(String(p.capacity));
+      })
+      .catch(() => alive && setPlan("error"));
+    return () => {
+      alive = false;
+    };
+  }, [capacity]);
+
+  const byId = useMemo(() => new Map(rows.map((r) => [r.player.id, r])), [rows]);
+
+  if (plan === null) return <Skeleton className="h-40" />;
+  if (plan === "error") {
     return (
       <Card className={cx("border-l-4", coach.border)}>
         <h2 className="text-lg font-semibold">Measuring day</h2>
-        <p className="mt-1 text-sm text-slate-400">Everyone has a recent reading. Nothing to measure today.</p>
+        <p className="mt-1 text-sm text-slate-400">The measuring plan could not be loaded. The squad below is sorted by longest since the last reading.</p>
       </Card>
     );
   }
+  const planned = plan.players.filter((p) => byId.has(p.player.id));
+  const left = planned.filter((p) => saved[p.player.id] == null).length;
+
+  function applyCapacity() {
+    const value = Math.max(0, Math.min(plan === null || plan === "error" ? 0 : plan.squad, Math.round(Number(draft))));
+    if (Number.isFinite(value) && value !== (plan as MeasuringPlan).capacity) setCapacity(value);
+  }
+
   return (
     <Card className={cx("border-l-4", coach.border)}>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Measuring day</h2>
           <p className="text-sm text-slate-400">
-            {left === 0
-              ? "All done. Thank you."
-              : `${left} of ${due.length} still to measure. Type a height and press Save.`}
+            {planned.length === 0
+              ? "Nobody to measure today."
+              : left === 0
+                ? "All done. Thank you."
+                : `${left} of ${planned.length} still to measure. Type a height and press Save.`}
           </p>
         </div>
-        <label className="flex items-center gap-2 text-xs text-slate-400">
-          Measured on
-          <input
-            type="date"
-            value={measuredAt}
-            max={today()}
-            onChange={(e) => setMeasuredAt(e.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
-          />
-        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-slate-400">
+            Players I can measure today
+            <input
+              inputMode="numeric"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}
+              onBlur={applyCapacity}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") applyCapacity();
+              }}
+              aria-label="How many players you can measure today"
+              className="w-14 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-right text-sm tabular-nums text-slate-100"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-xs text-slate-400">
+            Measured on
+            <input
+              type="date"
+              value={measuredAt}
+              max={today()}
+              onChange={(e) => setMeasuredAt(e.target.value)}
+              className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
+            />
+          </label>
+        </div>
       </div>
+      <p className="mb-2 text-xs text-slate-500">
+        Chosen by NorthStar&apos;s measuring plan: young, small and under-measured players first, and
+        nobody left more than six months without a reading. In the backtest it caught more late
+        bloomers than measuring the longest-waiting first, for the same number of readings.{" "}
+        {plan.suggested > 0 ? `${plan.suggested} a session measures everyone about every three months.` : null}
+        {plan.withoutConsent > 0
+          ? ` ${plan.withoutConsent} ${plan.withoutConsent === 1 ? "player is" : "players are"} not planned: analytics consent is not in effect.`
+          : null}
+      </p>
       <ul className="flex flex-col divide-y divide-slate-800">
-        {shown.map((r) => (
-          <MeasureRow
-            key={r.player.id}
-            row={r}
-            measuredAt={measuredAt}
-            saved={saved[r.player.id] ?? null}
-            onSaved={(value) => {
-              setSaved((now) => ({ ...now, [r.player.id]: value }));
-              onSaved();
-            }}
-          />
-        ))}
+        {planned.map((p) => {
+          const row = byId.get(p.player.id) as SquadRow;
+          return (
+            <MeasureRow
+              key={p.player.id}
+              row={row}
+              reasons={p.reasons}
+              measuredAt={measuredAt}
+              saved={saved[p.player.id] ?? null}
+              onSaved={(value) => {
+                setSaved((now) => ({ ...now, [p.player.id]: value }));
+                onSaved();
+              }}
+            />
+          );
+        })}
       </ul>
-      {due.length > shown.length ? (
-        <Button variant="ghost" size="sm" className="mt-2" onClick={() => setAll(true)}>
-          Show all {due.length}
-        </Button>
-      ) : null}
     </Card>
   );
 }
 
 function MeasureRow({
   row,
+  reasons,
   measuredAt,
   saved,
   onSaved,
 }: {
   row: SquadRow;
+  /** Why the measuring plan chose this player. */
+  reasons?: string[];
   measuredAt: string;
   saved: number | null;
   onSaved: (value: number) => void;
@@ -429,6 +480,9 @@ function MeasureRow({
                 measured {daysLabel(row.daysSinceLastLog)}
               </span>
             </p>
+            {reasons && reasons.length ? (
+              <p className="text-xs text-slate-400">{reasons.join("; ")}</p>
+            ) : null}
           </div>
         </div>
         {saved != null ? (
