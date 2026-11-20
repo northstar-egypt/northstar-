@@ -45,6 +45,7 @@ import type {
   PlayerImport,
   PlayerRadar,
   ProSeasons,
+  TalentEstimates,
   ScoutHome,
   ScoutingReport,
   StrongestGroup,
@@ -283,6 +284,15 @@ export async function getScoutingReport(
 export async function getProSeasons(playerId: string): Promise<ProSeasons | null> {
   try {
     return await request<ProSeasons>(`/players/${encodeURIComponent(playerId)}/pro-seasons`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function getEstimates(playerId: string): Promise<TalentEstimates | null> {
+  try {
+    return await request<TalentEstimates>(`/players/${encodeURIComponent(playerId)}/estimates`);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;

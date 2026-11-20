@@ -307,6 +307,43 @@ class ProSeasonsOut(CamelModel):
     note: str | None = None
 
 
+class EstimateMeasureOut(CamelModel):
+    key: str
+    label: str
+    words: str
+    count: int
+    raw: float | None = None
+    estimate: float
+    low: float
+    high: float
+    # How much of the estimate is the player's own record, 0 to 1.
+    weight: float
+    peer_rate: float
+    # The prior's strength, in full matches (ml/estimates/shrinkage.py).
+    k: float
+    # The estimate's percentile among the peers' estimates; the range is the interval's ends.
+    percentile: int
+    percentile_low: int
+    percentile_high: int
+    peers: int
+
+
+class EstimateSeasonOut(CamelModel):
+    competition: str
+    season: str
+    group: str | None = None
+    minutes: int
+    measures: list[EstimateMeasureOut] = []
+    note: str | None = None
+
+
+class EstimatesOut(CamelModel):
+    """GET /players/{id}/estimates. Newest season first; `note` says why there is nothing."""
+
+    seasons: list[EstimateSeasonOut] = []
+    note: str | None = None
+
+
 class ReportEvidenceOut(CamelModel):
     key: str
     label: str

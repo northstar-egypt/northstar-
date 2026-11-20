@@ -268,6 +268,44 @@ export function PercentileBar({
 }
 
 /**
+ * A percentile with the range it could plausibly be in: the band is the range, the tick is the
+ * estimate's own percentile, the centre line the median. Coloured like PercentileBar, by the
+ * estimate.
+ */
+export function PercentileRangeBar({
+  percentile,
+  low,
+  high,
+}: {
+  percentile: number;
+  low: number;
+  high: number;
+}) {
+  const strong = percentile >= 70;
+  const weak = percentile <= 30;
+  const band = strong ? "bg-emerald-500/35" : weak ? "bg-amber-500/35" : "bg-slate-500/40";
+  const tick = strong ? "bg-emerald-400" : weak ? "bg-amber-400" : "bg-slate-300";
+  return (
+    <div
+      className="relative h-3 w-full rounded-full bg-slate-800"
+      role="img"
+      aria-label={`${ordinal(percentile)} percentile, likely between the ${ordinal(low)} and the ${ordinal(high)}`}
+    >
+      <div
+        className={`absolute inset-y-0 rounded-full ${band}`}
+        style={{ left: `${Math.max(0, low - 1)}%`, width: `${Math.max(2, high - low + 1)}%` }}
+      />
+      <div className="absolute inset-y-0 left-1/2 w-px bg-slate-600" aria-hidden />
+      <div
+        className={`absolute -inset-y-0.5 w-1 -translate-x-1/2 rounded-full ${tick}`}
+        style={{ left: `${percentile}%` }}
+        aria-hidden
+      />
+    </div>
+  );
+}
+
+/**
  * A share with its range, on a fixed scale centred on 50%, so a rating is never drawn without
  * the uncertainty that comes with it. The centre line is an average opponent.
  */

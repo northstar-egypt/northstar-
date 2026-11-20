@@ -515,6 +515,39 @@ export interface Finishing {
   seasons: number;
 }
 
+/** GET /players/{id}/estimates: rates against league peers, shrunk by how much has been seen. */
+export interface TalentEstimates {
+  /** Newest first. */
+  seasons: {
+    competition: string;
+    season: string;
+    group: string | null;
+    minutes: number;
+    measures: {
+      key: string;
+      label: string;
+      /** "non-penalty goals", "assists": for sentences. */
+      words: string;
+      count: number;
+      raw: number | null;
+      estimate: number;
+      low: number;
+      high: number;
+      /** How much of the estimate is the player's own record, 0 to 1. */
+      weight: number;
+      peerRate: number;
+      k: number;
+      percentile: number;
+      percentileLow: number;
+      percentileHigh: number;
+      peers: number;
+    }[];
+    /** Why a season has no measures (a goalkeeper, too few peers). */
+    note: string | null;
+  }[];
+  note: string | null;
+}
+
 export interface ProSeasons {
   /** Newest first. */
   seasons: {

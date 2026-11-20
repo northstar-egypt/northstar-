@@ -1195,8 +1195,17 @@ curves (team plan, Jana's task) are the natural next step for the prior.
 
 **Limits.** Peer groups are position group by season; age is not yet in the prior. The data is
 the Premier League; the Egyptian league will need its own fit, which is automatic. Only count
-statistics per 90 are covered; shares (pass completion) and youth measurements come next. The
-app does not use it yet.
+statistics per 90 are covered; shares (pass completion) and youth measurements come next, each
+graded before it is shown.
+
+**In the app.** A professional's profile shows "Against league peers"
+(`app/services/estimates.py`, `GET /players/{id}/estimates`): for each basic season, the
+estimate for non-penalty goals and assists per 90, its percentile among the same competition,
+season and position group (players with analytics consent, 90+ minutes, at least 20 of
+them), and the range that percentile could plausibly be in. There is no minutes cut-off: a
+short season is shown with a wide range and a low weight on the player's own record. The peer
+rates are fitted on the whole group, the player included, as in the evaluation; the percentile
+is among the others.
 
 ## Player similarity, professionals ("plays most like")
 
