@@ -33,6 +33,10 @@ scikit-learn==1.5.*
 # in. A second pin here would install two copies of the library (xgboost and xgboost-cpu)
 # into one environment.
 
+# SciPy is not pinned here either: scikit-learn (above) and xgboost (API) both install it, and a
+# second pin could disagree with theirs. ml/estimates uses its gamma and negative binomial
+# distributions directly.
+
 pytest==8.3.*
 
 # The v1 height forecasters (ml/forecasting) are standard-library only as well. The profile

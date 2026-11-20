@@ -1114,6 +1114,90 @@ What this does and does not show:
   usual range on StatsBomb's xG (15 non-penalty goals from 9.46) and is "in line" on ours (from
   10.74, range 7 to 15). A finishing verdict is only as good as the xG under it.
 
+## Talent estimates (how good a player really is, given how much has been seen)
+
+```bash
+python -m ml.run_estimate_eval --cache-dir D:/northstar-data/footystats
+```
+
+A rate per 90 minutes from a short spell is mostly noise: one goal in 180 minutes is a
+striker's rate, from a defender who scored once. Until now the screens handled that with a
+cut-off (450 minutes), which throws evidence away and then trusts everything above it equally.
+`ml/estimates/shrinkage.py` keeps every player's evidence and pulls their rate towards their
+peer group by an amount that shrinks as the evidence grows (empirical Bayes, gamma-Poisson):
+
+    estimate = (count + k * peer rate) / (minutes / 90 + k)
+
+`k` is fitted per peer group from how much more the players' rates spread than chance alone
+would make them (negative binomial likelihood), not chosen by hand, and it reads as matches:
+after `k` full matches of their own, a player's record and the peer average weigh the same.
+Every estimate comes with an 80% interval, and a percentile becomes a range.
+
+**Data.** FootyStats' Premier League seasons 2018/19 to 2024/25 (the test key, the same format
+the Egyptian league will arrive in): 3,737 player seasons with minutes. Non-penalty goals (goals
+minus penalty goals, so penalty takers do not look like better finishers) and assists per 90,
+outfield players. The cache is outside the repository.
+
+**Fitted strength, median over the seven seasons:**
+
+| per 90 | defenders | midfielders | forwards |
+| --- | --- | --- | --- |
+| non-penalty goals: k (matches) | 189 | 18 | 19 |
+| non-penalty goals: peer rate | 0.042 | 0.114 | 0.293 |
+| assists: k (matches) | 25 | 22 | 35 |
+| assists: peer rate | 0.057 | 0.104 | 0.157 |
+
+Defenders' goal rates barely differ beyond chance (k of 189 matches is five seasons): a
+defender's scoring season says almost nothing about him, and the estimate stays near the group.
+Midfielders' and forwards' goal rates are real differences: half a season of their own
+record counts as much as the peer average.
+
+**The test it could fail.** From one season, predict each player's next-season rate, for
+players with 900+ minutes next season (so the target is not itself mostly noise). Each
+season's priors are fitted on that season alone; the method has no setting to tune. Reported
+on the two latest pairs, 2022/23 to 2023/24 and 2023/24 to 2024/25, 435 players:
+
+| | mean absolute error: raw rate | peer average | **estimate** | Poisson deviance: raw | peer | **estimate** |
+| --- | --- | --- | --- | --- | --- | --- |
+| non-penalty goals per 90 | 0.087 | 0.081 | **0.073** | 16.17 | 1.83 | **1.58** |
+| assists per 90 | 0.085 | 0.078 | **0.071** | 18.91 | 2.05 | **1.68** |
+
+By this season's minutes (non-penalty goals, mean absolute error, raw / peer / estimate):
+under 900 minutes (65 players) 0.116 / 0.082 / **0.081**; 900 to 1,800 (117) 0.090 / 0.077 /
+**0.068**; over 1,800 (253) 0.079 / 0.083 / **0.072**. The earlier pairs (2018/19 to 2022/23,
+874 players) agree: 0.084 / 0.081 / **0.072** for goals, 0.075 / 0.068 / **0.062** for assists.
+
+What this says:
+
+- The estimate beats both the raw rate and the peer average overall, for both statistics, in
+  both periods, and on both scores. The raw rate's deviance is large because a player with no
+  goals this season is predicted to score none next season, which the deviance punishes hard.
+- **Where it does not win:** for goals with under 900 minutes, the peer average has a slightly
+  lower deviance (1.76 against 1.80) and an almost equal error (0.082 against 0.081). With so
+  little seen, the estimate is close to the peer average anyway; the difference is within noise.
+- Even for regulars with over 1,800 minutes, the raw rate is worse than the estimate: a full
+  season still carries chance.
+
+**Are the intervals honest?** Next season's count should land inside the 80% predictive
+interval. Counts are whole numbers, so an interval cannot hold exactly 80%; the fair
+comparison is with how often the model itself expects it to:
+
+| | seen | the model expects |
+| --- | --- | --- |
+| non-penalty goals, reported pairs | 87.8% | 90.8% |
+| assists, reported pairs | 87.6% | 90.7% |
+| non-penalty goals, earlier pairs | 89.4% | 91.0% |
+| assists, earlier pairs | 92.0% | 91.1% |
+
+On the latest seasons the intervals are about 3 points too confident: the model assumes a
+player's true rate is the same next season, and players change (age, role, team). The age
+curves (team plan, Jana's task) are the natural next step for the prior.
+
+**Limits.** Peer groups are position group by season; age is not yet in the prior. The data is
+the Premier League; the Egyptian league will need its own fit, which is automatic. Only count
+statistics per 90 are covered; shares (pass completion) and youth measurements come next. The
+app does not use it yet.
+
 ## Player similarity, professionals ("plays most like")
 
 ```bash
@@ -1636,6 +1720,7 @@ rating/        table tennis ratings: Glicko-2 and the point rating          done
 run_rating_eval.py  grades both against hidden ability                       done
 similarity.py  player similarity, run_similarity_eval.py grades it             done
 feedback.py    reviewers' decisions as training data; run_feedback_eval.py   done (null result)
+estimates/     talent estimates (shrinkage by evidence), run_estimate_eval.py grades it   done
 pro/          pro tier: breakouts, finishing vs xG, trends, team gaps;
               run_pro_eval.py and run_gap_eval.py grade them;
               report.py, the scouting report, run_report_eval.py checks it   done
