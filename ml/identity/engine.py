@@ -44,7 +44,12 @@ are estimated decides whether the engine works on real data (`score`):
 - m is measured on the known duplicate pairs of the calibration seeds 101, 202 and 303, both
   worlds (`measured_m`, ml/identity/m_probabilities.json). How a re-entered record differs from
   the first is a property of data entry, not of the population, so it carries over; how often
-  unrelated people share a name does not carry over, which is why u is measured afresh.
+  unrelated people share a name does not carry over, which is why u is measured afresh. For
+  nationality and club, the generated data never varies the way real sources do (StatsBomb
+  records a player's national team, FootyStats his birth country), so the anchor pairs of a
+  real export are counted in too (ml/identity/labels.py, `anchors`).
+- a match on one name word after the given name is adjusted for how common the word is
+  (`tf_offset`): "Mazraoui" is stronger evidence than "Silva".
 - the chance two random records are one person is estimated by expectation-maximisation over
   every pair (a pair blocking leaves out counts as two people).
 
@@ -293,8 +298,9 @@ class Model:
             return 0.0
         return math.log(self.m[field_][level] / self.u[field_][level])
 
-    def probability(self, vector: dict[str, str]) -> float:
-        log_odds = math.log(self.prior / (1 - self.prior)) + sum(self.weight(f, vector[f]) for f in FIELDS)
+    def probability(self, vector: dict[str, str], offset: float = 0.0) -> float:
+        """`offset` is added to the log odds: the term-frequency adjustment (`tf_offset`)."""
+        log_odds = math.log(self.prior / (1 - self.prior)) + sum(self.weight(f, vector[f]) for f in FIELDS) + offset
         return 1 / (1 + math.exp(-max(-50.0, min(50.0, log_odds))))
 
 
@@ -306,6 +312,7 @@ def fit(
     u: dict[str, dict[str, float]] | None = None,
     all_pairs: int | None = None,
     m: dict[str, dict[str, float]] | None = None,
+    offsets: list[float] | None = None,
 ) -> Model:
     """Estimate m, u and the share of true pairs by expectation-maximisation, with no labels.
 
@@ -323,11 +330,11 @@ def fit(
     if not vectors:
         return model
     patterns = defaultdict(int)
-    for v in vectors:
-        patterns[tuple(v[f] for f in FIELDS)] += 1
-    rows = [(dict(zip(FIELDS, key)), n) for key, n in patterns.items()]
+    for v, o in zip(vectors, offsets or [0.0] * len(vectors)):
+        patterns[(tuple(v[f] for f in FIELDS), round(o, 2))] += 1
+    rows = [(dict(zip(FIELDS, key)), o, n) for (key, o), n in patterns.items()]
     for it in range(iterations):
-        posts = [(v, n, model.probability(v)) for v, n in rows]
+        posts = [(v, n, model.probability(v, o)) for v, o, n in rows]
         total = sum(n * p for _, n, p in posts)
         if all_pairs:
             # u describes random pairs, so the share is over every pair of records, not over
@@ -398,27 +405,69 @@ def measured_m() -> dict[str, dict[str, float]]:
     return {f: {lvl: m[f][lvl] for lvl in LEVELS[f]} for f in FIELDS}
 
 
+def term_shares(records: list[Record]) -> dict[str, float]:
+    """How common each name word is, after the given name: its share of all such words, counted
+    once per record, read by its consonant sounds so a word weighs the same in both scripts."""
+    counts: dict[str, int] = defaultdict(int)
+    for r in records:
+        for k in {skeleton(w) for w in _rest(r.words)}:
+            counts[k] += 1
+    total = sum(counts.values()) or 1
+    return {k: c / total for k, c in counts.items()}
+
+
+def skeleton(word: str) -> str:
+    return "".join(_sounds(word))
+
+
+def tf_offset(a: Record, b: Record, level: str, shares: dict[str, float], u_avg: float) -> float:
+    """The term-frequency adjustment, the standard one in record linkage (Splink uses it): when
+    the name after the given name is one word and it matches, a rare word ("Mazraoui") is
+    stronger evidence than a common one ("Silva"). The level's weight assumes an average word;
+    this adds log(average chance two different people share a word / this word's chance), which
+    is positive for a rare word and negative for a common one. Only for the one-word level, where
+    a single word is all the name evidence there is."""
+    if level != "all-one-word":
+        return 0.0
+    wa, wb = _rest(a.words), _rest(b.words)
+    short, long = (wa, wb) if len(wa) <= len(wb) else (wb, wa)
+    if len(short) != 1:
+        return 0.0
+    share = shares.get(skeleton(short[0]))
+    if not share or not u_avg:
+        return 0.0
+    return math.log(u_avg / share)
+
+
 def score(
-    records: list[Record], model: Model | None = None, method: str = "measured"
+    records: list[Record], model: Model | None = None, method: str = "measured-tf"
 ) -> tuple[list[ScoredPair], Model]:
     """Every candidate pair with its probability of being one person.
 
-    `measured` (the default): m as measured on the calibration seeds' known pairs, u from random
-    pairs of these records, and the share of true pairs estimated by EM over every pair. `em`:
+    `measured-tf` (the default): m as measured on the calibration seeds' known pairs and the
+    anchors (ml/identity/labels.py), u from random pairs of these records, the share of true pairs
+    estimated by EM over every pair, and the term-frequency adjustment (`tf_offset`). `measured`:
+    the same without the adjustment. `em`:
     m, u and the share all estimated by EM on the candidates, with no labels at all (#117), which
     on the professionals settles on "same first name" (ml/README.md, "Player identity")."""
     pairs = candidates(records)
     vectors = [compare(a, b) for a, b in pairs]
-    if model is None and method == "measured":
+    offsets = [0.0] * len(pairs)
+    if method == "measured-tf":
+        shares = term_shares(records)
+        u_avg = sum(x * x for x in shares.values())
+        offsets = [tf_offset(a, b, v["name"], shares, u_avg) for (a, b), v in zip(pairs, vectors)]
+    if model is None and method in ("measured", "measured-tf"):
         n = len(records)
         everything = max(1, n * (n - 1) // 2)
         model = fit(vectors, m=measured_m(), u=random_u(records), all_pairs=everything,
-                    prior=min(0.5, max(1e-12, 0.1 * n / everything)))
+                    prior=min(0.5, max(1e-12, 0.1 * n / everything)), offsets=offsets)
     elif model is None and method == "em":
         model = fit(vectors)
     elif model is None:
         raise ValueError(f"unknown method {method!r}")
-    return [ScoredPair(a.id, b.id, model.probability(v), v) for (a, b), v in zip(pairs, vectors)], model
+    return [ScoredPair(a.id, b.id, model.probability(v, o), v)
+            for (a, b), v, o in zip(pairs, vectors, offsets)], model
 
 
 # ---------------------------------------------------------------------------
@@ -534,13 +583,18 @@ def propose(tables: dict[str, list[dict]], link: float = LINK) -> tuple[list[Sco
     active = {**tables, "players": [p for p in tables.get("players", []) if p.get("status") != "merged"]}
     records = records_from_tables(active)
     scored, _ = score(records)
+    return links_of(records, scored, link), {r.id: r for r in records}
+
+
+def links_of(records: list[Record], scored: list[ScoredPair], link: float = LINK) -> list[ScoredPair]:
+    """The direct links inside the groups `group` forms, strongest first."""
     group_of = {}
     for i, g in enumerate(group(records, scored, link)):
         for x in g:
             group_of[x] = i
     links = [s for s in scored if s.probability >= link and s.a in group_of and group_of[s.a] == group_of.get(s.b)]
     links.sort(key=lambda s: (-s.probability, *sorted((s.a, s.b))))
-    return links, {r.id: r for r in records}
+    return links
 
 
 _SAYS = {

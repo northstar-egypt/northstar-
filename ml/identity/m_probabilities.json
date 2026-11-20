@@ -6,6 +6,11 @@
   303
  ],
  "true_pairs": 72,
+ "anchor_pairs": 453,
+ "anchor_fields": [
+  "nationality",
+  "club"
+ ],
  "smoothing": 0.5,
  "m": {
   "name": {
@@ -29,14 +34,14 @@
    "unknown": 0.234899
   },
   "nationality": {
-   "same": 0.986395,
-   "different": 0.006803,
-   "unknown": 0.006803
+   "same": 0.958215,
+   "different": 0.040836,
+   "unknown": 0.00095
   },
   "club": {
-   "same": 0.319728,
-   "different": 0.673469,
-   "unknown": 0.006803
+   "same": 0.219373,
+   "different": 0.779677,
+   "unknown": 0.00095
   },
   "sport": {
    "same": 0.986395,
