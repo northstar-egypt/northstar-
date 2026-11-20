@@ -1,0 +1,52 @@
+{
+ "about": "m for ml/identity/engine.py, written by python -m ml.run_identity_eval --fit-m",
+ "seeds": [
+  101,
+  202,
+  303
+ ],
+ "true_pairs": 72,
+ "smoothing": 0.5,
+ "m": {
+  "name": {
+   "all": 0.766667,
+   "all-one-word": 0.193333,
+   "most": 0.02,
+   "some": 0.006667,
+   "none": 0.006667,
+   "unknown": 0.006667
+  },
+  "given": {
+   "same": 0.959184,
+   "different": 0.034014,
+   "unknown": 0.006803
+  },
+  "dob": {
+   "exact": 0.395973,
+   "transposed": 0.020134,
+   "near": 0.315436,
+   "conflict": 0.033557,
+   "unknown": 0.234899
+  },
+  "nationality": {
+   "same": 0.986395,
+   "different": 0.006803,
+   "unknown": 0.006803
+  },
+  "club": {
+   "same": 0.319728,
+   "different": 0.673469,
+   "unknown": 0.006803
+  },
+  "sport": {
+   "same": 0.986395,
+   "different": 0.006803,
+   "unknown": 0.006803
+  },
+  "sex": {
+   "same": 0.986395,
+   "different": 0.006803,
+   "unknown": 0.006803
+  }
+ }
+}

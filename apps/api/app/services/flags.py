@@ -25,7 +25,7 @@ import hashlib
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.audit_log import AuditLog
@@ -271,28 +271,53 @@ def _duplicate_records(db: Session, flag: Flag) -> dict | None:
     }
 
 
+def integrity_counts(db: Session, *, status: str | None = FlagStatus.OPEN.value) -> dict[str, int]:
+    """How many cases of each type, counted in the database rather than from the page of cases
+    the board loaded, which is cut at a limit."""
+    stmt = select(Flag.type, func.count()).where(Flag.type.in_(INTEGRITY_TYPES)).group_by(Flag.type)
+    if status:
+        stmt = stmt.where(Flag.status == status)
+    counts = {t: 0 for t in INTEGRITY_TYPES}
+    counts.update({t: n for t, n in db.execute(stmt).all()})
+    return counts
+
+
 def list_integrity_flags(
     db: Session,
     *,
     status: str | None = FlagStatus.OPEN.value,
     limit: int = 100,
+    flag_type: str | None = None,
+    player_id: uuid.UUID | None = None,
 ) -> list[dict]:
     """The integrity board's queue: fraud, duplicate and anomaly in one list.
 
     Three flag types, one queue. They are different models with different evidence, but they
     are the same job for the person reviewing: look, decide, move on.
+
+    Fraud first, then anomalies, then duplicates; newest first within a type, and duplicates
+    with the most probable first. One run of the identity engine can propose hundreds of
+    duplicate cases at once (the same professional in two data sources), and in a queue sorted
+    by date alone they buried every fraud case under them.
     """
     from app.services.views import current_organization
 
+    priority = case(
+        (Flag.type == FlagType.FRAUD.value, 0), (Flag.type == FlagType.ANOMALY.value, 1), else_=2
+    )
     stmt = (
         select(Flag)
         .options(selectinload(Flag.events), selectinload(Flag.player))
         .where(Flag.type.in_(INTEGRITY_TYPES))
-        .order_by(Flag.raised_at.desc())
+        .order_by(priority, Flag.confidence.desc().nullslast(), Flag.raised_at.desc(), Flag.id)
         .limit(limit)
     )
     if status:
         stmt = stmt.where(Flag.status == status)
+    if flag_type:
+        stmt = stmt.where(Flag.type == flag_type)
+    if player_id is not None:
+        stmt = stmt.where(about([player_id]))
 
     today = date.today()
     out: list[dict] = []
@@ -411,9 +436,10 @@ def upsert(
     `dedupe_key`: a reviewer who dismissed a false positive last night is not handed it again
     this morning, and a case still open does not accumulate duplicate rows.
 
-    The reason and the evidence of an existing open flag are refreshed, because the detector
-    may now phrase the same claim with better numbers, but the status and the history are
-    untouched.
+    The reason, evidence, confidence and detector of an existing open flag are refreshed,
+    because the detector may now phrase the same claim with better numbers (or a better model
+    may now be the one making it: a duplicate case raised by the rule and later found by the
+    identity engine), but the status and the history are untouched.
     """
     key = make_dedupe_key(player_id, flag_type, fingerprint)
     existing = db.execute(select(Flag).where(Flag.dedupe_key == key)).scalar_one_or_none()
@@ -423,6 +449,8 @@ def upsert(
             existing.reason = reason
             existing.evidence = evidence
             existing.detector_version = detector_version
+            existing.detector_name = detector_name
+            existing.confidence = confidence
         return existing, False
 
     flag = Flag(

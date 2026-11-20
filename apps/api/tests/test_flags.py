@@ -390,6 +390,51 @@ def test_the_board_rejects_an_unknown_status(client, auth):
     assert response.status_code == 400
 
 
+def test_fraud_comes_before_a_pile_of_duplicates(client, auth, raise_flag):
+    """One run of the identity engine can raise hundreds of duplicate cases. Sorted by date
+    alone, they buried the fraud case under them; and duplicates come most probable first."""
+    raise_flag("adult_a", flag_type=FlagType.FRAUD.value, confidence=None)
+    raise_flag("adult_a", flag_type=FlagType.DUPLICATE.value, related="adult_b", fingerprint="p1", confidence=0.6)
+    raise_flag("adult_b", flag_type=FlagType.DUPLICATE.value, related="minor_ok_a", fingerprint="p2", confidence=0.99)
+    rows = client.get("/integrity/flags", headers=auth("federation")).json()
+    assert [(r["type"], r["confidence"]) for r in rows] == [("fraud", None), ("duplicate", 0.99), ("duplicate", 0.6)]
+
+
+def test_the_counts_come_from_the_table_not_the_page(client, auth, raise_flag):
+    raise_flag("adult_a", flag_type=FlagType.FRAUD.value)
+    raise_flag("adult_a", flag_type=FlagType.DUPLICATE.value, related="adult_b", fingerprint="p1")
+    raise_flag("adult_b", flag_type=FlagType.DUPLICATE.value, related="minor_ok_a", fingerprint="p2")
+    raise_flag("adult_b", flag_type=FlagType.LATE_BLOOMER.value)
+    assert len(client.get("/integrity/flags?limit=1", headers=auth("federation")).json()) == 1
+    counts = client.get("/integrity/counts", headers=auth("federation")).json()
+    assert counts == {"fraud": 1, "duplicate": 2, "anomaly": 0}
+    assert client.get("/integrity/counts", headers=auth("scout")).status_code == 403
+
+
+def test_the_queue_filters_by_type_and_by_player(client, auth, world, raise_flag):
+    raise_flag("adult_a", flag_type=FlagType.FRAUD.value)
+    raise_flag("adult_a", flag_type=FlagType.DUPLICATE.value, related="adult_b", fingerprint="p1")
+    only = client.get("/integrity/flags?type=duplicate", headers=auth("federation")).json()
+    assert {r["type"] for r in only} == {"duplicate"}
+    # A duplicate case is about both records, whichever it is stored against.
+    about_b = client.get(f"/integrity/flags?player={world['players']['adult_b'].id}", headers=auth("federation")).json()
+    assert [r["type"] for r in about_b] == ["duplicate"]
+    assert client.get("/integrity/flags?type=banana", headers=auth("federation")).status_code == 400
+
+
+def test_a_rerun_by_a_better_model_refreshes_an_open_case(db, world):
+    """The rule raised it with no score; the identity engine found the same pair. One case,
+    now with the engine's probability and name."""
+    kwargs = dict(player_id=world["players"]["adult_a"].id, flag_type=FlagType.DUPLICATE.value,
+                  fingerprint="pair:x", related_player_id=world["players"]["adult_b"].id, detector_version="v2")
+    first, _ = flag_service.upsert(db, reason="Rule.", evidence={"points": []}, detector_name="duplicate",
+                                   confidence=None, **kwargs)
+    again, created = flag_service.upsert(db, reason="Engine.", evidence={"points": ["a"]}, detector_name="identity",
+                                         confidence=0.97, **kwargs)
+    assert not created and again.id == first.id
+    assert (again.detector_name, again.confidence, again.reason) == ("identity", 0.97, "Engine.")
+
+
 # ---------------------------------------------------------------------------
 # Deciding through the API
 # ---------------------------------------------------------------------------

@@ -464,7 +464,9 @@ def test_the_integrity_board_lists_real_flags(sign_in, page, identities):
     page.wait_for_timeout(SETTLE_MS)
     body = text_of(page)
 
-    assert f"{len(flags)} open flags" in body
+    # The count is the API's, not the length of the page of cases loaded (cut at a limit).
+    total = sum(api("/integrity/counts", identities["federation"]["email"]).values())
+    assert f"{total} open flags" in body
     # The first case's player is named on the queue.
     assert flags[0]["playerName"].lower() in body
 
@@ -1056,7 +1058,8 @@ def test_the_demo_flow_on_one_player(sign_in, page, browser, identities):
     # 5. A flag surfaces: the detector run reads the database and finds the pair.
     assert "flags raised" in _run_detectors()
     case = next(
-        (f for f in api("/integrity/flags", federation)
+        # By player: the queue holds the identity engine's cases too, more than one page.
+        (f for f in api(f"/integrity/flags?type=duplicate&player={new_id}", federation)
          if f["type"] == "duplicate" and f["records"]
          and {f["records"]["playerId"], f["records"]["otherPlayerId"]} == {new_id, original["id"]}),
         None,
@@ -1080,7 +1083,7 @@ def test_the_demo_flow_on_one_player(sign_in, page, browser, identities):
 
     decided = next(f for f in api("/integrity/flags?status=confirmed", federation) if f["id"] == case["id"])
     assert decided["history"][-1]["what"].startswith("confirmed, E2E: same boy")
-    assert case["id"] not in {f["id"] for f in api("/integrity/flags", federation)}
+    assert case["id"] not in {f["id"] for f in api(f"/integrity/flags?player={new_id}", federation)}
 
     # 7. One player again: the coach's reading is on the record kept, the second entry's link
     # leads there, and search finds it no more.
@@ -1101,7 +1104,7 @@ def test_the_demo_flow_on_one_player(sign_in, page, browser, identities):
     page.wait_for_timeout(SETTLE_MS)
     assert api(f"/players/{new_id}/profile", federation)["player"]["id"] == new_id
     assert api(f"/players/{original['id']}/profile", federation)["latest"]["heightCm"] == last
-    assert case["id"] in {f["id"] for f in api("/integrity/flags", federation)}
+    assert case["id"] in {f["id"] for f in api(f"/integrity/flags?player={new_id}", federation)}
 
 
 def test_a_coach_logs_a_measurement_from_the_profile(sign_in, page, identities):

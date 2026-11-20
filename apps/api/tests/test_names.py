@@ -342,3 +342,10 @@ def test_name_terms_combine_with_the_other_filters(client, auth, named):
     found, _ = _ids(client, auth, "Mohamed under 30")
     assert str(named["arabic"].id) in found
     assert str(named["latin"].id) not in found  # 33
+
+
+def test_a_y_after_a_y_read_as_a_vowel_ends():
+    """"Pryyma" (a Ukrainian surname in the StatsBomb data) used to loop forever: the first y
+    became a vowel and the second was never consumed. It hung any name search that met it."""
+    assert names._latin_units("pryyma") == (("c", "b"), ("c", "r"), ("v", "yy"), ("c", "m"), ("v", "a"))
+    assert names.word_matches("pryyma", "pryyma")

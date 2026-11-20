@@ -4,7 +4,7 @@ grouping, and the hard-duplicate world. Invented names and records only."""
 from __future__ import annotations
 
 import random
-from datetime import date
+from datetime import date, timedelta
 
 from ml.identity import engine, hard
 from ml.identity.engine import Record
@@ -33,12 +33,17 @@ def test_candidates_cross_scripts_but_respect_sex_and_birth_year():
     assert ("b", "d") in pairs            # no date on one side: compared on names
 
 
-def test_name_levels():
-    assert engine.name_level(rec("a", "محمد صلاح"), rec("b", "Mohammed Salah")) == "all"
-    assert engine.name_level(rec("a", "أحمد علي حسن"), rec("b", "أحمد حسن")) == "all"
+def test_name_levels_leave_the_given_name_to_its_own_field():
+    assert engine.name_level(rec("a", "محمد صلاح حامد"), rec("b", "Mohammed Salah Hamed")) == "all"
+    assert engine.name_level(rec("a", "محمد صلاح"), rec("b", "Mohammed Salah")) == "all-one-word"
+    assert engine.name_level(rec("a", "أحمد علي حسن محمود"), rec("b", "أحمد حسن محمود")) == "all"
     # A compound left half-dropped still matches on the plain words, as in v1.
-    assert engine.name_level(rec("a", "عبد ادم منصور"), rec("b", "عبد الرحمن آدم منصور")) == "all"
+    assert engine.name_level(rec("a", "سيف عبد ادم منصور"), rec("b", "سيف عبد الرحمن آدم منصور")) == "all"
     assert engine.name_level(rec("a", "خالد سعيد"), rec("b", "عمر حسن")) == "none"
+    # Two players who share only a first name share nothing here: "José" is counted once, in
+    # the given name, not twice. Counted twice, it linked hundreds of professionals.
+    assert engine.name_level(rec("a", "José Luis Morales"), rec("b", "José Ángel Crespo")) == "none"
+    assert engine.name_level(rec("a", "Kaká"), rec("b", "Kaká Leite")) == "unknown"
 
 
 def test_given_name_separates_relatives():
@@ -127,3 +132,63 @@ def test_harden_changes_a_copy_and_records_what_it_did():
     assert counts["other_no_dob"] == sum(1 for p in hardened["players"] if p["date_of_birth"] is None)
     again = hard.harden(tables, truth, seed=7)[0]
     assert again == hardened  # the same seed, the same world
+
+
+def _register(n=300, seed=5):
+    """Invented records: n people with three-word names drawn from about a hundred name words."""
+    rng = random.Random(seed)
+    words = [w for w in hard.TABLE if " " not in w and w not in ("صلاح", "حامد")]
+    out = []
+    for i in range(n):
+        name = " ".join(rng.sample(words, 3))
+        out.append(rec(f"p{i}", name, dob=date(2009, 1, 1) + timedelta(days=rng.randrange(1500))))
+    return out
+
+
+def test_random_u_is_measured_on_random_pairs():
+    records = _register()
+    u = engine.random_u(records, pairs=4000)
+    assert abs(sum(u["dob"].values()) - 1) < 1e-9
+    # Random people almost never share a whole name or a birthday; they nearly always share a sport.
+    assert u["name"]["all"] < 0.05 and u["dob"]["exact"] < 0.01
+    assert u["sport"]["same"] > 0.9
+
+
+def test_measured_scoring_puts_the_share_over_every_pair():
+    """With u from random pairs the share of true pairs is the chance two random records are one
+    person: tiny, not the share among candidates. Mixing the two linked thousands of people."""
+    records = _register()
+    records.append(rec("copy", "Mohamed Mansour Shalaby"))
+    scored, model = engine.score(records)
+    n = len(records)
+    assert model.prior < 50 / (n * (n - 1) / 2)
+    assert engine.score(records, method="em")[1].prior > model.prior
+
+
+def test_measured_m_is_read_from_the_calibration_file():
+    m = engine.measured_m()
+    assert set(m) == set(engine.FIELDS)
+    assert m["name"]["all"] > m["name"]["some"] and m["given"]["same"] > 0.9
+
+
+def test_proposals_leave_out_merged_records_and_explain_themselves():
+    tables = {
+        "players": [
+            {"id": "a", "full_name": "محمد صلاح حامد", "date_of_birth": "2011-03-07", "sex": "male",
+             "primary_sport": "football", "nationality": ["EG"]},
+            {"id": "b", "full_name": "Mohamed Salah Hamed", "date_of_birth": None, "sex": "male",
+             "primary_sport": "football", "nationality": ["EG"]},
+            {"id": "c", "full_name": "محمد صلاح حامد", "date_of_birth": "2011-03-07", "sex": "male",
+             "primary_sport": "football", "nationality": ["EG"], "status": "merged"},
+        ] + [{"id": f"x{i}", "full_name": r.names[0], "date_of_birth": r.date_of_birth.isoformat(), "sex": "male",
+              "primary_sport": "football", "nationality": ["EG"]} for i, r in enumerate(_register(200))],
+        "affiliations": [], "organizations": [],
+    }
+    links, records = engine.propose(tables)
+    pairs = {tuple(sorted((s.a, s.b))) for s in links}
+    assert ("a", "b") in pairs
+    assert not any("c" in p for p in pairs)
+    link = next(s for s in links if {s.a, s.b} == {"a", "b"})
+    points = engine.evidence(link, records["a"], records["b"])
+    assert any("Arabic" in p and "Latin" in p for p in points)
+    assert "No date of birth on one record, so the date could not be checked" in points
