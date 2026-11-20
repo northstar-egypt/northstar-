@@ -42,6 +42,15 @@ granted again.
     own cohort reference already leaves them out. Fixing this belongs with the database-backed
     FeatureSet above.
 
+Duplicates and the identity engine
+----------------------------------
+Duplicate cases come from two places: the duplicate rule (ml/detectors/duplicate.py, the v1
+detector graded in ml/run_eval.py) and the identity engine (ml/identity), which also finds the
+same person spelled in Latin, without a date of birth, or at another club, and the same
+professional in two data sources. A pair both find is one case, with the engine's probability.
+The engine proposes and a person decides: confirming a case on the integrity board merges the
+two records (apps/api/app/services/merge.py), and the merge can be undone.
+
 Reruns
 ------
 Safe to run repeatedly. Every flag carries a `dedupe_key`, so a case already raised is
@@ -61,7 +70,7 @@ DEFAULT_DATABASE_URL = "postgresql+psycopg://northstar:northstar@localhost:5432/
 
 # Bumped when a detector's behaviour changes. Stored on every flag, because a score computed
 # six months from now has to be able to say which model produced the flags it is scoring.
-DETECTOR_VERSION = "v1"
+DETECTOR_VERSION = "v2"  # v2: the identity engine raises duplicate cases too
 
 
 def _bootstrap_api_path() -> None:
@@ -79,6 +88,17 @@ def _bootstrap_api_path() -> None:
                 sys.path.insert(0, str(api_dir))
             return
     raise RuntimeError(f"Could not locate the repository root from {here}.")
+
+
+def _identity_tables(data_dir: Path) -> dict[str, list[dict]]:
+    """The three tables the identity engine reads, from the same export as the detectors."""
+    import json
+
+    out = {}
+    for name in ("players", "affiliations", "organizations"):
+        path = data_dir / f"{name}.json"
+        out[name] = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    return out
 
 
 def withheld_for_consent(flag_type: str, player_id: str, analytics: set[str], talent_types) -> bool:
@@ -145,11 +165,12 @@ def _run(args: argparse.Namespace) -> int:
 
     from ml.detectors import duplicate, fraud, late_bloomer
     from ml.detectors.features import FeatureSet
+    from ml.identity import engine as identity
 
     features = FeatureSet(args.data_dir)
 
     engine = create_engine(args.database_url, future=True)
-    written = {"created": 0, "existing": 0, "skipped": 0, "withheld": 0}
+    written = {"created": 0, "existing": 0, "skipped": 0, "withheld": 0, "identity": 0}
 
     with Session(engine) as session:
         known = {
@@ -293,30 +314,64 @@ def _run(args: argparse.Namespace) -> int:
                 detector_name="fraud.result_contradiction",
             )
 
-        # Duplicates. Written once per pair rather than once per record, with the partner on
-        # `related_player_id` so the integrity board can render the field-by-field diff.
+        # Duplicates: the rule (v1) and the identity engine (ml/identity), one case per pair.
+        # Written once per pair rather than once per record, with the partner on
+        # `related_player_id` so the integrity board can render the field-by-field diff. A pair
+        # both find is one case, with the engine's probability and evidence.
+        rule_pairs = {}
         for (a, b), reason in duplicate.detect_pairs(features).items():
             # A merged record is a duplicate already resolved. The detector does not read
             # status (so its evaluation cannot score by reading the answer), but a case naming
             # one could not be acted on: there is nothing left to merge.
             if any(features.players[pid].player.get("status") == "merged" for pid in (a, b)):
                 continue
+            rule_pairs[(a, b)] = reason
+        links, records = identity.propose(_identity_tables(args.data_dir))
+        engine_pairs = {tuple(sorted((s.a, s.b))): s for s in links}
+
+        for pair in sorted(set(rule_pairs) | set(engine_pairs)):
+            a, b = pair
+            scored = engine_pairs.get(pair)
+            if scored is None:
+                raise_flag(
+                    a,
+                    flag_type=FlagType.DUPLICATE.value,
+                    reason=rule_pairs[pair],
+                    # Both directions of the same pair are one case.
+                    fingerprint="pair:" + "|".join(pair),
+                    evidence={
+                        "points": [
+                            "Names match after normalising Arabic spelling",
+                            "Dates of birth are the same or a few days apart",
+                            "Same sex and sport",
+                        ]
+                    },
+                    related_player_id=b,
+                    detector_name="duplicate",
+                )
+                continue
+            points = identity.evidence(scored, records[a], records[b])
+            if pair in rule_pairs:
+                points.append("The duplicate rule (v1) found this pair too")
+            points.append(
+                "The probability is the identity engine's. Its accuracy is measured on generated "
+                "data (ml/README.md); on real professionals it is not yet measured, so check the "
+                "records before merging."
+            )
             raise_flag(
                 a,
                 flag_type=FlagType.DUPLICATE.value,
-                reason=reason,
-                # Both directions of the same pair are one case.
-                fingerprint="pair:" + "|".join(sorted((a, b))),
-                evidence={
-                    "points": [
-                        "Names match after normalising Arabic spelling",
-                        "Dates of birth are the same or a few days apart",
-                        "Same sex and sport",
-                    ]
-                },
+                reason=(
+                    f"These two records are probably the same person "
+                    f"(probability {scored.probability:.2f})."
+                ),
+                fingerprint="pair:" + "|".join(pair),
+                evidence={"points": points, "levels": scored.levels},
+                confidence=round(scored.probability, 4),
                 related_player_id=b,
-                detector_name="duplicate",
+                detector_name="identity",
             )
+            written["identity"] += 1
 
         dropped = flag_service.purge_merged_player_flags(session)
 
@@ -330,7 +385,8 @@ def _run(args: argparse.Namespace) -> int:
         f"flags raised {written['created']}, already present {written['existing']}, "
         f"skipped (not in database) {written['skipped']}, "
         f"withheld (no analytics consent) {written['withheld']}, "
-        f"closed against merged records {dropped}"
+        f"closed against merged records {dropped}; "
+        f"duplicate cases from the identity engine {written['identity']}"
     )
     return 0
 
