@@ -152,6 +152,11 @@ def _first(question: str, table: list[tuple[str, re.Pattern]]) -> str | None:
     return None
 
 
+def first_statistic(question: str) -> str | None:
+    """The first football or table tennis statistic the word lists find in a question."""
+    return _first(question, STATISTICS)
+
+
 def read(question: str) -> dict:
     """The raw reading of one question, in the shape the model returns (READING_SCHEMA)."""
     players = _latin_names(question) + _arabic_names(question)

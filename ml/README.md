@@ -1353,6 +1353,54 @@ So the rules are a fallback for a demo, not a replacement for the model. Reading
 takes under a millisecond; a whole request with Ollama stopped took about 4 seconds, measured
 on the local stack.
 
+### Professional league seasons (added 2026-11-20)
+
+Ask now also answers "who leads a league season" on what FootyStats publishes per player
+(decision 0009): goals, assists, goals per 90, assists per 90, minutes and appearances, for one
+league and season, optionally one position group (FootyStats' own label for that season) and an
+age range (age on the season's first day). The ranking is `apps/api/app/services/pro_leaders.py`.
+Per 90 is ranked only from 450 minutes, and the answer says how many players that left out.
+A statistic FootyStats does not publish for players (xG, shots, chances created, passes,
+tackles, distance) is answered with that reason, not with a ranking of something else.
+
+46 new questions were added before any run, 23 per half, 6 per half in Egyptian Arabic or mixed
+Arabic and English, some misspelt ("premier leage", "premiere league"). Each is marked
+`"tier": "pro"`, and the scorer now prints youth and pro separately.
+
+**Read by rule, not by the model.** A question is about a league season when it names a league
+or a season, or asks per 90 or for xG, and no player. The league, the season and the more
+exact statistic (per 90, minutes, appearances, xG) are then read by rule (`pro_in` in
+`apps/api/app/services/assistant.py`), on top of the reader's own statistic, position and the
+age rule. The model's prompt and worked examples are unchanged, on purpose: the last time the
+model was taught new kinds of question it lost three old readings on dev (the breakouts table
+above), and leagues and seasons are a short list with fixed spellings, like ages. So the
+model's readings of the 88 academy questions cannot have moved.
+
+The rules were written from the dev questions and scored 67 of 67 on dev on their first run,
+so nothing was tuned. Then the held-out half was run once:
+
+| reader | dev, youth | dev, pro | **test, youth** | **test, pro (held out)** |
+| --- | --- | --- | --- | --- |
+| fixed rules, before | 44 of 44 | | 34 of 44 | |
+| **fixed rules, after** | 44 of 44 | 23 of 23 | **34 of 44** | **21 of 23 (91%)** |
+| qwen2.5:3b, after | not run yet | not run yet | not run yet | not run yet |
+
+The youth score did not move, and the same ten academy questions are missed. Reading a
+question by rule takes under a millisecond, the same as before. The two pro misses on the
+held-out half:
+
+- "Premier League 2022/23 top goalscorers": "goalscorers" as one word is in no word list, so no
+  statistic was read and the answer asks which statistic.
+- "مين صنع أكتر أهداف في الدوري المصري" (who made the most goals): "صنع أهداف" means assists,
+  and was read as goals.
+
+Both are left as they are: they were found on the held-out half. Also found while writing the
+tests, not on either half: "سجل" (scored) is in no word list either.
+
+The model run (`--split test` without `--reader rules`) needs Ollama and has not been run for
+this change. Since the model only supplies the statistic and position here, and its prompt is
+unchanged, its youth score should stay 37 of 44; its pro score is unknown until it is run.
+
 ## Relative age audit
 
 Children born early in the selection year are older, bigger and more mature than team-mates
