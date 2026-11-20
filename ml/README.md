@@ -1312,6 +1312,13 @@ seeds (about 520 at today's budget), all of them because there were more overdue
 places. Scout allocation (the other half of decision support) needs the pathway model and comes
 later.
 
+**In the app.** The coach's "Measuring day" card is the plan (`GET /squad/measuring-plan`,
+`app/services/measuring_plan.py`): the coach says how many players they can measure today (the
+suggestion is enough for everyone to be measured about every three months), the optimiser
+picks who, and each player comes with the reasons in plain words. Players without analytics
+consent are counted, not planned. Before this, the card listed the overdue and under-measured
+players longest-waiting first, which is the *nudge* schedule above.
+
 ## Player similarity, professionals ("plays most like")
 
 ```bash
