@@ -56,21 +56,46 @@ def list_flags(
         description="Filter by status. Pass an empty string for every status.",
     ),
     limit: int = Query(default=100, ge=1, le=500),
+    type: str | None = Query(default=None, description="fraud, duplicate or anomaly"),
+    player: uuid.UUID | None = Query(default=None, description="Only cases about this player"),
 ) -> list[IntegrityFlagOut]:
-    """The review queue, newest first.
+    """The review queue: fraud, then anomalies, then duplicates (services/flags.py says why).
 
     Each flag carries the evidence it was raised on and its full history, because a reviewer
     has to be able to disagree with the model rather than rubber-stamp it, and because two
     reviewers should not both work the same case.
     """
+    _check_status(status)
+    if type and type not in flag_service.INTEGRITY_TYPES:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown type {type!r}; one of {list(flag_service.INTEGRITY_TYPES)}.",
+        )
+
+    rows = flag_service.list_integrity_flags(
+        db, status=status or None, limit=limit, flag_type=type, player_id=player
+    )
+    return [IntegrityFlagOut.model_validate(row) for row in rows]
+
+
+@router.get("/counts", response_model=dict[str, int])
+def flag_counts(
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(require_reviewer),
+    status: str | None = Query(default=FlagStatus.OPEN.value),
+) -> dict[str, int]:
+    """Cases of each type. The board's header and filters show these, because the queue it
+    loads is cut at a limit and counting that would understate a long queue."""
+    _check_status(status)
+    return flag_service.integrity_counts(db, status=status or None)
+
+
+def _check_status(status: str | None) -> None:
     if status and status not in {item.value for item in FlagStatus}:
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
             detail=f"Unknown status {status!r}.",
         )
-
-    rows = flag_service.list_integrity_flags(db, status=status or None, limit=limit)
-    return [IntegrityFlagOut.model_validate(row) for row in rows]
 
 
 @router.post("/flags/{flag_id}/decision", response_model=IntegrityFlagOut)

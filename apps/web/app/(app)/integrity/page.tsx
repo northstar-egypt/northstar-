@@ -15,6 +15,10 @@
  * Confirming a duplicate merges the two records: the history moves to the record kept, and the
  * other leads to it (apps/api/app/services/merge.py). It can be undone from the kept record's
  * profile.
+ *
+ * Duplicate cases come from the duplicate rule and from the identity engine (ml/identity),
+ * which can propose hundreds at once. So the counts come from the API rather than from the
+ * cases loaded, the chips filter the queue by type, and the API puts fraud first.
  */
 
 import Link from "next/link";
@@ -32,7 +36,7 @@ import {
   Th,
   inputClass,
 } from "@/components/ui";
-import { decideFlag, getFlags } from "@/lib/api";
+import { decideFlag, getFlagCounts, getFlags, type FlagCounts } from "@/lib/api";
 import { cx } from "@/lib/format";
 import type { IntegrityFlag } from "@/lib/types";
 
@@ -54,6 +58,7 @@ function flagTitle(flag: IntegrityFlag): string {
     case "fraud.result_contradiction":
       return "A result the opponent's own record contradicts";
   }
+  if (flag.detector === "identity") return "Possibly the same person";
   if (flag.type === "duplicate") return "Possible duplicate record";
   if (flag.type === "fraud") return "Possible fraud";
   return "Measurement anomaly";
@@ -85,6 +90,8 @@ function moreHistory(fields: { field: string; a: string; b: string }[]): string 
 
 export default function IntegrityPage() {
   const [flags, setFlags] = useState<IntegrityFlag[] | null>(null);
+  const [filter, setFilter] = useState<IntegrityFlag["type"] | null>(null);
+  const [totals, setTotals] = useState<FlagCounts | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState<Decision | null>(null);
@@ -95,7 +102,18 @@ export default function IntegrityPage() {
 
   useEffect(() => {
     let alive = true;
-    getFlags().then((f) => {
+    getFlagCounts().then((c) => {
+      if (alive) setTotals(c);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    setFlags(null);
+    getFlags("open", filter ?? undefined).then((f) => {
       if (!alive) return;
       setFlags(f);
       setSelectedId(f[0]?.id ?? null);
@@ -103,7 +121,7 @@ export default function IntegrityPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [filter]);
 
   const open = useMemo(
     () => (flags ?? []).filter((f) => !resolved[f.id]),
@@ -114,13 +132,16 @@ export default function IntegrityPage() {
     [flags, selectedId],
   );
 
+  // Open cases of each type: the API's counts, less the ones decided on this page.
   const counts = useMemo(() => {
-    const c = { fraud: 0, duplicate: 0, anomaly: 0 };
-    open.forEach((f) => {
-      c[f.type] += 1;
+    const c = { fraud: 0, duplicate: 0, anomaly: 0, ...(totals ?? {}) };
+    (flags ?? []).forEach((f) => {
+      if (resolved[f.id]) c[f.type] = Math.max(0, c[f.type] - 1);
     });
     return c;
-  }, [open]);
+  }, [totals, flags, resolved]);
+  const total = totals ? counts.fraud + counts.duplicate + counts.anomaly : open.length;
+  const shown = filter ? counts[filter] : total;
 
   async function decide(decision: Decision) {
     if (!selected || reason.trim().length < 3) return;
@@ -152,18 +173,27 @@ export default function IntegrityPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight">
-            {open.length} open {open.length === 1 ? "flag" : "flags"}
+            {total} open {total === 1 ? "flag" : "flags"}
           </h1>
           <p className="text-sm text-slate-500">
             {open.length > 0
-              ? `oldest has been waiting ${Math.max(...open.map((f) => f.ageDays))} days`
+              ? `oldest shown has been waiting ${Math.max(...open.map((f) => f.ageDays))} days`
               : "queue is clear"}
+            {open.length < shown ? ` · showing the first ${open.length} of ${shown}` : ""}
           </p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <Chip tone="bad">fraud {counts.fraud}</Chip>
-          <Chip tone="brand">duplicate {counts.duplicate}</Chip>
-          <Chip tone="warn">anomaly {counts.anomaly}</Chip>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Show one type">
+          {(["fraud", "duplicate", "anomaly"] as const).map((t) => (
+            <Chip
+              key={t}
+              tone={TONE[t]}
+              active={filter === t}
+              onClick={() => setFilter(filter === t ? null : t)}
+              title={filter === t ? "Show every type" : `Show only ${t} cases`}
+            >
+              {t} {counts[t]}
+            </Chip>
+          ))}
         </div>
       </div>
 

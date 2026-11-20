@@ -168,8 +168,11 @@ def _latin_units(word: str) -> tuple[tuple, ...]:
         elif ch in _LATIN_VOWELS or (ch in "yw" and i > 0 and units and units[-1][0] == "v"):
             # A vowel run. A y or w straight after a vowel belongs to it (Sayed, Awad), where
             # an Arabic ي or و can use it.
-            run = ""
-            while i < len(word) and (word[i] in _LATIN_VOWELS or (word[i] in "yw" and run)):
+            # The first letter always joins the run. Starting from an empty run, a y after a
+            # y-as-vowel ("Pryyma") was never consumed and the loop never ended.
+            run = ch
+            i += 1
+            while i < len(word) and (word[i] in _LATIN_VOWELS or word[i] in "yw"):
                 run += word[i]
                 i += 1
             units.append(("v", run))

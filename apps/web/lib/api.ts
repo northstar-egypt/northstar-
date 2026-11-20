@@ -641,9 +641,20 @@ export async function getStrongestRated(): Promise<StrongestGroup[]> {
  * `python -m ml.write_flags`, which is the batch job connecting `ml/detectors` to this screen.
  * An empty board usually means that has not been run rather than that nothing is wrong.
  */
-export async function getFlags(status = "open"): Promise<IntegrityFlag[]> {
-  const query = status ? `?status=${encodeURIComponent(status)}` : "?status=";
-  return request<IntegrityFlag[]>(`/integrity/flags${query}`);
+export async function getFlags(
+  status = "open",
+  type?: IntegrityFlag["type"],
+): Promise<IntegrityFlag[]> {
+  const params = new URLSearchParams({ status });
+  if (type) params.set("type", type);
+  return request<IntegrityFlag[]>(`/integrity/flags?${params.toString()}`);
+}
+
+/** Open cases of each type, counted by the API: the queue it returns is cut at a limit. */
+export type FlagCounts = Record<IntegrityFlag["type"], number>;
+
+export async function getFlagCounts(): Promise<FlagCounts> {
+  return request<FlagCounts>("/integrity/counts");
 }
 
 /**
