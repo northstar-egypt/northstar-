@@ -52,7 +52,7 @@ def score(expect: dict, got: dict) -> list[str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--split", choices=("dev", "test"), default="dev")
+    parser.add_argument("--split", choices=("dev", "test", "test2"), default="dev")
     parser.add_argument("--model", default=None)
     parser.add_argument("--url", default="http://localhost:11434")
     parser.add_argument(
@@ -73,12 +73,17 @@ def main() -> None:
         # One untimed call first, so loading the model from disk is not counted against question 1.
         read("warm up")
     right, by_field, seconds = 0, {}, []
+    # Academy (youth) questions and professional league season questions, scored separately.
+    by_tier: dict[str, list[int]] = {}
     for item in questions:
         started = time.monotonic()
         reading = read(item["q"]).__dict__
         seconds.append(time.monotonic() - started)
         wrong = score(item["expect"], reading)
         right += not wrong
+        tally = by_tier.setdefault(item.get("tier", "youth"), [0, 0])
+        tally[0] += not wrong
+        tally[1] += 1
         for field in wrong:
             by_field[field] = by_field.get(field, 0) + 1
         if wrong:
@@ -91,6 +96,7 @@ def main() -> None:
         f"({right / len(questions):.0%}). Wrong by field: {by_field or 'none'}. "
         f"Seconds per question: median {seconds[len(seconds) // 2]:.1f}, slowest {seconds[-1]:.1f}."
     )
+    print("By tier: " + ", ".join(f"{tier} {r} of {n}" for tier, (r, n) in sorted(by_tier.items(), reverse=True)))
 
 
 if __name__ == "__main__":

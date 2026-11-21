@@ -152,16 +152,26 @@ def _first(question: str, table: list[tuple[str, re.Pattern]]) -> str | None:
     return None
 
 
-def read(question: str) -> dict:
-    """The raw reading of one question, in the shape the model returns (READING_SCHEMA)."""
-    players = _latin_names(question) + _arabic_names(question)
-    statistic = _first(question, STATISTICS)
+def first_statistic(question: str) -> str | None:
+    """The first football or table tennis statistic the word lists find in a question."""
+    return _first(question, STATISTICS)
+
+
+def position_in(question: str) -> str | None:
+    """The position group the question's own words name ("strikers", "CB", "مدافع"), or None."""
     position = _first(question, POSITIONS)
     if position is None:
         for code in re.findall(r"\b[A-Z]{2,3}\b", question):
             if code in POSITION_CODES:
-                position = POSITION_CODES[code]
-                break
+                return POSITION_CODES[code]
+    return position
+
+
+def read(question: str) -> dict:
+    """The raw reading of one question, in the shape the model returns (READING_SCHEMA)."""
+    players = _latin_names(question) + _arabic_names(question)
+    statistic = _first(question, STATISTICS)
+    position = position_in(question)
     sport = "table_tennis" if TABLE_TENNIS.search(question) else (
         "football" if FOOTBALL.search(question) else None)
     gender = "female" if FEMALE.search(question) else ("male" if MALE.search(question) else None)
