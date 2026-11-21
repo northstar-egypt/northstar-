@@ -2,6 +2,9 @@
 
     python -m ml.run_measurement_eval
     python -m ml.run_measurement_eval --seeds 101 202 303      # the calibration seeds
+    python -m ml.run_measurement_eval --fresh                  # the replication on fresh seeds
+    python -m ml.run_measurement_eval --paired                 # both sets, compared seed by seed
+    python -m ml.run_measurement_eval --paired --from-json reported.json fresh.json
 
 For each seed the generator builds its world as usual. Then every player's height readings are
 made again, by a schedule (ml/decisions/measurement.py): each academy holds a session every 28
@@ -20,6 +23,13 @@ other small players were flagged, and how many late bloomers had too few reading
 detector to say anything. Pooled over the seeds; 95% Wilson intervals.
 
 Reported seeds are the five the backtest reports on; no constant in the schedules was tuned.
+
+`--paired` runs the reported and the fresh seeds and compares the optimiser with each simpler
+schedule seed by seed: every schedule runs on the same seeds with the same planted late
+bloomers, so the difference can be taken per seed. It prints, per budget, the mean number of
+extra late bloomers flagged at the cut per seed, a 95% bootstrap interval over seeds, the seeds
+won and tied, and the extra false alarms per seed against the nudge schedule. `--from-json`
+renders it from runs saved with `--json` instead of running them again.
 """
 
 from __future__ import annotations
@@ -27,6 +37,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import random
 import sys
 import tempfile
 import time
@@ -217,6 +228,47 @@ def render(results: list[dict]) -> str:
     return "\n".join(lines)
 
 
+BASELINES = ("nudge", "rota", "random")
+BOOTSTRAP_DRAWS = 2000
+
+
+def _interval(diffs: list[int], draws: int = BOOTSTRAP_DRAWS, seed: int = 0) -> tuple[float, float]:
+    """95% percentile interval of the mean, resampling seeds with replacement."""
+    rng = random.Random(seed)
+    means = sorted(sum(rng.choice(diffs) for _ in diffs) / len(diffs) for _ in range(draws))
+    return means[int(0.025 * draws)], means[int(0.975 * draws) - 1]
+
+
+def paired(results: list[dict]) -> str:
+    """The optimiser against each simpler schedule, seed by seed (see the module docstring)."""
+    by = {(r["seed"], r["policy"], r["budget"]): r for r in results}
+    seeds = sorted({r["seed"] for r in results})
+    budgets = sorted({r["budget"] for r in results if r["policy"] == "optimised"})
+    lines = [
+        f"Paired, seeds {', '.join(map(str, seeds))}: extra late bloomers flagged at the cut per seed "
+        f"by the optimiser (95% bootstrap interval over seeds; seeds won, tied)",
+        "",
+        f"  {'budget':>6}  " + "".join(f"{'against ' + b:<36}" for b in BASELINES)
+        + "extra false alarms per seed (against nudge)",
+    ]
+    for budget in budgets:
+        cells = []
+        for base in BASELINES:
+            diffs = [by[(s, "optimised", budget)]["lb_flagged"] - by[(s, base, budget)]["lb_flagged"]
+                     for s in seeds if (s, base, budget) in by and (s, "optimised", budget) in by]
+            if not diffs:
+                cells.append(f"{'n/a':<36}")
+                continue
+            lo, hi = _interval(diffs)
+            won, tied = sum(d > 0 for d in diffs), sum(d == 0 for d in diffs)
+            cells.append(f"{sum(diffs) / len(diffs):+.1f} ({lo:+.1f} to {hi:+.1f}), {won} won, {tied} tied".ljust(36))
+        alarms = [by[(s, "optimised", budget)]["other_flagged"] - by[(s, "nudge", budget)]["other_flagged"]
+                  for s in seeds if (s, "nudge", budget) in by and (s, "optimised", budget) in by]
+        extra = f"{sum(alarms) / len(alarms):+.1f}" if alarms else "n/a"
+        lines.append(f"  {budget:>6.1f}  " + "".join(cells) + extra)
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(prog="run_measurement_eval", description=__doc__.splitlines()[0])
@@ -229,11 +281,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--policies", nargs="+", default=[p for p in m.POLICIES if p != "optimised-span"],
                         choices=list(m.POLICIES))
     parser.add_argument("--json", type=Path, default=None)
+    parser.add_argument("--paired", action="store_true",
+                        help="the reported and fresh seeds, the optimiser against each schedule seed by seed")
+    parser.add_argument("--from-json", type=Path, nargs="+", default=None,
+                        help="with --paired: render from runs saved with --json")
     args = parser.parse_args(argv)
+    if args.paired and args.from_json:
+        results = [r for path in args.from_json for r in json.loads(path.read_text(encoding="utf-8"))]
+        print(paired(results))
+        return 0
     results = []
-    for seed in (FRESH_SEEDS if args.fresh else args.seeds):
+    seeds = REPORTED_SEEDS + FRESH_SEEDS if args.paired else (FRESH_SEEDS if args.fresh else args.seeds)
+    for seed in seeds:
         results += evaluate_seed(seed, args.players, args.budgets, args.policies)
-    print(render(results))
+    print(paired(results) if args.paired else render(results))
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)
         args.json.write_text(json.dumps(results, indent=1) + "\n", encoding="utf-8")

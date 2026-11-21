@@ -1212,6 +1212,7 @@ is among the others.
 ```bash
 python -m ml.run_measurement_eval                     # the five reported seeds
 python -m ml.run_measurement_eval --fresh             # the replication on five fresh seeds
+python -m ml.run_measurement_eval --paired            # both sets, the optimiser seed by seed
 python -m ml.run_measurement_eval --seeds 101 202 303 # the calibration seeds
 ```
 
@@ -1273,12 +1274,17 @@ optimiser, at the same number of readings (95% bootstrap interval over seeds; se
 
 | budget | against nudge | against rota | against random | extra false alarms per seed (against nudge) |
 | --- | --- | --- | --- | --- |
-| 0.5 | **+2.6** (+1.7 to +3.5), 9 won, 1 tie | +1.9 (+1.1 to +2.7), 9, 1 | +1.9 (+0.8 to +3.1), 8, 1 | +2.1 |
+| 0.5 | **+2.6** (+1.6 to +3.4), 9 won, 1 tie | +1.9 (+1.1 to +2.7), 9, 1 | +1.9 (+0.8 to +3.1), 8, 1 | +2.1 |
 | 1.0 | **+1.1** (+0.4 to +1.8), 7 won, 2 ties | +1.6 (+0.6 to +2.7), 8, 1 | +2.1 (+1.1 to +3.2), 9, 1 | +0.5 |
-| 1.5 | **+1.5** (+1.0 to +2.0), 9 won, 1 tie | +2.2 (+1.5 to +2.9), 9, 1 | +1.7 (+1.0 to +2.5), 8, 2 | +1.6 |
+| 1.5 | **+1.5** (+1.0 to +2.0), 9 won, 1 tie | +2.2 (+1.5 to +2.8), 9, 1 | +1.7 (+0.9 to +2.5), 8, 2 | +1.6 |
 
 (The paired comparison was chosen after the pooled tables were seen; it changes how the same
-runs are compared, not the method.)
+runs are compared, not the method.) `python -m ml.run_measurement_eval --paired` prints this
+table. It was first computed by a script that was not committed, which the results check
+found (#123); the committed command gives the same means, seeds won and false alarms, and
+three interval ends 0.1 apart (0.5 against nudge was +1.7 to +3.5; 1.5 against rota +1.5 to
++2.9, against random +1.0 to +2.5), from a different bootstrap draw. The table shows the
+committed command's.
 
 What this says:
 

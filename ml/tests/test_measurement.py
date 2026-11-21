@@ -122,3 +122,19 @@ def test_every_schedule_spends_the_same_budget_on_a_generated_world():
     assert len(set(counts.values())) == 1
     generated, _ = ev.simulate(ds, config, "as generated", 1.0)
     assert abs(counts["optimised"] - len(generated) / 3) / (len(generated) / 3) < 0.02
+
+
+def test_the_paired_comparison_is_taken_seed_by_seed():
+    """Invented per-seed results: the optimiser flags 2 more than nudge on one seed and the same
+    on the other, so +1.0, one won and one tied."""
+    from ml.run_measurement_eval import paired
+
+    def row(seed, policy, flagged, alarms=0):
+        return {"seed": seed, "policy": policy, "budget": 1.0, "lb_flagged": flagged, "other_flagged": alarms}
+
+    results = [row(1, "optimised", 5, 3), row(1, "nudge", 3, 1), row(2, "optimised", 4, 2), row(2, "nudge", 4, 2),
+               row(1, "rota", 5), row(2, "rota", 5), row(1, "random", 1), row(2, "random", 1)]
+    text = paired(results)
+    assert "+1.0 (" in text and "1 won, 1 tied" in text   # against nudge
+    assert "-0.5 (" in text                              # against rota
+    assert text.rstrip().endswith("+1.0")                # extra false alarms against nudge
