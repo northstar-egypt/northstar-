@@ -236,3 +236,69 @@ def test_a_question_typed_on_colab_reads_as_the_english_league():
     reading = assistant.read_by_rule("هداف الدوري انجليزي مهاجم")
     assert (reading.intent, reading.league, reading.position_group, reading.statistic) == (
         "pro_leaders", "england_premier_league", "forward", "goals")
+
+
+# ---------------------------------------------------------------------------
+# From the first review of the PR (2026-11-22). Written for the tests; none is from test3.
+# ---------------------------------------------------------------------------
+
+def test_two_entries_for_one_player_are_one_line_with_the_totals():
+    # FootyStats split one season across two ids; the identity engine merged the players.
+    main = line("Keeper", goals=0, assists=1, minutes=2880, apps=32, group="goalkeeper")
+    part = SeasonLine(**{**main.__dict__, "club": "Other", "metrics": {
+        **main.metrics, "minutes_played": 360, "appearances": 4, "assists": 2}})
+    body = rank(pro_leaders.combine([main, part, line("Other player", assists=2)]), statistic="assists")
+    assert names(body) == ["Keeper", "Other player"]
+    top = body["leaders"][0]
+    assert (top["value"], top["minutes"], top["club"], top["position_group"]) == (3, 3240, "Club", "goalkeeper")
+
+
+@pytest.mark.parametrize(("question", "intent"), [
+    ("stats for محمد المصري", "player"), ("players like محمد المصري", "similar"),
+])
+def test_the_surname_el_masry_is_a_player_not_a_league(question, intent):
+    # The name as a reader hands it over; it used to be dropped as "the Egyptian league".
+    reading = assistant._finish({"intent": intent, "players": ["محمد المصري"]}, question)
+    assert (reading.intent, reading.players, reading.league) == (intent, ["محمد المصري"], None)
+
+
+@pytest.mark.parametrize(("question", "league"), [
+    ("top Egyptian scorers in the Premier League 2023/24", "england_premier_league"),
+    ("best Egyptian players in England", "england_premier_league"),
+    ("مين أحسن لاعب مصري في الدوري الإنجليزي", "england_premier_league"),
+])
+def test_egyptian_players_abroad_are_read_as_the_foreign_league_and_filtered(question, league):
+    reading = assistant.read_by_rule(question)
+    assert (reading.intent, reading.league, reading.egypt_eligible) == ("pro_leaders", league, True)
+
+
+@pytest.mark.parametrize("question", [
+    "top scorers in the Egyptian Premier League", "الدوري المصري", "most assists Egyptian league 2024/25",
+])
+def test_the_egyptian_league_is_still_the_egyptian_league(question):
+    reading = assistant.read_by_rule(question)
+    assert (reading.league, reading.egypt_eligible) == ("egyptian_premier_league", False)
+
+
+@pytest.mark.parametrize("question", [
+    "top scorers per 90 among 15 year old forwards", "most goals per 90 under 16",
+])
+def test_per_90_alone_keeps_an_academy_question(question):
+    assert assistant.read_by_rule(question).intent == "leaders"
+
+
+def test_a_league_name_is_dropped_but_a_name_with_a_league_word_is_kept():
+    assert assistant.is_league_name("Premier League") and assistant.is_league_name("the Egyptian league")
+    assert not assistant.is_league_name("محمد المصري")
+
+
+def test_egypt_eligible_keeps_only_those_players(client, auth, pro_season, reads, db):
+    players = pro_season["players"]
+    for key in ("adult_a", "adult_b", "minor_no_a"):
+        players[key].is_egypt_eligible = key == "adult_b"
+    db.flush()
+    reads(intent="pro_leaders", league="england_premier_league", season="2023/24", statistic="goals",
+          egypt_eligible=True)
+    body = _ask(client, auth, "federation")
+    assert [row["cells"][0] for row in body["rows"]] == [players["adult_b"].full_name]
+    assert "Egypt-eligible" in body["answer"]

@@ -652,6 +652,8 @@ export interface AssistantAnswer {
     /** League seasons only (intent "pro_leaders"): a league key and a season like "2023/24". */
     league: string | null;
     season: string | null;
+    /** League seasons only: true when the question asks only for Egypt-eligible players. */
+    egyptEligible: boolean;
   };
   /** The reading in words, for "How this was read". */
   chips: string[];

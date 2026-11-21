@@ -17,6 +17,9 @@ The rules, so that no number is made up:
   birth on record is left out of an age-filtered ranking, and counted.
 - **Position group is the source's own label for that season** (`position_group` in the
   record), the only position FootyStats gives for outfield players.
+- **One line per player and season.** FootyStats sometimes splits one player's season across
+  two ids; once the identity engine merges them, the kept player holds two entries for that
+  season. `combine` adds them up before ranking, so no one is listed twice with part totals.
 - **Only players the caller may open**: `visible_players`, then `may_view` per player, as the
   other screens do.
 
@@ -90,6 +93,30 @@ class SeasonLine:
 
 def age_on(day: date, born: date) -> int:
     return day.year - born.year - ((day.month, day.day) < (born.month, born.day))
+
+
+def combine(lines: list[SeasonLine]) -> list[SeasonLine]:
+    """One line per player: the counts of all their entries for the season added up. The
+    position group and club are those of the entry with the most minutes."""
+    by_player: dict[str, list[SeasonLine]] = {}
+    for line in lines:
+        by_player.setdefault(line.player_id, []).append(line)
+    out = []
+    for parts in by_player.values():
+        if len(parts) == 1:
+            out.append(parts[0])
+            continue
+        main = max(parts, key=lambda p: p.metrics.get("minutes_played") or 0)
+        metrics = dict(main.metrics)
+        for key in {k for p in parts for k, v in p.metrics.items() if isinstance(v, int) and not isinstance(v, bool)}:
+            values = [p.metrics[key] for p in parts if key in p.metrics]
+            metrics[key] = sum(values)
+        out.append(SeasonLine(
+            player_id=main.player_id, name=main.name, club=main.club,
+            season_start=min(p.season_start for p in parts), date_of_birth=main.date_of_birth,
+            metrics=metrics,
+        ))
+    return out
 
 
 def rank(
@@ -205,8 +232,10 @@ def resolve(on_record: list[tuple[str, str, date]], league: str | None, season: 
 def leaders(
     db: Session, caller: Caller, *, league: str | None, season: str | None, statistic: str | None,
     position_group: str | None = None, age_from: int | None = None, age_to: int | None = None,
+    egypt_eligible: bool = False,
 ) -> dict:
-    """The ranking for one league season, as the caller may see it."""
+    """The ranking for one league season, as the caller may see it. `egypt_eligible` keeps only
+    players eligible for Egypt (the diaspora question)."""
     if statistic in NOT_PUBLISHED:
         raise ProLeadersError(
             f"League seasons come from FootyStats, which publishes appearances, minutes, goals, "
@@ -227,17 +256,19 @@ def leaders(
         .where(PerformanceEntry.schema_ref == BASIC, PerformanceEntry.event == event)
         .where(Player.id.in_(visible_players(caller).with_only_columns(Player.id)))
     )
-    lines, withheld = [], 0
+    if egypt_eligible:
+        query = query.where(Player.is_egypt_eligible.is_(True))
+    lines, withheld = [], set()
     for entry, player, club in db.execute(query).all():
         if not may_view(db, caller, player)[0]:
-            withheld += 1
+            withheld.add(player.id)
             continue
         lines.append(SeasonLine(
             player_id=str(player.id), name=player.full_name, club=club,
             season_start=entry.period_start, date_of_birth=player.date_of_birth, metrics=entry.metrics,
         ))
-    body = rank(lines, statistic=statistic, position_group=position_group, age_from=age_from, age_to=age_to)
+    body = rank(combine(lines), statistic=statistic, position_group=position_group, age_from=age_from, age_to=age_to)
     if withheld:
-        body["left_out"]["not players you may open"] = withheld
+        body["left_out"]["not players you may open"] = len(withheld)
     return {**body, "competition": competition, "season": season, "statistic": statistic,
             "label": PUBLISHED[statistic][0], "per_90": PUBLISHED[statistic][2]}

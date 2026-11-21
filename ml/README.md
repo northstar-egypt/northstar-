@@ -1452,6 +1452,37 @@ match انجليزي, إنجلترا and مكسيكي without it (test in `apps/
 question was not in any eval split, and the held-out sets were not re-run after the change; the
 rules still read all 67 dev questions right.
 
+#### Review fixes, scored on a third held-out set (added 2026-11-22)
+
+The first review found three faults that no eval question covered:
+
+1. A nationality was read as a league. "Top Egyptian scorers in the Premier League" was answered
+   about the Egyptian league, and a player named المصري (El-Masry, a common family name) was
+   dropped from the question as if he were the league.
+2. "Per 90" alone made a question a league question, though academy rankings are per 90 too.
+   "Most goals per 90 under 16" went to the latest Premier League season.
+3. A player whose FootyStats season is split across two ids, once merged, would be listed twice
+   with part totals.
+
+The fixes: league words now match only league names ("Egyptian Premier League", "الدوري
+المصري", "الدوري الممتاز", "in Egypt"), never the nationality alone. A name is dropped only when
+the whole of it is a league. Only a named league or season makes a question a league question.
+A nationality word outside a league name keeps only Egypt-eligible players
+(`Player.is_egypt_eligible`), with the reading field `egypt_eligible`. Entries for one player in
+one season are added up before ranking (`pro_leaders.combine`).
+
+`test3`, 23 fresh questions on exactly these cases (11 academy or named player, 12 league), was
+written and committed before the fixes. The rules reader was run on it once:
+
+| fixed rules | dev (67) | `test` (67) | `test2` (23) | **`test3` (23, held out)** |
+| --- | --- | --- | --- | --- |
+| after the review fixes | 67 | 55 (youth 34, pro 21) | 20 | **22 of 23 (96%)** |
+
+The one miss is "stats for Youssef El-Masry": the rules read the name as "Youssef El", because
+their name finder stops at a hyphen. That is an older limit of the rules' name finder, not this
+change, and it is left as found. The dev, `test` and `test2` scores did not move. The model
+(qwen2.5:3b) has not been run on `test3` yet; that needs the Colab T4 again.
+
 ## Relative age audit
 
 Children born early in the selection year are older, bigger and more mature than team-mates
