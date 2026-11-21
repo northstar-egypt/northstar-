@@ -224,3 +224,15 @@ def test_a_position_the_model_reads_into_a_pro_question_is_dropped():
     assert reading.intent == "pro_leaders" and reading.position_group is None
     named = assistant._finish(raw, "top scoring defenders in the Premier League 2023/24")
     assert named.position_group == "defender"
+
+
+@pytest.mark.parametrize("text", ["هداف الدوري انجليزي مهاجم", "الدوري الإنجليزي", "دوري إنجلترا"])
+def test_the_english_league_in_arabic_with_or_without_al(text):
+    assert assistant.league_in(text) == "england_premier_league"
+
+
+def test_a_question_typed_on_colab_reads_as_the_english_league():
+    # Shady's own question, 2026-11-21: "the English league's top scorer, striker".
+    reading = assistant.read_by_rule("هداف الدوري انجليزي مهاجم")
+    assert (reading.intent, reading.league, reading.position_group, reading.statistic) == (
+        "pro_leaders", "england_premier_league", "forward", "goals")

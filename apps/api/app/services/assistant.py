@@ -200,9 +200,9 @@ def topic_in(question: str) -> str | None:
 _ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 LEAGUE_WORDS = (
     ("egyptian_premier_league", re.compile(r"egypt|مصر|المصري|الدوري الممتاز", re.I)),
-    ("liga_mx", re.compile(r"liga\s*mx|mexic|المكسيك", re.I)),
+    ("liga_mx", re.compile(r"liga\s*mx|mexic|مكسيك", re.I)),
     ("england_premier_league", re.compile(
-        r"\bprem\w*\s+le\w*|\bepl\b|english|england|الإنجليزي|الانجليزي|البريميرليج|بريميرليج", re.I)),
+        r"\bprem\w*\s+le\w*|\bepl\b|english|england|[إا]نجليز|[إا]نجلتر|البريميرليج|بريميرليج", re.I)),
 )
 # "2023/24", "2023-24", "2023-2024", or "23/24" with a slash only: "15-16" is an age range.
 _SEASON_RANGE = re.compile(
