@@ -1445,6 +1445,13 @@ same effect as the CPU runs above). Two of those four youth misses are the same 
 removed for pro questions ("top scorers aged 16 and over" read as forwards). Fixing it for
 academy questions too is the next step; it needs a fresh academy held-out set first.
 
+One more fix came after these runs. Typing a question on Colab showed that "هداف الدوري انجليزي
+مهاجم" (the English league's top scorer, striker) was read as an academy question, because the
+league words only knew the Arabic forms with the article (الإنجليزي). The league words now also
+match انجليزي, إنجلترا and مكسيكي without it (test in `apps/api/tests/test_pro_leaders.py`). This
+question was not in any eval split, and the held-out sets were not re-run after the change; the
+rules still read all 67 dev questions right.
+
 ## Relative age audit
 
 Children born early in the selection year are older, bigger and more mature than team-mates
