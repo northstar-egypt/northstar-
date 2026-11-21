@@ -215,3 +215,12 @@ def test_pro_questions_read_by_rule(question, expect):
 def test_a_named_player_in_a_league_is_still_about_that_player():
     reading = assistant.read_by_rule("how is Omar Hassan doing in the Premier League 2023/24")
     assert reading.intent == "player" and reading.players == ["Omar Hassan"]
+
+
+def test_a_position_the_model_reads_into_a_pro_question_is_dropped():
+    # What the model did on held-out questions: "forwards" read into "top scorers".
+    raw = {"intent": "leaders", "statistic": "goals", "position_group": "forward", "players": []}
+    reading = assistant._finish(raw, "top scorers in the Premier League 2023/24")
+    assert reading.intent == "pro_leaders" and reading.position_group is None
+    named = assistant._finish(raw, "top scoring defenders in the Premier League 2023/24")
+    assert named.position_group == "defender"

@@ -441,6 +441,10 @@ def _finish(raw: dict, question: str) -> Reading:
     ):
         reading.intent = "pro_leaders"
         reading.league, reading.season, reading.statistic = pro["league"], pro["season"], pro["statistic"]
+        # The position comes from the question's own words, not the model's: on the held-out
+        # pro questions the model read "forwards" into "top scorers" and "midfielders" into
+        # "most assists", which narrowed the answer to a group nobody asked about.
+        reading.position_group = rule_reader.position_in(question)
         reading.sport, reading.gender = "football", None
     if (ages := ages_in(question)) is not None:
         reading.age_from, reading.age_to = ages
