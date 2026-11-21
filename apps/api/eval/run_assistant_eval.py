@@ -52,7 +52,7 @@ def score(expect: dict, got: dict) -> list[str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--split", choices=("dev", "test"), default="dev")
+    parser.add_argument("--split", choices=("dev", "test", "test2"), default="dev")
     parser.add_argument("--model", default=None)
     parser.add_argument("--url", default="http://localhost:11434")
     parser.add_argument(
