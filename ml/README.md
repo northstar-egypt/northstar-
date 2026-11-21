@@ -1417,6 +1417,34 @@ so it is not made here: it would have to be tried on dev, and a later held-out s
 longer be clean. Until then the reading is printed under "How this was read", so a narrowed
 answer says so on screen.
 
+#### The position fix, scored on a fresh held-out set (added 2026-11-21)
+
+The fix above is now made, for pro questions only: their position group comes from the
+question's own words (`rule_reader.position_in`), never from the model. "Top scorers" is no
+longer narrowed to forwards; "top scoring defenders" still means defenders. Academy questions
+are untouched.
+
+The first held-out half had already been scored for this change, so 23 new pro questions
+(`test2` in `apps/api/eval/assistant_questions.json`, 6 in Arabic or mixed) were written and
+committed **before** the fix. Each reader was then run once on them:
+
+| on Colab T4 GPU, qwen2.5:3b | dev, youth (44) | dev, pro (23) | **test2, pro (held out)** | seconds per question, median |
+| --- | --- | --- | --- | --- |
+| model, with the fix | 40 | 23 | **23 of 23 (100%)** | 0.7 (test2), 0.8 (dev) |
+| fixed rules, same code | 44 | 23 | **20 of 23 (87%)** | under 0.01 |
+
+So with the model reading, the pro questions went from 12 of 23 to 23 of 23 on held-out
+questions it was not tuned on. The rules' three misses are words not on their lists:
+"goalscorer", "scored" and "جوانات" (Egyptian slang for goals). They were found on `test2`,
+so they are left as they are.
+
+Two caveats. 23 questions is a small set: 23 of 23 says the remaining error rate is low, not
+zero. And the youth dev score here, 40 of 44, is one lower than the published 41 on the
+earlier GPU. The academy path is unchanged by this fix, so the difference is the hardware (the
+same effect as the CPU runs above). Two of those four youth misses are the same habit the fix
+removed for pro questions ("top scorers aged 16 and over" read as forwards). Fixing it for
+academy questions too is the next step; it needs a fresh academy held-out set first.
+
 ## Relative age audit
 
 Children born early in the selection year are older, bigger and more mature than team-mates
