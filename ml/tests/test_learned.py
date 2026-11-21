@@ -324,6 +324,43 @@ def test_the_report_puts_the_rule_first_and_breaks_results_down(frozen):
     assert "| rule |" in text and "By stated age" in text and "by birth quarter" in text
 
 
+def test_the_gain_interval_is_paired_and_brackets_the_observed_gain():
+    from ml.evaluation.metrics import Score
+
+    rule_row = learned.Row("rule", per_seed=[Score("r", 5, 5, 5, 85)] * 10)
+    same = learned.Row("same", per_seed=[Score("s", 5, 5, 5, 85)] * 10)
+    assert learned.gain_interval(same, rule_row) == ((0.0, 0.0), (0.0, 0.0))
+
+    better = learned.Row("better", per_seed=[Score("b", 8, 2, 2, 88)] * 5 + [Score("b", 5, 5, 5, 85)] * 5)
+    (f1_low, f1_high), (fp_low, fp_high) = learned.gain_interval(better, rule_row)
+    observed = better.pooled.f1 - rule_row.pooled.f1
+    assert 0.0 <= f1_low <= observed <= f1_high
+    assert fp_low <= better.pooled.fp - rule_row.pooled.fp <= fp_high <= 0
+
+
+def test_importance_names_the_inputs_that_carry_the_pattern():
+    """In the invented world a late bloomer is short and growing fast, so shuffling growth or
+    height must hurt the model most, and shuffling the number of readings (all 3) not at all."""
+    fitted = learned.fit(TRAIN, "late_bloomer", "boosting")
+    ranked = learned.importance(fitted, [UNSEEN], repeats=3)
+    assert [c for c, _, _ in ranked] != [] and len(ranked) == len(learned.COLUMNS)
+    assert [m for _, m, _ in ranked] == sorted((m for _, m, _ in ranked), reverse=True)
+    top = {c for c, _, _ in ranked[:3]}
+    assert top & {"recent_velocity", "growth_velocity", "velocity_z", "height_z_mean",
+                  "height_z_last", "height_z_min", "maturity_mismatch"}
+    assert dict((c, m) for c, m, _ in ranked)["readings"] == 0.0
+
+
+def test_logistic_weights_point_the_way_the_pattern_does():
+    fitted = learned.fit(TRAIN, "late_bloomer", "logistic")
+    weights = dict(learned.logistic_weights(fitted))
+    assert set(weights) == set(learned.COLUMNS)
+    assert weights["recent_velocity"] > 0
+    assert weights["height_z_mean"] + weights["height_z_last"] + weights["height_z_min"] < 0
+    with pytest.raises(ValueError, match="only the logistic regression"):
+        learned.logistic_weights(learned.fit(TRAIN, "late_bloomer", "boosting"))
+
+
 @pytest.mark.parametrize(
     "age, band",
     [(9.0, "under 11"), (11.0, "11 to 13"), (12.99, "11 to 13"), (13.0, "13 to 15"),

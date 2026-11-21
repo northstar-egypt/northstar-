@@ -70,6 +70,12 @@ only then scores the reported seeds.
     python -m ml.challengers.learned calibrate
     python -m ml.challengers.learned report
     python -m ml.challengers.learned report --performance-follows-maturity
+    python -m ml.challengers.learned explain
+
+`explain` says what drives each model, on the calibration seeds (never the reported ones):
+permutation importance for both models, and the logistic regression's weights. It was added
+after the reported run and changes nothing the report measured; `check_same_model` proves the
+models it explains are the ones reported.
 
 The what-if world (`--performance-follows-maturity`, see "Age misrepresentation, v2" in
 ml/README.md) changes only the reported datasets: the models and thresholds are the ones fitted
@@ -80,6 +86,7 @@ the generator's quirks falls apart there.
 from __future__ import annotations
 
 import json
+import random
 import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -441,6 +448,43 @@ def check_same_model(frozen: dict, learned: Learned, calibration: list[Labelled]
 
 
 # ---------------------------------------------------------------------------
+# What drives a model
+# ---------------------------------------------------------------------------
+
+
+def importance(
+    learned: Learned, datasets: list[Labelled], *, repeats: int = 10
+) -> list[tuple[str, float, float]]:
+    """How much the model's ranking gets worse when one input is shuffled, largest first.
+
+    Permutation importance (Breiman 2001): each column of the given datasets' rows is shuffled
+    in turn, `repeats` times, and the drop in average precision (how well planted cases are
+    ranked above everyone else) is the column's importance. Works the same for both models.
+    Returns (column, mean drop, standard deviation of the drop).
+    """
+    from sklearn.inspection import permutation_importance
+
+    x, y = training_rows(datasets, learned.detector)
+    result = permutation_importance(
+        learned.estimator, x, y, scoring="average_precision", n_repeats=repeats, random_state=0
+    )
+    rows = zip(COLUMNS, result.importances_mean, result.importances_std)
+    return sorted(((c, float(m), float(s)) for c, m, s in rows), key=lambda r: -r[1])
+
+
+def logistic_weights(learned: Learned) -> list[tuple[str, float]]:
+    """The logistic regression's weight per input, largest effect first.
+
+    Inputs are standardised first, so a weight is the change in log odds for one standard
+    deviation of that input across the training players, and weights can be compared.
+    """
+    if learned.model != "logistic":
+        raise ValueError("only the logistic regression has weights to read")
+    coefficients = learned.estimator[-1].coef_[0]
+    return sorted(zip(COLUMNS, map(float, coefficients)), key=lambda r: -abs(r[1]))
+
+
+# ---------------------------------------------------------------------------
 # Scoring the reported seeds
 # ---------------------------------------------------------------------------
 
@@ -539,6 +583,30 @@ def score_reported(
     return rows
 
 
+def gain_interval(
+    row: Row, rule_row: Row, *, draws: int = 2000, seed: int = 0
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """95% intervals on the gain over the rule: pooled F1, and false flags (negative is fewer).
+
+    The datasets are resampled with replacement, not the players, because the split is by
+    dataset and the players in one dataset share its cohort reference. Both rows are scored on
+    the same resampled datasets each time, so the interval is on the paired difference.
+    """
+    rng = random.Random(seed)
+    n = len(row.per_seed)
+    f1_gains, flag_gains = [], []
+    for _ in range(draws):
+        picks = [rng.randrange(n) for _ in range(n)]
+        mine = _pooled("", (row.per_seed[i] for i in picks))
+        theirs = _pooled("", (rule_row.per_seed[i] for i in picks))
+        f1_gains.append(mine.f1 - theirs.f1)
+        flag_gains.append(mine.fp - theirs.fp)
+    low, high = int(0.025 * draws), int(0.975 * draws) - 1
+    f1_gains.sort()
+    flag_gains.sort()
+    return (f1_gains[low], f1_gains[high]), (flag_gains[low], flag_gains[high])
+
+
 def _compare(row: Row, rule_row: Row) -> str:
     won = lost = 0
     for mine, theirs in zip(row.per_seed, rule_row.per_seed):
@@ -560,16 +628,23 @@ def render(rows: dict[str, list[Row]], title: str) -> str:
             f"{planted} planted cases",
             "",
             "| | caught | false flags | precision | recall | F1 | mean F1 per dataset "
-            "| datasets won / lost / tied against the rule |",
-            "| --- | --- | --- | --- | --- | --- | --- | --- |",
+            "| datasets won / lost / tied against the rule "
+            "| F1 gain, 95% interval | false flags gained, 95% interval |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
         for row in detector_rows:
             pooled = row.pooled
             mean_f1 = sum(s.f1 for s in row.per_seed) / len(row.per_seed) if row.per_seed else 0.0
-            versus = "" if row is rule_row else _compare(row, rule_row)
+            versus = f1_gain = flag_gain = ""
+            if row is not rule_row and row.per_seed:
+                versus = _compare(row, rule_row)
+                (f1_low, f1_high), (fp_low, fp_high) = gain_interval(row, rule_row)
+                f1_gain = f"{f1_low:+.3f} to {f1_high:+.3f}"
+                flag_gain = f"{fp_low:+.0f} to {fp_high:+.0f}"
             out.append(
                 f"| {row.name} | {pooled.tp} | {pooled.fp} | {pooled.precision:.3f} "
-                f"| {pooled.recall:.3f} | {pooled.f1:.3f} | {mean_f1:.3f} | {versus} |"
+                f"| {pooled.recall:.3f} | {pooled.f1:.3f} | {mean_f1:.3f} | {versus} "
+                f"| {f1_gain} | {flag_gain} |"
             )
         for attribute, heading in (("by_age", "stated age"), ("by_gender", "gender")):
             groups = sorted({name for row in detector_rows for name in row.pooled_groups(attribute)})
@@ -634,6 +709,8 @@ def main(argv: list[str] | None = None) -> int:
     rep.add_argument("--seeds", type=int, nargs="+", default=list(REPORTED_SEEDS))
     rep.add_argument("--performance-follows-maturity", action="store_true")
     rep.add_argument("--json", type=Path, default=None, help="also write the counts as JSON")
+    exp = commands.add_parser("explain", help="what drives each model, on the calibration seeds")
+    exp.add_argument("--thresholds", type=Path, default=THRESHOLDS_FILE)
     args = parser.parse_args(argv)
 
     if not challengers.available():
@@ -659,9 +736,25 @@ def main(argv: list[str] | None = None) -> int:
             print(f"No thresholds at {args.thresholds}. Run calibrate first.", file=sys.stderr)
             return 1
         frozen = json.loads(args.thresholds.read_text(encoding="utf-8"))
-        check_seeds(frozen["train_seeds"], frozen["calibration_seeds"], args.seeds)
+        reported_seeds = REPORTED_SEEDS if args.command == "explain" else args.seeds
+        check_seeds(frozen["train_seeds"], frozen["calibration_seeds"], reported_seeds)
         train = generate(frozen["train_seeds"], Path(tmp))
         calibration = generate(frozen["calibration_seeds"], Path(tmp))
+
+        if args.command == "explain":
+            for detector in DETECTORS:
+                for model in MODELS:
+                    learned = fit(train, detector, model)
+                    check_same_model(frozen, learned, calibration)
+                    print(f"\n{_DETECTOR_LABEL[detector]}, {_MODEL_LABEL[model]}")
+                    print("  permutation importance on the calibration seeds (drop in average precision):")
+                    for column, mean, spread in importance(learned, calibration):
+                        print(f"    {column:24} {mean:+.3f}  (sd {spread:.3f})")
+                    if model == "logistic":
+                        print("  weights, per standard deviation of the input (log odds):")
+                        for column, weight in logistic_weights(learned):
+                            print(f"    {column:24} {weight:+.2f}")
+            return 0
 
         from data.pipelines.synthetic import players
 
