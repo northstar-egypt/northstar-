@@ -65,7 +65,10 @@ pooled, at two operating points:
 Ties go to the higher threshold, which flags fewer children. `calibrate` writes both, with the
 counts behind them, to `THRESHOLDS_FILE`. `report` refits the models, checks they score the
 calibration seeds exactly as the file says (so the model reported is the model calibrated), and
-only then scores the reported seeds.
+only then scores the reported seeds. XGBoost does not build bit-identical trees on every
+operating system, so on another platform the check can fail; `--allow-refit-difference` then
+runs anyway and prints how far the refit is from the frozen model. ml/README.md records how
+far that is on Linux.
 
     python -m ml.challengers.learned calibrate
     python -m ml.challengers.learned report
@@ -90,6 +93,7 @@ import random
 import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 
 import numpy as np
@@ -212,6 +216,11 @@ class Labelled:
     features: FeatureSet
     truth: dict[str, set[str]]
     population: dict[str, set[str]]
+
+    @cached_property
+    def quarters(self) -> dict[str, str]:
+        """{player_id: birth quarter}, for the relative age audit. Computed once per dataset."""
+        return fairness.quarters_of(self.features.raw["players"])
 
 
 def labelled(features: FeatureSet, ground_truth: dict, seed: int) -> Labelled:
@@ -433,18 +442,38 @@ def _grid(learned: Learned, calibration: list[Labelled]) -> dict[float, Counts]:
     return {t: counts_at(scored, t) for t in THRESHOLDS}
 
 
-def check_same_model(frozen: dict, learned: Learned, calibration: list[Labelled]) -> None:
-    """Refuse to report a model that does not score the calibration seeds as the file says."""
+def check_same_model(
+    frozen: dict, learned: Learned, calibration: list[Labelled], *, strict: bool = True
+) -> str | None:
+    """Refuse to report a model that does not score the calibration seeds as the file says.
+
+    With `strict=False` a difference is described and returned instead, for reproducing the
+    report on another platform: XGBoost does not give bit-identical trees on every operating
+    system, so a refit on Linux can move a few players across a threshold. None when the model
+    is the frozen one.
+    """
     expected = frozen["models"][learned.detector][learned.model]["grid"]
     found = {f"{t:.2f}": [c.tp, c.fp, c.fn] for t, c in _grid(learned, calibration).items()}
-    if found != expected:
+    if found == expected:
+        return None
+    differ = [t for t in expected if found.get(t) != expected[t]]
+    largest = max(
+        sum(abs(a - b) for a, b in zip(found.get(t, [0, 0, 0]), expected[t])) for t in differ
+    )
+    message = (
+        f"{learned.detector}, {learned.model}: the refitted model scores the calibration seeds "
+        f"differently from {THRESHOLDS_FILE.name} at {len(differ)} of {len(expected)} thresholds "
+        f"(at most {largest} counts apart), so it is not exactly the model whose thresholds were "
+        f"chosen."
+    )
+    if strict:
         raise RuntimeError(
-            f"{learned.detector}, {learned.model}: the refitted model scores the calibration "
-            f"seeds differently from {THRESHOLDS_FILE.name}, so it is not the model whose "
-            f"thresholds were chosen. Something changed: the code, the generator, or the "
-            f"version of scikit-learn or xgboost. Find what, rather than re-running calibrate "
-            f"after the reported seeds have been seen."
+            f"{message} Something changed: the code, the generator, the version of scikit-learn "
+            f"or xgboost, or the operating system. Find what, rather than re-running calibrate "
+            f"after the reported seeds have been seen. To reproduce on another platform anyway, "
+            f"pass --allow-refit-difference; the output then says how it differs."
         )
+    return message
 
 
 # ---------------------------------------------------------------------------
@@ -542,8 +571,7 @@ class Row:
             breakdown(data.features, flagged, truth, population, lambda pf: age_band(pf.stated_age))
         )
         self.by_gender.append(breakdown(data.features, flagged, truth, population, lambda pf: pf.sex))
-        quarters = fairness.quarters_of(data.features.raw["players"])
-        self.by_quarter.append(fairness.audit(self.name, flagged, truth, population, quarters))
+        self.by_quarter.append(fairness.audit(self.name, flagged, truth, population, data.quarters))
 
     @property
     def pooled(self) -> Score:
@@ -558,9 +586,19 @@ class Row:
 
 
 def score_reported(
-    frozen: dict, train: list[Labelled], calibration: list[Labelled], reported: list[Labelled]
+    frozen: dict,
+    train: list[Labelled],
+    calibration: list[Labelled],
+    reported: list[Labelled],
+    *,
+    strict: bool = True,
+    notes: list[str] | None = None,
 ) -> dict[str, list[Row]]:
-    """Every detector's rule and model rows on the reported datasets."""
+    """Every detector's rule and model rows on the reported datasets.
+
+    With `strict=False`, a model that differs from the frozen one is scored anyway and the
+    difference is appended to `notes`.
+    """
     rows: dict[str, list[Row]] = {}
     for detector in DETECTORS:
         rule_row = Row("rule")
@@ -569,16 +607,18 @@ def score_reported(
         rows[detector] = [rule_row]
         for model in MODELS:
             learned = fit(train, detector, model)
-            check_same_model(frozen, learned, calibration)
+            difference = check_same_model(frozen, learned, calibration, strict=strict)
+            if difference and notes is not None:
+                notes.append(difference)
+            scores = [learned.scores(data.features) for data in reported]
             thresholds = frozen["models"][detector][model]["thresholds"]
             for point in OPERATING_POINTS:
                 threshold = thresholds[point]
                 if threshold is None:
                     continue
                 row = Row(f"{_MODEL_LABEL[model]}, {point.replace('_', ' ')} (from {threshold:.2f})")
-                for data in reported:
-                    scores = learned.scores(data.features)
-                    row.add(data, detector, (pid for pid, s in scores.items() if s >= threshold))
+                for data, scored in zip(reported, scores):
+                    row.add(data, detector, (pid for pid, s in scored.items() if s >= threshold))
                 rows[detector].append(row)
     return rows
 
@@ -617,9 +657,11 @@ def _compare(row: Row, rule_row: Row) -> str:
     return f"{won} / {lost} / {len(row.per_seed) - won - lost}"
 
 
-def render(rows: dict[str, list[Row]], title: str) -> str:
+def render(rows: dict[str, list[Row]], title: str, notes: list[str] | None = None) -> str:
     """Markdown tables, in the shape the README's challenger sections use."""
     out = [f"# {title}", ""]
+    for note in notes or []:
+        out += [f"**Not the frozen model.** {note}", ""]
     for detector, detector_rows in rows.items():
         rule_row = detector_rows[0]
         planted = rule_row.pooled.support
@@ -711,6 +753,13 @@ def main(argv: list[str] | None = None) -> int:
     rep.add_argument("--json", type=Path, default=None, help="also write the counts as JSON")
     exp = commands.add_parser("explain", help="what drives each model, on the calibration seeds")
     exp.add_argument("--thresholds", type=Path, default=THRESHOLDS_FILE)
+    for command in (rep, exp):
+        command.add_argument(
+            "--allow-refit-difference",
+            action="store_true",
+            help="run even if a refitted model does not reproduce the frozen calibration counts "
+            "(another operating system); the output says how it differs",
+        )
     args = parser.parse_args(argv)
 
     if not challengers.available():
@@ -741,12 +790,15 @@ def main(argv: list[str] | None = None) -> int:
         train = generate(frozen["train_seeds"], Path(tmp))
         calibration = generate(frozen["calibration_seeds"], Path(tmp))
 
+        strict = not args.allow_refit_difference
         if args.command == "explain":
             for detector in DETECTORS:
                 for model in MODELS:
                     learned = fit(train, detector, model)
-                    check_same_model(frozen, learned, calibration)
+                    difference = check_same_model(frozen, learned, calibration, strict=strict)
                     print(f"\n{_DETECTOR_LABEL[detector]}, {_MODEL_LABEL[model]}")
+                    if difference:
+                        print(f"  Not the frozen model. {difference}")
                     print("  permutation importance on the calibration seeds (drop in average precision):")
                     for column, mean, spread in importance(learned, calibration):
                         print(f"    {column:24} {mean:+.3f}  (sd {spread:.3f})")
@@ -768,10 +820,12 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             players.PERFORMANCE_FOLLOWS_MATURITY = before
 
-        rows = score_reported(frozen, train, calibration, reported)
-        print(render(rows, f"Learned detectors against the rules, {world}"))
+        notes: list[str] = []
+        rows = score_reported(frozen, train, calibration, reported, strict=strict, notes=notes)
+        print(render(rows, f"Learned detectors against the rules, {world}", notes))
         if args.json:
-            payload = {
+            payload: dict = {"not_the_frozen_model": notes} if notes else {}
+            payload |= {
                 detector: {
                     row.name: {
                         "pooled": row.pooled.as_dict(),

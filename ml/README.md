@@ -680,7 +680,8 @@ seeds, without flagging more children who are not cases?
   replacement question is asked at.
 - The settings were committed first, then the thresholds (`ml/challengers/learned_thresholds.json`),
   both before any reported seed was run. `report` refits the models and refuses to run unless
-  they reproduce the calibration counts in that file. Run twice, it gave identical counts.
+  they reproduce the calibration counts in that file. Run twice on the same machine, it gave
+  identical counts; on another operating system see "Reproduce" below.
 
 **Results.** Counts pooled over the 20 reported seeds (20260827, 7, 99, 404, 555 and 1000 to
 1014). Intervals are 95%, on the paired difference from the rule, resampling whole datasets
@@ -704,6 +705,17 @@ Age misrepresentation, 180 planted cases:
 | logistic regression, no more flags (0.95) | 77 | 17 | 0.819 | 0.428 | 0.562 | 7 / 13 / 0 | -0.064 to +0.017 | -43 to -20 |
 | logistic regression, best F1 (0.70) | 140 | 124 | 0.530 | 0.778 | 0.631 | 11 / 9 / 0 | -0.011 to +0.107 | +60 to +91 |
 | **gradient boosting, 0.85 at both points** | **119** | **29** | **0.804** | **0.661** | **0.726** | 18 / 1 / 1 | +0.095 to +0.190 | -33 to -7 |
+
+Where gradient boosting ("no more flags") lost to the rule: for late bloomers on seeds 404
+(0.636 against 0.750), 1004, 1010 and 1013, and on no dataset did it flag more non-cases than
+the rule; for age misrepresentation only on 1012 (0.625 against 0.750), tied on 1004, but it
+made more false accusations than the rule on 3 of the 20 datasets. The logistic regression's
+"no more flags" threshold for age misrepresentation is 0.95, the top of the grid: the cap on
+false accusations would have accepted a higher one if the grid had offered it, so that row may
+understate the logistic model slightly.
+
+The intervals hold the thresholds fixed. They leave out the uncertainty of choosing a threshold
+on three calibration datasets, so the real uncertainty of the gain is somewhat wider.
 
 The rule rows are the harness's own: late bloomer averages F1 0.479 per dataset, as published
 above, and the age rule catches 94 with 48 false accusations, which is what
@@ -749,7 +761,10 @@ bloomer: 0.9% to 1.0% of non-cases flagged in the first three quarters, 2.2% in 
 rule: 2.3% to 2.8% in every quarter). Age: 0.3% to 0.6% against 1.4% (the rule: 0.7% to 1.5%).
 No quarter is flagged more often than under the rule; the youngest-born gain least. In the
 what-if world the age difference holds (p = 0.036) and the late-bloomer one is weaker
-(p = 0.087).
+(p = 0.087). Read these as a signal to watch, not a finding: the report runs about twenty of
+these tests (five rows, two detectors, two worlds), and at p < 0.05 one or two would come out
+"different" by chance alone. That the same model shows it for both detectors is what makes it
+worth recording.
 
 **What drives the models** (`explain`: permutation importance on the calibration seeds, and the
 logistic regression's weights per standard deviation of each input).
@@ -781,7 +796,7 @@ logistic regression's weights per standard deviation of each input).
      what-if world 58 against 41 across 11 to 15. The whole reduction is above 15.
   2. Late bloomers aged 11 to 13: 25 of 69 caught against the rule's 33. The gain is in older
      late bloomers.
-  3. The youngest-born gain least from the fewer false flags (above). Girls are accused 4 times
+  3. The youngest-born may gain least from the fewer false flags (above). Girls are accused 4 times
      against the rule's 2; 12 of the age cheats over 20 datasets are girls, too few to read more
      into.
 - Recorded result: gradient boosting beats both rules overall and is worse than them for younger
@@ -804,6 +819,18 @@ logistic regression's weights per standard deviation of each input).
 **Reproduce.** The four commands at the top of this section, from the repository root, with
 `ml/requirements.txt` installed. `calibrate` takes about two minutes and `report` and `explain`
 about three each, most of it generating datasets.
+
+The numbers above were produced on Windows (Python 3.12, scikit-learn 1.5.2, xgboost 3.0.5),
+where the commands reproduce every count. On Linux (Python 3.11 with the same library
+versions, as in CI) the logistic regression reproduces exactly, but XGBoost builds slightly
+different trees: its calibration counts differ at 17 (late bloomer) and 15 (age) of the 19
+thresholds, each by a few players, so `report` refuses to run unless given
+`--allow-refit-difference`, and then says so at the top of its output. With it, on the same
+frozen thresholds, the reported counts move by a few players and no conclusion changes:
+gradient boosting "no more flags" catches 139 late bloomers with 48 false flags (140 and 50
+here) and 118 age cheats with 26 false accusations (119 and 29 here), and it is still worse than
+the rules where this section says it is: 14 false accusations at 13 to 15 against the rule's 9,
+26 of 69 late bloomers caught at 11 to 13 against 33, and 5 girls accused against 2.
 
 ### What this says
 
