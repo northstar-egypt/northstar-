@@ -1383,7 +1383,7 @@ so nothing was tuned. Then the held-out half was run once:
 | --- | --- | --- | --- | --- |
 | fixed rules, before | 44 of 44 | | 34 of 44 | |
 | **fixed rules, after** | 44 of 44 | 23 of 23 | **34 of 44** | **21 of 23 (91%)** |
-| qwen2.5:3b, after | not run yet | not run yet | not run yet | not run yet |
+| **qwen2.5:3b, after** (Colab T4 GPU) | not run | not run | **37 of 44** | **12 of 23 (52%)** |
 
 The youth score did not move, and the same ten academy questions are missed. Reading a
 question by rule takes under a millisecond, the same as before. The two pro misses on the
@@ -1397,9 +1397,25 @@ held-out half:
 Both are left as they are: they were found on the held-out half. Also found while writing the
 tests, not on either half: "سجل" (scored) is in no word list either.
 
-The model run (`--split test` without `--reader rules`) needs Ollama and has not been run for
-this change. Since the model only supplies the statistic and position here, and its prompt is
-unchanged, its youth score should stay 37 of 44; its pro score is unknown until it is run.
+**With the model reading (qwen2.5:3b), the held-out pro score is 12 of 23, much lower than
+the rules' 21.** It was run once, on a free Google Colab T4 GPU (2026-11-21), because the
+laptop it was first tried on (a 2012 Core i5 with no usable GPU) took 6.5 minutes for one
+question. The seconds per question were not captured, and a Colab T4 is not the GPU the
+earlier timings were measured on, so no speed is reported for it. The youth score is 37 of 44,
+the same as before the change, as expected with an unchanged prompt.
+
+Why the model does worse on pro questions: in 10 of the 11 pro misses it reads a position the
+question never says, "forward" for scorers and "midfielder" for assists or passes ("Premier
+League 2022/23 top goalscorers" read as forwards only). The rules read no position unless one
+is named. The other miss is "هداف الدوري الإنجليزي موسم 2019/20", read as an academy
+question. The same habit shows on the academy half ("most creative players aged 15" read as
+midfielders only), so it is the model's, not the pro rules'.
+
+The obvious fix is to take the position from the question's own words (the rule reader's
+position list) for pro questions instead of from the model. It was found on the held-out half,
+so it is not made here: it would have to be tried on dev, and a later held-out score would no
+longer be clean. Until then the reading is printed under "How this was read", so a narrowed
+answer says so on screen.
 
 ## Relative age audit
 
