@@ -3,10 +3,15 @@ grouping, and the hard-duplicate world. Invented names and records only."""
 
 from __future__ import annotations
 
+import csv
+import json
 import random
 from datetime import date, timedelta
+from pathlib import Path
 
-from ml.identity import engine, hard
+import pytest
+
+from ml.identity import engine, hard, labels
 from ml.identity.engine import Record
 
 
@@ -192,3 +197,78 @@ def test_proposals_leave_out_merged_records_and_explain_themselves():
     points = engine.evidence(link, records["a"], records["b"])
     assert any("Arabic" in p and "Latin" in p for p in points)
     assert "No date of birth on one record, so the date could not be checked" in points
+
+
+# ---------------------------------------------------------------------------
+# Real labels (ml/identity/labels.py), on invented records
+# ---------------------------------------------------------------------------
+
+
+def _player(pid, name, source=None, nat=("EG",), dob=None):
+    ids = {source: pid} if source else {}
+    return {"id": pid, "full_name": name, "external_ids": ids, "nationality": list(nat),
+            "date_of_birth": dob, "sex": "male", "primary_sport": "football"}
+
+
+def test_anchors_are_unique_full_names_in_both_sources():
+    tables = {"players": [
+        _player("f1", "Invented Playerone", "footystats"), _player("s1", "Invented Playerone", "statsbomb"),
+        _player("f2", "Common Name", "footystats"), _player("f3", "Common Name", "footystats"),
+        _player("s2", "Common Name", "statsbomb"),                      # not unique in FootyStats
+        _player("f4", "Single", "footystats"), _player("s4", "Single", "statsbomb"),  # one word
+        _player("f5", "Sam Ádàm", "footystats"), _player("s5", "Sam Adam", "statsbomb"),  # accents
+    ]}
+    assert labels.anchors(tables) == [("f1", "s1"), ("f5", "s5")]
+
+
+def test_the_sample_refuses_a_folder_git_could_track(tmp_path):
+    inside = Path(__file__).resolve().parents[2] / "ml" / "identity" / "labels-here"
+    with pytest.raises(ValueError, match="outside the repository"):
+        labels.sample({"players": []}, inside)
+    assert not inside.exists()
+
+
+def test_strata_follow_what_the_engine_made_of_a_pair():
+    p = engine.ScoredPair("a", "b", 0.95, {"name": "all", "given": "same"})
+    assert labels.stratum(p, {("a", "b")}) == "linked-strong"
+    assert labels.stratum(engine.ScoredPair("a", "b", 0.6, {}), {("a", "b")}) == "linked-weak"
+    near = engine.ScoredPair("a", "b", 0.1, {"name": "all-one-word", "given": "same"})
+    assert labels.stratum(near, set()) == "near-whole-name"
+    assert labels.stratum(engine.ScoredPair("a", "b", 0.1, {"name": "most", "given": "same"}), set()) == "near-most-name"
+    assert labels.stratum(engine.ScoredPair("a", "b", 0.1, {"name": "some", "given": "same"}), set()) is None
+
+
+def test_the_estimate_weights_each_stratum_by_its_size(tmp_path):
+    """Two of four strong links are right, and the strong stratum is 100 pairs: 50 true. One of
+    two near misses is a true pair, of 40: 20 missed. Precision 50/100, recall 50/70."""
+    pairs, rows = {}, []
+    for i, (k, same) in enumerate([("linked-strong", "yes"), ("linked-strong", "no"), ("linked-strong", "yes"),
+                                   ("linked-strong", "no"), ("near-whole-name", "yes"), ("near-whole-name", "no"),
+                                   ("linked-weak", "unsure")]):
+        pairs[f"p{i}"] = {"stratum": k}
+        rows.append({"pair_id": f"p{i}", "same_person": same})
+    meta = {"strata": {"linked-strong": {"size": 100}, "linked-weak": {"size": 0},
+                       "near-whole-name": {"size": 40}, "near-most-name": {"size": 0}},
+            "pairs": pairs, "m_file": ""}
+    (tmp_path / "sample.json").write_text(json.dumps(meta), encoding="utf-8")
+    with (tmp_path / "pairs.csv").open("w", encoding="utf-8-sig", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["pair_id", "same_person"])
+        w.writeheader()
+        w.writerows(rows)
+    result = labels.score(tmp_path, reps=200)
+    assert result["point"]["precision"] == pytest.approx(0.5)
+    assert result["point"]["recall"] == pytest.approx(50 / 70)
+    assert result["unsure_or_blank"] == 1
+    lo, hi = result["interval"]["precision"]
+    assert lo < 0.5 < hi
+
+
+def test_a_rare_word_counts_for_more_than_a_common_one():
+    records = [rec(f"x{i}", f"Ahmed Silva{'' if i % 2 else ' Junior'}") for i in range(40)]
+    records += [rec("r", "Nabil Qozmarwi"), rec("q", "Nabil Qozmarwi", nat=("NL",))]
+    shares = engine.term_shares(records)
+    u_avg = sum(x * x for x in shares.values())
+    rare = engine.tf_offset(records[-2], records[-1], "all-one-word", shares, u_avg)
+    common = engine.tf_offset(records[1], records[3], "all-one-word", shares, u_avg)
+    assert rare > 0 > common
+    assert engine.tf_offset(records[-2], records[-1], "all", shares, u_avg) == 0.0

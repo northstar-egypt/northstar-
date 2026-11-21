@@ -1324,10 +1324,15 @@ players longest-waiting first, which is the *nudge* schedule above.
 ```bash
 python -m ml.run_identity_eval                       # the 20 reported seeds, both worlds
 python -m ml.run_identity_eval --tune                # the calibration seeds, every threshold
-python -m ml.run_identity_eval --fit-m               # measure m on the calibration seeds
+python -m ml.run_identity_eval --fit-m --anchors DIR # measure m: calibration seeds + real anchors
 python -m ml.run_identity_eval --real-export DIR     # the label-free check on a database export
+python -m ml.run_identity_labels sample --export DIR --out LABELS   # pairs for a person to label
+python -m ml.run_identity_labels score --labels LABELS              # precision and recall, real data
 python -m ml.write_flags --from-database             # put the proposals on the integrity board
 ```
+
+DIR is a database export (ml/export_db.py) and LABELS a folder, both **outside the repository**:
+they hold real players' names.
 
 A national register is only as good as its identity layer. The duplicate detector v1 handles
 the duplicates the generator plants, and its score (above) is high because they are easy: the
@@ -1355,9 +1360,15 @@ pairs: many professionals are in both the StatsBomb and the FootyStats data, as 
      pairs of the calibration seeds 101, 202 and 303, both worlds
      (`ml/identity/m_probabilities.json`). How a re-entered record differs from the first is a
      matter of data entry and carries over to other data; how often unrelated people share a
-     name does not, which is why u is measured afresh on whatever is being matched;
+     name does not, which is why u is measured afresh on whatever is being matched. For
+     nationality and club, the 453 **anchor pairs** of the demo database are counted in too
+     (below): the generated data never varies either, and real sources do;
    - **the chance that two random records are one person** is estimated from the data by
      expectation-maximisation over every pair.
+
+   When the name after the given name is a single word and it matches, the weight is adjusted
+   for how common the word is (the standard term-frequency adjustment): sharing "Mazraoui",
+   held by one player in the database, counts for more than sharing "Silva".
 3. **Group.** Links of at least 0.5 join records into people, strongest first, and a link that
    would put two records that conflict outright (different known sexes, dates both known and
    unrelated) into one person is refused.
@@ -1382,7 +1393,7 @@ birth. Four changes were tried, each checked on the same export:
 | u from random pairs, rest still by EM over the candidates | 9,719 | 7,261 |
 | the share of true pairs over every pair, not over the candidates | 1,687 | 768 |
 | and the given name left out of the name field | 1,017 | 284 |
-| and m measured on the calibration seeds (now) | 731 | 84 |
+| and m measured on the calibration seeds (#118) | 731 | 84 |
 
 Two things that sounded right did not help, and are not in the engine: splitting the name level
 by how rare the shared word is (rare or common), and u from random pairs while still sharing
@@ -1410,19 +1421,29 @@ threshold 0.5:**
 | *as generated* | | | | | | | |
 | duplicate v1 | 223 | 0 | 17 | 1.000 | 0.929 | **0.963** | 0.981 |
 | engine, no labels | 223 | 5 | 17 | 0.978 | 0.929 | 0.953 | 0.978 |
-| **engine, m measured** | 223 | 0 | 17 | 1.000 | 0.929 | **0.963** | 0.981 |
+| **engine, now** | 223 | 0 | 17 | 1.000 | 0.929 | **0.963** | 0.981 |
 | *hard* | | | | | | | |
 | duplicate v1 | 89 | 0 | 151 | 1.000 | 0.371 | 0.541 | 0.812 |
 | engine, no labels | 221 | 36 | 19 | 0.860 | 0.921 | 0.889 | 0.955 |
-| **engine, m measured** | 217 | 6 | 23 | 0.973 | 0.904 | **0.937** | **0.971** |
+| **engine, now** | 217 | 7 | 23 | 0.969 | 0.904 | **0.935** | **0.970** |
 
-For the record, #117 as merged (threshold 0.8, the given name in both fields) scored 0.953 as
-generated and 0.899 hard (27 wrong). "Engine, no labels" above is that method with the name
-field as it is now.
+The history of the engine's hard-world score, each version run once on these seeds:
+
+| version | hard F1 | wrong | as generated F1 |
+| --- | --- | --- | --- |
+| #117: no labels, the given name in both fields, threshold 0.8 | 0.899 | 27 | 0.953 |
+| #118: m measured on the calibration seeds, threshold 0.5 | 0.937 | 6 | 0.963 |
+| now: and the anchors in m for nationality and club, and term frequency | 0.935 | 7 | 0.963 |
+
+The last change cost one wrong link in the hard world. It makes a nationality disagreement
+weaker evidence of two people (it is, on real data: below), so one more pair of different
+people who share a name got linked. The term-frequency adjustment changes nothing on generated
+data, which has no rare surnames to speak of; it was kept because it ties on the calibration
+seeds and links more real pairs.
 
 Recall in the hard world by what the duplicate clone had changed (a clone can have several):
 
-| changed | pairs | v1 | no labels | m measured |
+| changed | pairs | v1 | no labels | now |
 | --- | --- | --- | --- | --- |
 | nothing | 64 | 92.2% | 92.2% | 92.2% |
 | spelled in Latin | 82 | 0.0% | 85.4% | 80.5% |
@@ -1433,43 +1454,69 @@ What this says:
 
 - **On the hard duplicates the engine finds what v1 cannot.** v1 finds no duplicate spelled in
   Latin or without a date of birth, because it compares Arabic letters and blocks on the birth
-  year. The engine finds 80% and 90% of them, and its F1 is 0.937 against 0.541.
-- **Measuring m bought precision for a little recall.** Wrong links in the hard world fell from
-  36 to 6 (27 in #117), and among the generated duplicates the engine now makes no wrong link
-  and ties v1. It finds 4 fewer true pairs in the hard world, mostly Latin spellings: Latin
-  recall is 80.5%, against 85.4% without labels and 81.7% in #117.
+  year. The engine finds 80% and 90% of them, and its F1 is 0.935 against 0.541.
+- **Measuring m bought precision for a little recall.** Wrong links in the hard world are 7,
+  against 36 without labels and 27 in #117, and among the generated duplicates the engine makes
+  no wrong link and ties v1. Latin recall is 80.5%, against 85.4% without labels and 81.7% in
+  #117.
 - Both miss the same number of generated duplicates (17): mostly a date with the day and month
   transposed **and** shifted by days, and names with a compound half dropped.
 
-### On real data: the label-free check
+### On real data
 
-There are no labelled real pairs, so the check on real data counts mistakes that need no
-label. `--real-export` runs the engine on an export of the database (made with ml/export_db.py
-and kept outside the repository) and counts its links by the sources of the two records. On the
-demo database (5,998 records: 3,382 StatsBomb, 2,119 FootyStats, 497 register), at 0.5:
+There are no labelled real pairs yet, so three things stand in for them. All three run on an
+export of the demo database (5,998 records: 3,382 StatsBomb, 2,119 FootyStats, 497 register),
+made with ml/export_db.py and kept outside the repository.
 
-| | links | StatsBomb-StatsBomb | FootyStats-StatsBomb | FootyStats-FootyStats | other |
-| --- | --- | --- | --- | --- | --- |
-| no labels | 10,959 | 8,955 | 1,874 | 65 | 65 |
-| m measured | 731 | **84** | 596 | 43 | 8 |
+**1. Certain mistakes.** Each StatsBomb id is one record, so a link between two StatsBomb
+records is certainly two people. It is a floor on the mistakes, not a precision: wrong
+FootyStats-StatsBomb links are not counted.
 
-- **84 links are certainly wrong**: two StatsBomb records. Of the 15 read by hand, most share a
-  given name and part of a Spanish or Portuguese double surname ("Juan Francisco Moreno Fuertes" and "Juan Francisco
-  García García"), or are brothers with one surname (the Milinković-Savić brothers). That is a
-  floor on the mistakes, not a precision: wrong FootyStats-StatsBomb links are not counted.
-- **The FootyStats-FootyStats links are mostly real duplicates in FootyStats.** Of the 15 read
-  by hand (of 43), 13 have the same date of birth on both records and are the same player under
-  two FootyStats ids ("Evan Ferguson" and "Evan Joe Ferguson", "Liam Delap" and "Liam Rory
-  Delap"): a finding about the source, not a mistake. The other 2 have no date on one record,
-  and one may well be wrong: there are two professional footballers called Aaron Ramsey.
-- **A known gap: dual nationals.** At least a dozen players are the same name in both sources with
-  a different nationality recorded (Ansu Fati, Rayan Aït-Nouri), because each source records a
-  different one of their two. The generated data never varies nationality, so the measured m
-  says a true pair never differs on it, and these score 0.59: above the threshold, but lower
-  than they should.
-- How precise the FootyStats-StatsBomb links are needs a person: the integrity board is where
-  that happens, and each decision there, with its reason, is the labelled pair this section
-  does not yet have.
+**2. Anchor pairs** (`ml/identity/labels.py`, `anchors`): a FootyStats and a StatsBomb record
+with the same full name, of two words or more, held by one record in each source. There are
+453; almost all are one player. They are chosen by the name alone, so they say how true
+cross-source pairs behave on everything else. **21 of them (4.6%) record different
+nationalities**: StatsBomb records the national team a player represents, FootyStats usually
+the country of birth (Mazraoui is Morocco in one and the Netherlands in the other, Mbeumo
+Cameroon and France, Lookman Nigeria and England). The generated data never varies
+nationality, so before this the engine took a disagreement as near proof of two people. That
+matters most for NorthStar's diaspora tier, which is exactly these players: Egyptian by
+eligibility, another nationality by birth. Anchors measure recall on easy pairs, not precision.
+
+`--real-export`, at 0.5 (the no-labels fit is unstable here: it gives a few dozen links more or
+fewer from run to run, as Python orders sets differently):
+
+| | links | certainly wrong | FootyStats-StatsBomb | FootyStats-FootyStats | anchors linked | of them, nationalities differ |
+| --- | --- | --- | --- | --- | --- | --- |
+| no labels | about 10,950 | about 8,950 | about 1,870 | 65 | 447 of 453 | 21 of 21 |
+| #118 | 731 | 84 | 596 | 43 | 439 of 453 | 7 of 21 |
+| now | 743 | 86 | 605 | 44 | **444 of 453** | **12 of 21** |
+
+- The no-labels fit links every anchor because it links nearly everything (8,950 certain
+  mistakes).
+- Now: five more anchors and five more dual nationals linked, for two more certain mistakes.
+  Nine dual nationals are still missed: a two-word name with no date of birth on the StatsBomb
+  side and a different nationality is, to the model, too little evidence.
+- **The 86 certain mistakes**: of 15 read by hand, most share a given name and part of a
+  Spanish or Portuguese double surname ("Juan Francisco Moreno Fuertes" and "Juan Francisco
+  García García"), or are brothers with one surname (the Milinković-Savić brothers).
+- **The FootyStats-FootyStats links are mostly real duplicates in FootyStats.** Of 15 read by
+  hand, 13 have the same date of birth on both records and are the same player under two
+  FootyStats ids ("Evan Ferguson" and "Evan Joe Ferguson"): a finding about the source. The
+  other 2 have no date on one record, and one may well be wrong: there are two professional
+  footballers called Aaron Ramsey.
+
+**3. Labels, the real measurement** (`ml/run_identity_labels.py`, `docs/identity-labelling.md`).
+Candidate pairs are split by what the engine made of them, and a random sample is drawn from
+each: 50 of the 673 strong links (0.9 and above), all 39 weaker links, 50 of the 69 pairs not
+linked whose whole name after the given name matches, and 50 of the 2,563 not linked that share
+most of the name. A person marks each pair same, different or unsure, **without seeing the
+engine's score**. Each stratum is weighted by its size, which gives precision and recall on real
+players with bootstrap intervals; pairs sharing less than most of the name are taken to be
+different people, so recall is over the sampled strata. The integrity board's decisions are
+counted beside it, not in it: reviewers choose which cases to decide, so they are not a random
+sample. **The 189 pairs are drawn and not yet labelled; this section reports the result when
+they are, whatever it is.**
 
 A bug this surfaced, fixed here: app/names.py looped forever on a Latin word with a y after a
 y read as a vowel ("Pryyma", a StatsBomb player). Any name search that met that name hung the
