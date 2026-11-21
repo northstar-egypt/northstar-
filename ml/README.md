@@ -188,7 +188,7 @@ generator. Age misrepresentation is the subtype that
 matters, it carries 9 of the 17 cases, and at 0.400 it is doing well under the work the
 headline 0.688 on this seed suggests. On this seed the performance evidence (2026-10-16) cut
 false accusations from 8 to 3 but also lost one catch (4 to 3), so its F1 barely moved (0.381
-to 0.400); over 20 seeds it moved from 0.443 to 0.584, see "Age misrepresentation, v2". It was
+to 0.400); over 20 seeds it moved from 0.445 to 0.584, see "Age misrepresentation, v2". It was
 0.526 before growth timing and 0.632 before the boys-only change; see Known limits for why.
 Anyone quoting the fraud number should quote this one alongside it.
 
@@ -239,9 +239,12 @@ threshold that would accuse honest players (see Known limits). With the rule, fr
 to 0.774; 1013, 0.846 to 0.824), each from a conflict flag on an honest opponent.
 
 The age rule's counts in the next sections were measured before this rule existed. Over 20
-seeds they read one false accusation fewer for the rule (49 to 48) and four fewer for the
-isolation forest (151 to 147), only because the tampering players are no longer part of the
-population the age subtype is scored on. The tables below now show today's counts, each with the measured one beside it (corrected 2026-11-22, after the results check found them unchanged since; rerunning the commit before this change and this commit confirmed the cause).
+seeds they read one false accusation fewer for v2 (49 to 48), two fewer for v1, the growth-only
+rule it replaced (112 to 110), and four fewer for the isolation forest (151 to 147), only
+because the tampering players are no longer part of the population the age subtype is scored
+on. The tables below show today's counts, with the measured ones beside them (corrected
+2026-11-22, after the results check found them unchanged since; rerunning the commit before
+this change and this commit confirmed the cause, for v1 with `python -m ml.run_age_bands`).
 
 ## Height forecasts, v1
 
@@ -439,15 +442,23 @@ with 2 (0.682).
 
 | | caught | false accusations | precision | recall | F1 |
 | --- | --- | --- | --- | --- | --- |
-| v1, growth only | 83 | 112 | 0.426 | 0.461 | 0.443 |
+| v1, growth only | 83 | 110 | 0.430 | 0.461 | 0.445 |
 | **v2, growth and performance** | **94** | **48** | **0.662** | **0.522** | **0.584** |
 | v2 in the what-if below | 95 | 82 | 0.537 | 0.528 | 0.532 |
 
-False accusations fall from 112 to 48 and catches rise from 83 to 94. (Measured on 2026-10-16 as 49 false accusations (F1 0.582). On 2026-10-19 the generator began planting result tampering (see "Result tampering" above), and one player the rule had wrongly accused became a planted result tamperer, who is not scored as an age case. Rerunning the commit before that change and the commit itself gives 49 and 48.) Fraud F1 rose on 18 of
-the 20 seeds and fell on two: 555 (0.667 to 0.609) and 1010 (0.667 to 0.621).
+False accusations fall from 110 to 48 and catches rise from 83 to 94. Fraud F1 rose on 18 of
+the 20 seeds and fell on two: 555 (0.667 to 0.609) and 1010 (0.667 to 0.621). (Measured on
+2026-10-16 as 112 and 49 false accusations, F1 0.443 and 0.582. On 2026-10-19 the generator
+began planting result tampering, see "Result tampering" above, and players the rules had
+wrongly accused (two of v1's, one of v2's) became planted result tamperers, who are not scored
+as age cases. Rerunning the commit before that change and the commit itself gives the old
+counts and today's.) `python -m ml.run_age_bands` prints this table's v1 and v2 rows.
 
-**By stated age, 20 seeds** (false accusations here also count the few metric-fraud players
-the age rule flags, which the table above sets aside, so they sum to 114 and 50):
+**By stated age, 20 seeds** (`python -m ml.run_age_bands`; false accusations here also count the
+few players planted with another kind of fraud whom the age rule flags, which the table above
+sets aside, so they sum to 114 and 50). This table was first computed by a script that was
+never committed; the command reproduces it exactly, and it is the same before and after result
+tampering was added:
 
 | stated age | 11 to 13 | 13 to 15 | 15 to 17 | 17+ |
 | --- | --- | --- | --- | --- |
@@ -480,6 +491,8 @@ performance mixes body and years of play, and the generator can only show the tw
 python -m ml.run_eval --seed-sweep 101 202 303                                       # calibration
 python -m ml.run_eval --seed-sweep 20260827 7 99 404 555 $(seq 1000 1014)           # reported
 python -m ml.run_eval --seed-sweep 20260827 7 99 404 555 $(seq 1000 1014) --performance-follows-maturity
+python -m ml.run_age_bands                                  # v1 against v2, by stated age and birth quarter
+python -m ml.run_age_bands --performance-follows-maturity   # the same in the what-if
 ```
 
 ### Age misrepresentation: isolation forest ties v1, and v2 beats both
@@ -494,16 +507,18 @@ Counts pooled over 20 seeds, same 180 planted cases for both:
 
 | | caught | false accusations | precision | recall | F1 |
 | --- | --- | --- | --- | --- | --- |
-| rule (v1, growth only) | 83 | 112 | 0.426 | 0.461 | 0.443 |
+| rule (v1, growth only) | 83 | 110 | 0.430 | 0.461 | 0.445 |
 | isolation forest | **95** | 147 | 0.393 | **0.528** | 0.450 |
 | rule (v2, growth and performance) | 94 | **48** | **0.662** | 0.522 | **0.584** |
 
-Against v1 the F1 scores are a tie. The forest catches 12 more cases at the cost of 35 more
-false accusations (39 when measured: 151 and 49, before result tampering was scored apart, as above). For a flag that accuses a child of lying about their age, a false accusation
+Against v1 the F1 scores are a tie. The forest catches 12 more cases at the cost of 37 more
+false accusations (39 when measured, 151 against 112, before result tampering was scored apart,
+as above). For a flag that accuses a child of lying about their age, a false accusation
 costs more than a miss, so the rule stayed. v2 now catches one case fewer than the forest with
 a third of its false accusations. The comparison is not quite even: the forest sees growth
 features only. Giving it the output score too is the fair next round. The forest shows no relative age bias either (false
-positive rate 3.3% to 4.7% across quarters, p = 0.38).
+positive rate 3.2% to 4.7% across quarters, p = 0.29; 3.3% to 4.7%, p = 0.38, when measured
+before result tampering).
 
 **Both got much worse with growth timing, and the reason matters.** Before it the rule made 57
 false accusations over these 20 seeds and caught 92 cases (F1 0.559); the forest 102 and 112
@@ -1810,18 +1825,20 @@ still caught.
 | late_bloomer v1 | 2.3% | 2.8% | 2.5% | 2.6% | 0.45, p = 0.93 |
 | baseline: shortest for age | 5.2% | 6.3% | 4.9% | 5.8% | 2.09, p = 0.55 |
 | fraud: age misrepresentation (v2, with performance) | 1.5% | 0.7% | 1.4% | 1.4% | 3.57, p = 0.31 |
-| fraud: age misrepresentation (v1, growth only) | 3.9% | 2.6% | 2.3% | 2.5% | 5.84, p = 0.12 |
+| fraud: age misrepresentation (v1, growth only) | 4.0% | 2.6% | 2.3% | 2.4% | 6.38, p = 0.095 |
 | duplicate v1 | 0.0% | 0.0% | 0.0% | 0.0% | 0.00, p = 1.0 |
 | **control: birth-year cohort** | **1.4%** | **2.0%** | **3.5%** | **4.1%** | **17.92, p < 0.001** |
 
 No detector shows a detectable difference by quarter, and the biased control does. The
-growth-only age-fraud rule (v1) was the closest call (p = 0.12), with the pattern to watch: the
-oldest quarter accused most (3.9% against about 2.5%), the direction a relative age effect
+growth-only age-fraud rule (v1) was the closest call (p = 0.095), with the pattern to watch: the
+oldest quarter accused most (4.0% against about 2.4%), the direction a relative age effect
 would push. With performance evidence (v2, 2026-10-16) the rule accuses fewer than half as
-many children in every quarter, the oldest quarter is no longer singled out (1.5%, level with
-Q3 and Q4; Q2 is lowest at 0.7%), and p = 0.28. In the what-if where early maturers also
-outplay their age group (see "Age misrepresentation, v2") it is 2.2%, 1.5%, 2.2%, 2.4%,
-p = 0.52. Real academies over-select both early-born and early-maturing boys, so this is still
+many children in every quarter, the oldest quarter is no longer singled out (1.5%, against 1.4%
+in Q3 and Q4; Q2 is lowest at 0.7%), and p = 0.31. In the what-if where early maturers also
+outplay their age group (see "Age misrepresentation, v2") it is 2.2%, 1.6%, 2.3%, 2.4%,
+p = 0.53. (Measured before result tampering was scored apart: v1 p = 0.12 and 3.9% against
+2.5%; v2 p = 0.28; the what-if 2.2%, 1.5%, 2.2%, 2.4%, p = 0.52. `python -m ml.run_age_bands`
+prints both rules' rows, with `--performance-follows-maturity` for the what-if.) Real academies over-select both early-born and early-maturing boys, so this is still
 the detector to re-audit first on real data. Before growth timing the closest call was the late-bloomer
 detector (p = 0.12, with no relative age pattern); it is now flat (p = 0.93). What keeps the
 detectors clean is a design choice made for other reasons: the height reference is bucketed by
@@ -2045,6 +2062,7 @@ detectors/     late-bloomer, fraud, duplicate + the features they share   done
 evaluation/    metrics, the scoring harness, the relative age audit       done
 challengers/   XGBoost forecaster and isolation forest, scored against v1  done
 run_eval.py    CLI entry point                                            done
+run_age_bands.py  the age rule v1 against v2, by stated age and birth quarter  done
 write_flags.py detector run that writes flags to the database             done
 forecasting/   height forecasters + walk-forward harness                 done
 backtest.py    the late-bloomer backtest, run_backtest.py is its CLI      done
