@@ -1714,6 +1714,136 @@ So the rules are a fallback for a demo, not a replacement for the model. Reading
 takes under a millisecond; a whole request with Ollama stopped took about 4 seconds, measured
 on the local stack.
 
+### Professional league seasons (added 2026-11-20)
+
+Ask now also answers "who leads a league season" on what FootyStats publishes per player
+(decision 0009): goals, assists, goals per 90, assists per 90, minutes and appearances, for one
+league and season, optionally one position group (FootyStats' own label for that season) and an
+age range (age on the season's first day). The ranking is `apps/api/app/services/pro_leaders.py`.
+Per 90 is ranked only from 450 minutes, and the answer says how many players that left out.
+A statistic FootyStats does not publish for players (xG, shots, chances created, passes,
+tackles, distance) is answered with that reason, not with a ranking of something else.
+
+46 new questions were added before any run, 23 per half, 6 per half in Egyptian Arabic or mixed
+Arabic and English, some misspelt ("premier leage", "premiere league"). Each is marked
+`"tier": "pro"`, and the scorer now prints youth and pro separately.
+
+**Read by rule, not by the model.** A question is about a league season when it names a league
+or a season, or asks per 90 or for xG, and no player. The league, the season and the more
+exact statistic (per 90, minutes, appearances, xG) are then read by rule (`pro_in` in
+`apps/api/app/services/assistant.py`), on top of the reader's own statistic, position and the
+age rule. The model's prompt and worked examples are unchanged, on purpose: the last time the
+model was taught new kinds of question it lost three old readings on dev (the breakouts table
+above), and leagues and seasons are a short list with fixed spellings, like ages. So the
+model's readings of the 88 academy questions cannot have moved.
+
+The rules were written from the dev questions and scored 67 of 67 on dev on their first run,
+so nothing was tuned. Then the held-out half was run once:
+
+| reader | dev, youth | dev, pro | **test, youth** | **test, pro (held out)** |
+| --- | --- | --- | --- | --- |
+| fixed rules, before | 44 of 44 | | 34 of 44 | |
+| **fixed rules, after** | 44 of 44 | 23 of 23 | **34 of 44** | **21 of 23 (91%)** |
+| **qwen2.5:3b, after** (Colab T4 GPU) | not run | not run | **37 of 44** | **12 of 23 (52%)** |
+
+The youth score did not move, and the same ten academy questions are missed. Reading a
+question by rule takes under a millisecond, the same as before. The two pro misses on the
+held-out half:
+
+- "Premier League 2022/23 top goalscorers": "goalscorers" as one word is in no word list, so no
+  statistic was read and the answer asks which statistic.
+- "مين صنع أكتر أهداف في الدوري المصري" (who made the most goals): "صنع أهداف" means assists,
+  and was read as goals.
+
+Both are left as they are: they were found on the held-out half. Also found while writing the
+tests, not on either half: "سجل" (scored) is in no word list either.
+
+**With the model reading (qwen2.5:3b), the held-out pro score is 12 of 23, much lower than
+the rules' 21.** It was run once, on a free Google Colab T4 GPU (2026-11-21), because the
+laptop it was first tried on (a 2012 Core i5 with no usable GPU) took 6.5 minutes for one
+question. The seconds per question were not captured, and a Colab T4 is not the GPU the
+earlier timings were measured on, so no speed is reported for it. The youth score is 37 of 44,
+the same as before the change, as expected with an unchanged prompt.
+
+Why the model does worse on pro questions: in 10 of the 11 pro misses it reads a position the
+question never says, "forward" for scorers and "midfielder" for assists or passes ("Premier
+League 2022/23 top goalscorers" read as forwards only). The rules read no position unless one
+is named. The other miss is "هداف الدوري الإنجليزي موسم 2019/20", read as an academy
+question. The same habit shows on the academy half ("most creative players aged 15" read as
+midfielders only), so it is the model's, not the pro rules'.
+
+The obvious fix is to take the position from the question's own words (the rule reader's
+position list) for pro questions instead of from the model. It was found on the held-out half,
+so it is not made here: it would have to be tried on dev, and a later held-out score would no
+longer be clean. Until then the reading is printed under "How this was read", so a narrowed
+answer says so on screen.
+
+#### The position fix, scored on a fresh held-out set (added 2026-11-21)
+
+The fix above is now made, for pro questions only: their position group comes from the
+question's own words (`rule_reader.position_in`), never from the model. "Top scorers" is no
+longer narrowed to forwards; "top scoring defenders" still means defenders. Academy questions
+are untouched.
+
+The first held-out half had already been scored for this change, so 23 new pro questions
+(`test2` in `apps/api/eval/assistant_questions.json`, 6 in Arabic or mixed) were written and
+committed **before** the fix. Each reader was then run once on them:
+
+| on Colab T4 GPU, qwen2.5:3b | dev, youth (44) | dev, pro (23) | **test2, pro (held out)** | seconds per question, median |
+| --- | --- | --- | --- | --- |
+| model, with the fix | 40 | 23 | **23 of 23 (100%)** | 0.7 (test2), 0.8 (dev) |
+| fixed rules, same code | 44 | 23 | **20 of 23 (87%)** | under 0.01 |
+
+So with the model reading, the pro questions went from 12 of 23 to 23 of 23 on held-out
+questions it was not tuned on. The rules' three misses are words not on their lists:
+"goalscorer", "scored" and "جوانات" (Egyptian slang for goals). They were found on `test2`,
+so they are left as they are.
+
+Two caveats. 23 questions is a small set: 23 of 23 says the remaining error rate is low, not
+zero. And the youth dev score here, 40 of 44, is one lower than the published 41 on the
+earlier GPU. The academy path is unchanged by this fix, so the difference is the hardware (the
+same effect as the CPU runs above). Two of those four youth misses are the same habit the fix
+removed for pro questions ("top scorers aged 16 and over" read as forwards). Fixing it for
+academy questions too is the next step; it needs a fresh academy held-out set first.
+
+One more fix came after these runs. Typing a question on Colab showed that "هداف الدوري انجليزي
+مهاجم" (the English league's top scorer, striker) was read as an academy question, because the
+league words only knew the Arabic forms with the article (الإنجليزي). The league words now also
+match انجليزي, إنجلترا and مكسيكي without it (test in `apps/api/tests/test_pro_leaders.py`). This
+question was not in any eval split, and the held-out sets were not re-run after the change; the
+rules still read all 67 dev questions right.
+
+#### Review fixes, scored on a third held-out set (added 2026-11-22)
+
+The first review found three faults that no eval question covered:
+
+1. A nationality was read as a league. "Top Egyptian scorers in the Premier League" was answered
+   about the Egyptian league, and a player named المصري (El-Masry, a common family name) was
+   dropped from the question as if he were the league.
+2. "Per 90" alone made a question a league question, though academy rankings are per 90 too.
+   "Most goals per 90 under 16" went to the latest Premier League season.
+3. A player whose FootyStats season is split across two ids, once merged, would be listed twice
+   with part totals.
+
+The fixes: league words now match only league names ("Egyptian Premier League", "الدوري
+المصري", "الدوري الممتاز", "in Egypt"), never the nationality alone. A name is dropped only when
+the whole of it is a league. Only a named league or season makes a question a league question.
+A nationality word outside a league name keeps only Egypt-eligible players
+(`Player.is_egypt_eligible`), with the reading field `egypt_eligible`. Entries for one player in
+one season are added up before ranking (`pro_leaders.combine`).
+
+`test3`, 23 fresh questions on exactly these cases (11 academy or named player, 12 league), was
+written and committed before the fixes. The rules reader was run on it once:
+
+| fixed rules | dev (67) | `test` (67) | `test2` (23) | **`test3` (23, held out)** |
+| --- | --- | --- | --- | --- |
+| after the review fixes | 67 | 55 (youth 34, pro 21) | 20 | **22 of 23 (96%)** |
+
+The one miss is "stats for Youssef El-Masry": the rules read the name as "Youssef El", because
+their name finder stops at a hyphen. That is an older limit of the rules' name finder, not this
+change, and it is left as found. The dev, `test` and `test2` scores did not move. The model
+(qwen2.5:3b) has not been run on `test3` yet; that needs the Colab T4 again.
+
 ## Relative age audit
 
 Children born early in the selection year are older, bigger and more mature than team-mates

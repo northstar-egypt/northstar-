@@ -690,7 +690,9 @@ export interface Leaders {
 export interface AssistantAnswer {
   question: string;
   reading: {
-    intent: "leaders" | "player" | "similar" | "compare" | "breakouts" | "late_bloomers" | "unsupported";
+    intent:
+      | "leaders" | "player" | "similar" | "compare" | "breakouts" | "late_bloomers"
+      | "pro_leaders" | "unsupported";
     sport: string | null;
     gender: string | null;
     positionGroup: string | null;
@@ -698,6 +700,11 @@ export interface AssistantAnswer {
     ageTo: number | null;
     statistic: string | null;
     players: string[];
+    /** League seasons only (intent "pro_leaders"): a league key and a season like "2023/24". */
+    league: string | null;
+    season: string | null;
+    /** League seasons only: true when the question asks only for Egypt-eligible players. */
+    egyptEligible: boolean;
   };
   /** The reading in words, for "How this was read". */
   chips: string[];

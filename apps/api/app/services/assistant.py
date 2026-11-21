@@ -45,7 +45,9 @@ from sqlalchemy.orm import Session
 from app import ages, names, sports
 from app.config import get_settings
 from app.models.player import Player
-from app.services import explore, flags, radar, rule_reader, scout_home, scouting_report, similar
+from app.services import (
+    explore, flags, pro_leaders, radar, rule_reader, scout_home, scouting_report, similar,
+)
 from app.services.access import Caller, may_view, permissions, visible_players
 from app.services.cohort import age_label
 from app.services.views import organization_names
@@ -57,7 +59,9 @@ _TIMEOUT_SECONDS = 120
 # What the model may answer. The two flag lists are recognised by rule (`topic_in`), not by
 # the model: taught to the model, they cost the 3B model three of its old readings on dev.
 MODEL_INTENTS = ("leaders", "player", "similar", "compare", "unsupported")
-INTENTS = (*MODEL_INTENTS, "breakouts", "late_bloomers")
+# Questions about a professional league season are recognised by rule too (`pro_in`): the
+# model's prompt is unchanged, so its readings of the academy questions cannot move.
+INTENTS = (*MODEL_INTENTS, "breakouts", "late_bloomers", "pro_leaders")
 GROUPS = ("goalkeeper", "defender", "midfielder", "forward")
 STATISTICS = {key: sport for sport, axes in radar.AXES.items() for key, *_ in axes}
 
@@ -154,6 +158,11 @@ class Reading:
     age_to: int | None = None
     statistic: str | None = None
     players: list[str] = field(default_factory=list)
+    # Professional league seasons only (intent "pro_leaders"), read by rule (`pro_in`).
+    league: str | None = None
+    season: str | None = None
+    # Only players eligible for Egypt ("top Egyptian scorers in the Premier League").
+    egypt_eligible: bool = False
 
 
 def ages_in(question: str) -> tuple[int | None, int | None] | None:
@@ -185,6 +194,92 @@ def topic_in(question: str) -> str | None:
         if pattern.search(question):
             return intent
     return None
+
+
+# Professional league seasons, by rule, like ages: the leagues and seasons are a short fixed list
+# with fixed spellings, and the model's prompt stays as it was tuned (see ml/README.md,
+# "Assistant", pro league seasons). Written from the dev questions; scored on the held-out half.
+_ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+# League names only, never the nationality on its own: "Egyptian players in the Premier League"
+# is about the English league, and المصري (El-Masry) is a common family name.
+LEAGUE_WORDS = (
+    ("egyptian_premier_league", re.compile(
+        r"\begypt(?:ian)?\s+(?:premier\s+)?league|\begyptian\s+pl\b|\bin\s+egypt\b"
+        r"|(?:ال)?دوري\s+(?:ال)?مصر[يى]?|الدوري\s+الممتاز|في\s+مصر", re.I)),
+    ("liga_mx", re.compile(r"liga\s*mx|mexic|مكسيك", re.I)),
+    ("england_premier_league", re.compile(
+        r"\bprem\w*\s+le\w*|\bepl\b|english|england|[إا]نجليز|[إا]نجلتر|البريميرليج|بريميرليج", re.I)),
+)
+# "2023/24", "2023-24", "2023-2024", or "23/24" with a slash only: "15-16" is an age range.
+_SEASON_RANGE = re.compile(
+    r"(?<!\d)((?:19|20)\d{2})\s*[/-]\s*((?:19|20)?\d{2})(?!\d)|(?<!\d)(\d{2})\s*/\s*(\d{2})(?!\d)")
+# The nationality, once league names are taken out of the question.
+_EGYPTIAN = re.compile(r"\begypt\w*|مصر[يى]|مصريين|مصريه|مصرية", re.I)
+_PER_90 = re.compile(r"\bper\s*90|\bp90\b|/\s*90\b|\bevery 90\b|لكل\s*90|كل\s*90", re.I)
+_XG = re.compile(r"\bx\s?g\b|expected goals|أهداف متوقعة|اهداف متوقعة", re.I)
+_MINUTES = re.compile(r"\bminutes\b|\bmins\b|دقايق|دقائق", re.I)
+_APPEARANCES = re.compile(
+    r"\bappearances?\b|\bapps\b|\b(games|matches) played\b|شارك|ماتشات|مباريات|ماتش", re.I)
+
+
+def _without_leagues(text: str) -> str:
+    for _, pattern in LEAGUE_WORDS:
+        text = pattern.sub(" ", text)
+    return text
+
+
+def is_league_name(name: str) -> bool:
+    """True when a name the reader took for a player is only a league ("Premier League"), not a
+    person whose name contains a league word."""
+    rest = re.sub(r"\b(?:the|league)\b|\bال?دوري\b", " ", _without_leagues(name), flags=re.I)
+    return rest.strip() == "" and rest != name
+
+
+def egypt_eligible_in(question: str) -> bool:
+    """True when the question asks only for Egyptian players, outside a league's own name."""
+    return bool(_EGYPTIAN.search(_without_leagues(question)))
+
+
+def league_in(text: str) -> str | None:
+    """The league a question names (a pro_leaders.LEAGUES key), or None."""
+    for key, pattern in LEAGUE_WORDS:
+        if pattern.search(text):
+            return key
+    return None
+
+
+def season_in(text: str) -> str | None:
+    """The season named, written "2023/24": from "2023/24", "2023-24", "2023-2024", "23/24"."""
+    for match in _SEASON_RANGE.finditer(text.translate(_ARABIC_DIGITS)):
+        first, second = match.group(1) or match.group(3), match.group(2) or match.group(4)
+        start = int(first) + (2000 if len(first) == 2 else 0)
+        end = int(second[-2:])
+        if (start + 1) % 100 == end and (len(first) == 4 or len(second) == 2):
+            return f"{start}/{end:02d}"
+    return None
+
+
+def pro_in(question: str, statistic: str | None) -> dict | None:
+    """The league, season and statistic of a question about a professional league season, or
+    None when it is not one. It is one only when it names a league or a season: academy
+    rankings are per 90 too, so "per 90" alone says nothing. `statistic` is the reader's own,
+    which a per-90, minutes or appearances phrase makes more exact."""
+    league, season = league_in(question), season_in(question)
+    if not (league or season):
+        return None
+    per_90, xg = bool(_PER_90.search(question)), bool(_XG.search(question))
+    if statistic is None:
+        statistic = rule_reader.first_statistic(question)
+    if xg:
+        statistic = "xg"
+    elif per_90 and statistic in ("goals", "assists", None):
+        statistic = f"{statistic or 'goals'}_per_90"
+    elif _MINUTES.search(question):
+        statistic = "minutes_played"
+    elif _APPEARANCES.search(question):
+        statistic = "appearances"
+    return {"league": league, "season": season, "statistic": statistic,
+            "egypt_eligible": egypt_eligible_in(question)}
 
 
 class OllamaUnavailable(Exception):
@@ -361,11 +456,29 @@ def read(question: str) -> tuple[Reading, str]:
 
 def _finish(raw: dict, question: str) -> Reading:
     """Clean a raw reading, then apply what is read by rule whichever reader made it."""
+    # A league is not a person: "Premier League" is two capitalised words. A name is dropped
+    # only when the whole of it is a league or the nationality, so "محمد المصري" stays.
+    raw = {**raw, "players": [
+        p for p in raw.get("players") or []
+        if not (isinstance(p, str) and (is_league_name(p) or _EGYPTIAN.fullmatch(p.strip())))
+    ]}
     reading = _clean(raw)
+    if (
+        not reading.players and not rule_reader.UNSUPPORTED.search(question)
+        and (pro := pro_in(question, reading.statistic)) is not None
+    ):
+        reading.intent = "pro_leaders"
+        reading.league, reading.season, reading.statistic = pro["league"], pro["season"], pro["statistic"]
+        reading.egypt_eligible = pro["egypt_eligible"]
+        # The position comes from the question's own words, not the model's: on the held-out
+        # pro questions the model read "forwards" into "top scorers" and "midfielders" into
+        # "most assists", which narrowed the answer to a group nobody asked about.
+        reading.position_group = rule_reader.position_in(question)
+        reading.sport, reading.gender = "football", None
     if (ages := ages_in(question)) is not None:
         reading.age_from, reading.age_to = ages
     # A flag list named in the question, with no player named, is that list.
-    if not reading.players and (topic := topic_in(question)) is not None:
+    if not reading.players and reading.intent != "pro_leaders" and (topic := topic_in(question)) is not None:
         reading.intent = topic
     return reading
 
@@ -385,7 +498,9 @@ CAN_DO = (
     "I can answer four kinds of question from the match records: who is best at a statistic "
     "in a group (\"top passers among 15 year old midfielders\"), how one player is doing "
     "(\"stats for Omar Hassan\"), who plays like a player (\"players like Omar Hassan\"), and "
-    "how two or three players compare (\"compare Omar Hassan and Ali Adel\")."
+    "how two or three players compare (\"compare Omar Hassan and Ali Adel\"). For league "
+    "seasons, who leads one on goals, assists, per 90, minutes or appearances (\"top scorers "
+    "in the Premier League 2023/24\")."
 )
 
 
@@ -406,8 +521,25 @@ def chips(reading: Reading) -> list[str]:
         "similar": "players like one player", "compare": "players compared",
         "breakouts": "breakouts this season", "late_bloomers": "late bloomers",
         "unsupported": "not a question these records answer",
+        "pro_leaders": "best in a league season",
     }
     out = [words[reading.intent]]
+    if reading.intent == "pro_leaders":
+        out.append(pro_leaders.LEAGUES[reading.league][0] if reading.league else "league not named")
+        out.append(f"season {reading.season}" if reading.season else "latest season")
+        if reading.egypt_eligible:
+            out.append("Egypt-eligible players only")
+        if reading.position_group:
+            out.append(GROUP_WORDS[reading.position_group])
+        if reading.age_from is not None or reading.age_to is not None:
+            out.append(f"aged {ages.words(reading.age_from, reading.age_to)} at the season's start")
+        stat = reading.statistic
+        out.append(
+            pro_leaders.PUBLISHED[stat][0].lower() if stat in pro_leaders.PUBLISHED
+            else pro_leaders.NOT_PUBLISHED[stat] if stat in pro_leaders.NOT_PUBLISHED
+            else "no statistic named"
+        )
+        return out
     if reading.intent == "leaders":
         out.append((reading.sport or "football").replace("_", " "))
         if reading.gender:
@@ -902,6 +1034,53 @@ def _answer_late_bloomers(db: Session, caller: Caller, reading: Reading) -> dict
     )
 
 
+def _answer_pro_leaders(db: Session, caller: Caller, reading: Reading) -> dict:
+    try:
+        body = pro_leaders.leaders(
+            db, caller, league=reading.league, season=reading.season, statistic=reading.statistic,
+            position_group=reading.position_group, age_from=reading.age_from, age_to=reading.age_to,
+            egypt_eligible=reading.egypt_eligible,
+        )
+    except pro_leaders.ProLeadersError as error:
+        return _result(str(error))
+    group = f" {GROUP_WORDS[reading.position_group]}" if reading.position_group else ""
+    if reading.egypt_eligible:
+        group = f" Egypt-eligible{group or ' players'}"
+    ages_said = (
+        f", aged {ages.words(reading.age_from, reading.age_to)} at the season's start"
+        if reading.age_from is not None or reading.age_to is not None else ""
+    )
+    where = f"{body['competition']} {body['season']}"
+    left = "; ".join(f"{n} left out: {why}" for why, n in body["left_out"].items())
+    note = " ".join(filter(None, [
+        f"Per 90 only for players with {pro_leaders.MIN_MINUTES_PER_90}+ minutes." if body["per_90"] else "",
+        f"{left}." if left else "",
+        "From FootyStats' season totals.",
+    ]))
+    if not body["leaders"]:
+        who = group if group.endswith("players") else f"{group} players"
+        return _result(f"No{who} on record for {where}{ages_said}.", note=note)
+    top = body["leaders"]
+    return _result(
+        f"{body['label']}, {where}{', ' + group.strip() if group else ''}{ages_said}. "
+        f"{body['considered']} players ranked.",
+        columns=["Player", "Club", "Position", "Age", body["label"], "Minutes"],
+        rows=[
+            {
+                "player_id": leader["player_id"],
+                "cells": [
+                    leader["name"], leader["club"] or "", leader["position_group"] or "",
+                    "" if leader["age"] is None else str(leader["age"]),
+                    str(leader["value"]), f"{leader['minutes']:,}",
+                ],
+            }
+            for leader in top
+        ],
+        note=note,
+        follow_ups=[f"How is {top[0]['name']} doing"],
+    )
+
+
 _ANSWERS = {
     "leaders": _answer_leaders,
     "player": _answer_player,
@@ -909,6 +1088,7 @@ _ANSWERS = {
     "compare": _answer_compare,
     "breakouts": _answer_breakouts,
     "late_bloomers": _answer_late_bloomers,
+    "pro_leaders": _answer_pro_leaders,
 }
 
 
