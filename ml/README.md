@@ -109,7 +109,7 @@ stated:
 | fraud F1, 5 seeds / 20 seeds | 0.747 / 0.726 | **0.642 / 0.638** |
 | age-fraud rule, false accusations over 20 seeds | 57 | **112** |
 | backtest at 1000 players: late bloomers flagged / other small players flagged | 47% / 16% | **41% / 22%** |
-| height forecast MAE under 18 (cohort velocity / XGBoost) | 0.86 / 0.80 cm | **0.94 / 0.86 cm** |
+| height forecast MAE under 18 (cohort velocity / XGBoost) | 0.86 / 0.80 cm | **0.94 / 0.87 cm** |
 | duplicate F1, table tennis rating | | unchanged |
 
 The new numbers are lower and they are the honest ones. The project's central claim still
@@ -188,7 +188,7 @@ generator. Age misrepresentation is the subtype that
 matters, it carries 9 of the 17 cases, and at 0.400 it is doing well under the work the
 headline 0.688 on this seed suggests. On this seed the performance evidence (2026-10-16) cut
 false accusations from 8 to 3 but also lost one catch (4 to 3), so its F1 barely moved (0.381
-to 0.400); over 20 seeds it moved from 0.443 to 0.582, see "Age misrepresentation, v2". It was
+to 0.400); over 20 seeds it moved from 0.443 to 0.584, see "Age misrepresentation, v2". It was
 0.526 before growth timing and 0.632 before the boys-only change; see Known limits for why.
 Anyone quoting the fraud number should quote this one alongside it.
 
@@ -239,9 +239,9 @@ threshold that would accuse honest players (see Known limits). With the rule, fr
 to 0.774; 1013, 0.846 to 0.824), each from a conflict flag on an honest opponent.
 
 The age rule's counts in the next sections were measured before this rule existed. Over 20
-seeds they now read one false accusation fewer for the rule (49 to 48) and four fewer for the
+seeds they read one false accusation fewer for the rule (49 to 48) and four fewer for the
 isolation forest (151 to 147), only because the tampering players are no longer part of the
-population the age subtype is scored on.
+population the age subtype is scored on. The tables below now show today's counts, each with the measured one beside it (corrected 2026-11-22, after the results check found them unchanged since; rerunning the commit before this change and this commit confirmed the cause).
 
 ## Height forecasts, v1
 
@@ -346,7 +346,7 @@ MAE in cm, mean of five seeds, same cases for every model:
 
 | group | XGBoost | cohort velocity | last value |
 | --- | --- | --- | --- |
-| **under 18 (headline)** | **0.86** | 0.94 | 3.14 |
+| **under 18 (headline)** | **0.87** | 0.94 | 3.14 |
 | boys under 18 | 0.85 | 0.89 | 3.18 |
 | girls under 18 | **1.15** | 1.96 | 2.38 |
 | planted late bloomers | **1.01** | 1.25 | 3.38 |
@@ -440,10 +440,10 @@ with 2 (0.682).
 | | caught | false accusations | precision | recall | F1 |
 | --- | --- | --- | --- | --- | --- |
 | v1, growth only | 83 | 112 | 0.426 | 0.461 | 0.443 |
-| **v2, growth and performance** | **94** | **49** | **0.657** | **0.522** | **0.582** |
+| **v2, growth and performance** | **94** | **48** | **0.662** | **0.522** | **0.584** |
 | v2 in the what-if below | 95 | 82 | 0.537 | 0.528 | 0.532 |
 
-False accusations fall from 112 to 49 and catches rise from 83 to 94. Fraud F1 rose on 18 of
+False accusations fall from 112 to 48 and catches rise from 83 to 94. (Measured on 2026-10-16 as 49 false accusations (F1 0.582). On 2026-10-19 the generator began planting result tampering (see "Result tampering" above), and one player the rule had wrongly accused became a planted result tamperer, who is not scored as an age case. Rerunning the commit before that change and the commit itself gives 49 and 48.) Fraud F1 rose on 18 of
 the 20 seeds and fell on two: 555 (0.667 to 0.609) and 1010 (0.667 to 0.621).
 
 **By stated age, 20 seeds** (false accusations here also count the few metric-fraud players
@@ -495,11 +495,11 @@ Counts pooled over 20 seeds, same 180 planted cases for both:
 | | caught | false accusations | precision | recall | F1 |
 | --- | --- | --- | --- | --- | --- |
 | rule (v1, growth only) | 83 | 112 | 0.426 | 0.461 | 0.443 |
-| isolation forest | **95** | 151 | 0.386 | **0.528** | 0.446 |
-| rule (v2, growth and performance) | 94 | **49** | **0.657** | 0.522 | **0.582** |
+| isolation forest | **95** | 147 | 0.393 | **0.528** | 0.450 |
+| rule (v2, growth and performance) | 94 | **48** | **0.662** | 0.522 | **0.584** |
 
-Against v1 the F1 scores are a tie. The forest catches 12 more cases at the cost of 39 more
-false accusations. For a flag that accuses a child of lying about their age, a false accusation
+Against v1 the F1 scores are a tie. The forest catches 12 more cases at the cost of 35 more
+false accusations (39 when measured: 151 and 49, before result tampering was scored apart, as above). For a flag that accuses a child of lying about their age, a false accusation
 costs more than a miss, so the rule stayed. v2 now catches one case fewer than the forest with
 a third of its false accusations. The comparison is not quite even: the forest sees growth
 features only. Giving it the output score too is the fair next round. The forest shows no relative age bias either (false
@@ -1546,9 +1546,12 @@ points):
 | | the 5 most similar players | chance or random | the obvious single number | best possible |
 | --- | --- | --- | --- | --- |
 | football, same kind of position (never read) | **73%** | 28% | | |
-| football, level: share of the gap from random to best | **37%** | 0% | 27% (shots per 90) | 100% |
+| football, level: share of the gap from random to best | **37%** | 0% | 26% (shots per 90) | 100% |
 | table tennis, level | **85%** | 0% | 72% (share of points won) | 100% |
 | table tennis, same playing style (not used by the generator) | 27% | 26% | | |
+
+(Shots per 90 alone was first written here as 27%; the command printed 26% then and now. A
+transcription slip, found by the results check and corrected 2026-11-22.)
 
 Read it this way:
 
@@ -1753,7 +1756,7 @@ still caught.
 | --- | --- | --- | --- | --- | --- |
 | late_bloomer v1 | 2.3% | 2.8% | 2.5% | 2.6% | 0.45, p = 0.93 |
 | baseline: shortest for age | 5.2% | 6.3% | 4.9% | 5.8% | 2.09, p = 0.55 |
-| fraud: age misrepresentation (v2, with performance) | 1.5% | 0.7% | 1.5% | 1.4% | 3.83, p = 0.28 |
+| fraud: age misrepresentation (v2, with performance) | 1.5% | 0.7% | 1.4% | 1.4% | 3.57, p = 0.31 |
 | fraud: age misrepresentation (v1, growth only) | 3.9% | 2.6% | 2.3% | 2.5% | 5.84, p = 0.12 |
 | duplicate v1 | 0.0% | 0.0% | 0.0% | 0.0% | 0.00, p = 1.0 |
 | **control: birth-year cohort** | **1.4%** | **2.0%** | **3.5%** | **4.1%** | **17.92, p < 0.001** |
@@ -1959,7 +1962,7 @@ requires anyway.
   birth date. Since growth timing gave the synthetic data early maturers, the growth-only rule's
   false accusations roughly doubled (57 to 112 over 20 seeds) while its catches fell (92 to
   83). Growth data alone cannot separate the two. v2 adds performance and brings false
-  accusations down to 49, but in the generator an early maturer plays like his age group, which
+  accusations down to 48, but in the generator an early maturer plays like his age group, which
   real ones do not. In the what-if where they outplay it too, v2 makes 82 false accusations,
   and more than v1 among boys claiming 11 to 15. Every age flag is a question for a reviewer,
   never a finding.
