@@ -299,12 +299,20 @@ def test_calibration_records_both_operating_points_and_the_rule(frozen):
 
 def test_the_model_calibrated_is_the_model_reported(frozen):
     same = learned.fit(TRAIN, "late_bloomer", "logistic")
-    learned.check_same_model(frozen, same, CALIBRATION)
+    assert learned.check_same_model(frozen, same, CALIBRATION) is None
 
     edited = copy.deepcopy(frozen)
     edited["models"]["late_bloomer"]["logistic"]["grid"]["0.50"][1] += 1  # one more false flag
-    with pytest.raises(RuntimeError, match="not the model whose thresholds were chosen"):
+    with pytest.raises(RuntimeError, match="not exactly the model whose thresholds were chosen"):
         learned.check_same_model(edited, same, CALIBRATION)
+
+    # On another platform the difference can be accepted, and is then described, not hidden.
+    described = learned.check_same_model(edited, same, CALIBRATION, strict=False)
+    assert "at 1 of 19 thresholds (at most 1 counts apart)" in described
+    notes: list[str] = []
+    rows = learned.score_reported(edited, TRAIN, CALIBRATION, [UNSEEN], strict=False, notes=notes)
+    assert notes == [described]
+    assert "Not the frozen model." in learned.render(rows, "test", notes)
 
 
 def test_the_report_puts_the_rule_first_and_breaks_results_down(frozen):
@@ -359,6 +367,30 @@ def test_logistic_weights_point_the_way_the_pattern_does():
     assert weights["height_z_mean"] + weights["height_z_last"] + weights["height_z_min"] < 0
     with pytest.raises(ValueError, match="only the logistic regression"):
         learned.logistic_weights(learned.fit(TRAIN, "late_bloomer", "boosting"))
+
+
+def test_the_commands_run_end_to_end_on_generated_datasets(tmp_path):
+    """calibrate writes the file, report reads it back through JSON and scores a dataset, and
+    the what-if switch is put back afterwards. Small seeds, so it takes seconds, not minutes."""
+    import json
+
+    from data.pipelines.synthetic import players
+
+    frozen_path, report_path = tmp_path / "thresholds.json", tmp_path / "report.json"
+    assert learned.main(["calibrate", "--train-seeds", "2000", "2001",
+                         "--calibration-seeds", "101", "--out", str(frozen_path)]) == 0
+    frozen = json.loads(frozen_path.read_text(encoding="utf-8"))
+    assert frozen["train_seeds"] == [2000, 2001] and frozen["calibration_seeds"] == [101]
+
+    assert learned.main(["report", "--thresholds", str(frozen_path), "--seeds", "7",
+                         "--performance-follows-maturity", "--json", str(report_path)]) == 0
+    assert players.PERFORMANCE_FOLLOWS_MATURITY is False
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert set(report) == set(learned.DETECTORS)
+    assert all("rule" in rows for rows in report.values())
+
+    with pytest.raises(ValueError, match="two roles"):
+        learned.main(["report", "--thresholds", str(frozen_path), "--seeds", "101"])
 
 
 @pytest.mark.parametrize(
