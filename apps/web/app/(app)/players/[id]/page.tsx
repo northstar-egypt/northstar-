@@ -42,6 +42,8 @@ import {
   getSports,
   getShortlistIds,
   getSimilar,
+  getAcademyMatches,
+  getProExtras,
   getSummary,
   logMeasurement,
   removeFromShortlist,
@@ -54,6 +56,8 @@ import {
 import { canAccess, useAuth } from "@/lib/auth";
 import { cx, flagsByType, num, ordinal, shortDate, times } from "@/lib/format";
 import type {
+  AcademyMatches,
+  ProExtras,
   EventAnalysis,
   MergedRecord,
   Opponent,
@@ -339,6 +343,13 @@ export default function PlayerProfilePage() {
       )}
 
       <SimilarCard playerId={playerId} />
+
+      {data.player.primarySport === "football" && data.player.tier !== "youth" ? (
+        <>
+          <NextProCard playerId={playerId} />
+          <ProExtrasCards playerId={playerId} />
+        </>
+      ) : null}
 
       {/* provenance */}
       <Card className="bg-slate-900/40">
@@ -1372,6 +1383,126 @@ function SimilarCard({ playerId }: { playerId: string }) {
         </>
       )}
     </Card>
+  );
+}
+
+/**
+ * "Find the next <pro>": academy players whose style looks like this professional's
+ * (ml/next_pro.py; stability in ml/README.md). Style, not level: the note under the list says
+ * so, and what the comparison cannot see. The API lists only players the caller may see.
+ */
+function NextProCard({ playerId }: { playerId: string }) {
+  const [data, setData] = useState<AcademyMatches | "loading" | "failed">("loading");
+
+  useEffect(() => {
+    let alive = true;
+    setData("loading");
+    getAcademyMatches(playerId)
+      .then((d) => alive && setData(d ?? "failed"))
+      .catch(() => alive && setData("failed"));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (data === "failed") return null;
+
+  return (
+    <Card>
+      <SectionTitle>{data === "loading" ? "Find the next…" : `Find the next ${data.pro}`}</SectionTitle>
+      {data === "loading" ? (
+        <Skeleton className="h-16" />
+      ) : data.items.length === 0 ? (
+        <p className="text-sm text-slate-500">{data.note}</p>
+      ) : (
+        <>
+          <p className="mb-2 text-sm text-slate-400">Academy players whose style is most like this player&apos;s.</p>
+          <ul className="flex flex-col divide-y divide-slate-800">
+            {data.items.map((p) => (
+              <li key={p.playerId} className="flex flex-col gap-1 py-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <Link href={`/players/${p.playerId}`} className="font-semibold text-slate-100 hover:text-sky-300">
+                    <bdi>{p.fullName}</bdi>
+                  </Link>
+                  <span className="text-sm font-semibold tabular-nums text-sky-300">{p.percent}% style match</span>
+                </div>
+                <span className="text-xs text-slate-400">
+                  {[p.position, p.ageLabel].filter(Boolean).join(" · ")}
+                  {p.alike.length ? ` · both: ${p.alike.join("; ")}` : ""}
+                  {p.differs ? ` · differs most on ${p.differs}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-500">{data.note}</p>
+        </>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * The managers box and "Learn from the pro" videos, from a hand-made list kept outside the
+ * repository (app/services/pro_extras.py). Nothing is drawn when nothing is on file.
+ */
+function ProExtrasCards({ playerId }: { playerId: string }) {
+  const [data, setData] = useState<ProExtras | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getProExtras(playerId)
+      .then((d) => alive && setData(d))
+      .catch(() => alive && setData(null));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (!data) return null;
+  return (
+    <>
+      {data.managers.length ? (
+        <Card>
+          <SectionTitle>Managers</SectionTitle>
+          <ul className="flex flex-col divide-y divide-slate-800">
+            {data.managers.map((m, i) => (
+              <li key={i} className="flex flex-col gap-1 py-2">
+                <span className="font-semibold text-slate-100">
+                  <bdi>{m.name}</bdi>
+                  <span className="ml-2 text-xs font-normal text-slate-400">
+                    {[m.club, m.years].filter(Boolean).join(" · ")}
+                  </span>
+                </span>
+                {m.style ? <span className="text-sm text-slate-300">{m.style}</span> : null}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-500">{data.note}</p>
+        </Card>
+      ) : null}
+      {data.videos.length ? (
+        <Card>
+          <SectionTitle>Learn from the pro</SectionTitle>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {data.videos.map((v) => (
+              <figure key={v.youtube} className="flex flex-col gap-1">
+                <iframe
+                  className="aspect-video w-full rounded"
+                  src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(v.youtube)}`}
+                  title={v.title}
+                  loading="lazy"
+                  allow="encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+                <figcaption className="text-sm text-slate-300">{v.title}</figcaption>
+              </figure>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">{data.note}</p>
+        </Card>
+      ) : null}
+    </>
   );
 }
 

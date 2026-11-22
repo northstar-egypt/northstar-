@@ -81,8 +81,8 @@ def evaluate(seed: int) -> dict:
             sizes[fam] = sizes.get(fam, 0) + 1
     overlap, chance = [], []
     for pid in a.keys() & b.keys():
-        top_a = {m.player_id for m in N.matches(a[pid], list(a.values()), youth, shown=SHOWN)}
-        top_b = {m.player_id for m in N.matches(b[pid], list(b.values()), youth, shown=SHOWN)}
+        top_a = {m.player_id for m in N.matches(a[pid], list(a.values()), youth, shown=SHOWN, keep_opposite=True)}
+        top_b = {m.player_id for m in N.matches(b[pid], list(b.values()), youth, shown=SHOWN, keep_opposite=True)}
         if top_a and top_b:
             overlap.append(len(top_a & top_b) / SHOWN)
             chance.append(min(1.0, SHOWN / sizes[N.family(a[pid].position)]))

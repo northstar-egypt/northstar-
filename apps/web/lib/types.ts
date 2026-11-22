@@ -1002,3 +1002,31 @@ export interface StrongestGroup {
     ratedMatches: number;
   }[];
 }
+
+/**
+ * GET /players/{id}/academy-matches: "find the next <pro>", academy players whose style looks
+ * like this professional's (ml/next_pro.py). `items` may be empty; `note` always says why.
+ */
+export interface AcademyMatches {
+  pro: string;
+  items: {
+    playerId: string;
+    fullName: string;
+    position: string | null;
+    ageLabel: string;
+    /** How alike the styles are, 0 to 100. Not a level or a prediction. */
+    percent: number;
+    /** Up to three ways the two stand out alike among their peers, in words. */
+    alike: string[];
+    /** The statistic they differ on most, if they clearly differ on one. */
+    differs: string | null;
+  }[];
+  note: string;
+}
+
+/** GET /players/{id}/pro-extras: the hand-made managers box and videos; empty when none on file. */
+export interface ProExtras {
+  managers: { name: string; club: string | null; years: string | null; style: string | null }[];
+  videos: { title: string; youtube: string; kind: string | null }[];
+  note: string;
+}

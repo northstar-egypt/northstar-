@@ -20,6 +20,7 @@ from app.models.player import Player
 from app.schemas.core import MeasurementOut, PlayerOut
 from app.schemas.views import (
     AcademyMatchesOut,
+    ProExtrasOut,
     PlayerProfileOut,
     ProfileSummaryOut,
     EstimatesOut,
@@ -47,6 +48,7 @@ from app.services import (
     measuring_plan,
     next_pro,
     pro,
+    pro_extras,
     radar,
     scouting_report,
     similar,
@@ -273,6 +275,18 @@ def player_academy_matches(
     """
     player = _viewable_player(db, caller, player_id)
     return AcademyMatchesOut.model_validate(next_pro.academy_matches(db, caller, player))
+
+
+@router.get("/players/{player_id}/pro-extras", response_model=ProExtrasOut)
+def player_pro_extras(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> ProExtrasOut:
+    """The pro page's managers box and videos, from a hand-made list kept outside the repository.
+    See app/services/pro_extras.py."""
+    player = _viewable_player(db, caller, player_id)
+    return ProExtrasOut.model_validate(pro_extras.for_player(player))
 
 
 # ---------------------------------------------------------------------------

@@ -535,6 +535,29 @@ class AcademyMatchesOut(CamelModel):
     note: str
 
 
+class ProManagerOut(CamelModel):
+    name: str
+    club: str | None = None
+    years: str | None = None
+    style: str | None = None
+
+
+class ProVideoOut(CamelModel):
+    title: str
+    # A YouTube video id, checked to be one; the page embeds it from youtube-nocookie.com.
+    youtube: str
+    kind: str | None = None
+
+
+class ProExtrasOut(CamelModel):
+    """GET /players/{id}/pro-extras: the hand-made managers box and videos. Both lists are empty
+    when nothing is on file for the player (app/services/pro_extras.py)."""
+
+    managers: list[ProManagerOut] = []
+    videos: list[ProVideoOut] = []
+    note: str
+
+
 class ProfileSummaryOut(CamelModel):
     """The written summary for the profile, from GET /players/{id}/summary.
 

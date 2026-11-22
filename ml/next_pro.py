@@ -177,8 +177,12 @@ def compare(fam: str, pro: dict[str, float], youth: dict[str, float]) -> Match |
     return Match("", max(0, round(cos * 100)), agree, differs)
 
 
-def matches(pro: Player, pros: list[Player], youth: list[Player], shown: int = SHOWN) -> list[Match]:
+def matches(pro: Player, pros: list[Player], youth: list[Player], shown: int = SHOWN,
+            keep_opposite: bool = False) -> list[Match]:
     """The academy players whose style is most like `pro`'s, best first.
+
+    A 0% match (styles pointing opposite ways) is left out unless `keep_opposite`, which the
+    evaluation sets so that it measures the ranking itself, not how long the list is.
 
     `pros` is the professional pool (the pro must be in it); `youth` is every academy player who
     may be shown, already filtered for consent and access by the caller.
@@ -197,7 +201,8 @@ def matches(pro: Player, pros: list[Player], youth: list[Player], shown: int = S
     out = []
     for y in group:
         m = compare(fam, pz, yz[y.player_id])
-        if m is not None:
+        # 0% means the styles point opposite ways: not a match, so not listed.
+        if m is not None and (m.percent > 0 or keep_opposite):
             m.player_id = y.player_id
             out.append(m)
     out.sort(key=lambda m: (-m.percent, m.player_id))

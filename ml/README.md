@@ -1638,6 +1638,44 @@ Read it this way:
   rating in the previous section measures, against opponents of any strength. The rating is
   the better number for level; similarity adds which kind of player.
 
+## Find the next pro (academy players with a professional's style)
+
+`ml/next_pro.py`, shown on a professional's profile as "Find the next <name>". Each side is
+standardised against its own peers (a pro against league players of the same position group;
+an academy player against academy players of the same position group, sex and age year), and the
+two are compared by a weighted cosine similarity on the statistics both data sets have: goals,
+assists, shots, shots on target, key passes, passes and tackles per 90, pass completion, shot
+accuracy, and lightly height. The position weights were set by hand, not tuned on any seed.
+
+There is no answer key for "this child plays like that professional", so whether a match is
+right cannot be measured. What is measured is whether the list follows the professional's style
+or chance: each pro's season is built in two halves, the ten closest academy players are found
+from each half, and the share on both lists is compared with two random draws of ten from the
+same academy position group.
+
+```
+python -m ml.next_pro_eval
+ seed  pros  overlap of top 10  by chance
+  101   164             63.6%      47.4%
+  202   158             57.5%      33.6%
+  303   163             58.6%      38.4%
+  404   153             57.5%      36.8%
+  505   159             60.5%      38.8%
+```
+
+About six of ten names stay when the half season changes, against about four by chance: above
+chance, far from fixed. Height is not in this check (the evaluation data has no pro heights).
+
+### Limits
+
+- The academy record has no dribbles, headers, interceptions, saves or speed in matches, so
+  defenders are compared on tackles and passing only and goalkeepers are not matched.
+- FootyStats seasons (`season_basic.v1`) have no shots or passes, so a professional with only
+  those gets a note, not a list.
+- The synthetic academy draws a child's statistics from position and one hidden ability only, so
+  in this data "style" is mostly level within the position. Real records have more style to find.
+- A high match says two styles are alike, not that the child will reach the professional's level.
+
 ## Assistant
 
 ```bash

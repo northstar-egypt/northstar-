@@ -1,0 +1,15 @@
+{
+  "_about": "Format of the hand-made list behind the pro page's managers box and 'Learn from the pro' videos (apps/api/app/services/pro_extras.py). This sample is made up. The real list is about real people, so keep it outside the repository and point PRO_EXTRAS_FILE at it. Key each player by 'footystats:<FootyStats player id>' or 'player:<NorthStar player id>'. A video is an official YouTube video: 'youtube' is the 11 character id after watch?v= in its link.",
+  "players": {
+    "footystats:000000": {
+      "managers": [
+        {"name": "Example Manager", "club": "Example FC", "years": "2022 to 2024",
+         "style": "High pressing 4-3-3; asked his wingers to cut inside and shoot."}
+      ],
+      "videos": [
+        {"title": "Example: advice for young players", "youtube": "AAAAAAAAAAA",
+         "kind": "advice"}
+      ]
+    }
+  }
+}

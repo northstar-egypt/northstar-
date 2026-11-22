@@ -22,6 +22,8 @@
  */
 
 import type {
+  AcademyMatches,
+  ProExtras,
   AssistantAnswer,
   EventAnalysis,
   ResultsImport,
@@ -316,6 +318,24 @@ export async function getRadar(playerId: string): Promise<PlayerRadar | null> {
 }
 
 /** Players whose match record looks most like this one's. Null on 404, as `getProfile`. */
+export async function getAcademyMatches(playerId: string): Promise<AcademyMatches | null> {
+  try {
+    return await request<AcademyMatches>(`/players/${encodeURIComponent(playerId)}/academy-matches`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function getProExtras(playerId: string): Promise<ProExtras | null> {
+  try {
+    return await request<ProExtras>(`/players/${encodeURIComponent(playerId)}/pro-extras`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
 export async function getSimilar(playerId: string): Promise<SimilarPlayers | null> {
   try {
     return await request<SimilarPlayers>(`/players/${encodeURIComponent(playerId)}/similar`);
