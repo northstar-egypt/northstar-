@@ -1047,3 +1047,35 @@ export interface WeakPoints {
   population: string | null;
   note: string;
 }
+
+/** GET /players/{id}/journey: XP, level, badges and idol (part 7). */
+export interface Journey {
+  xp: number | null;
+  level: { name: string; nextName: string | null; nextAt: number | null } | null;
+  minutes: number;
+  drills: number;
+  badges: { key: string; label: string; earned: boolean }[];
+  idol: { proId: string; name: string; position: string | null; percent: number; before: number | null; weeks: number } | null;
+  note: string;
+}
+
+/** GET /players/{id}/weekly-report (part 6). */
+export interface WeeklyReport {
+  week: { from: string; to: string; matches: number; minutes: number; drills: number; xp: number } | null;
+  improved: { key: string; label: string; before: number; now: number; unit: string }[];
+  dropped: { key: string; label: string; before: number; now: number; unit: string }[];
+  goal: string | null;
+  note: string;
+}
+
+/** GET /leaderboard (part 8). */
+export interface Leaderboard {
+  items: { playerId: string; fullName: string; position: string | null; ageLabel: string; xp: number; minutes: number; drills: number }[];
+  note: string;
+}
+
+/** GET /alerts (part 9). */
+export interface MatchAlerts {
+  items: { playerId: string; fullName: string; proId: string; proName: string; before: number | null; now: number | null; alert: boolean }[];
+  note: string;
+}

@@ -22,6 +22,10 @@
  */
 
 import type {
+  Journey,
+  WeeklyReport,
+  Leaderboard,
+  MatchAlerts,
   WeakPoints,
   AcademyMatches,
   ProExtras,
@@ -345,6 +349,38 @@ export async function getWeakPoints(playerId: string): Promise<WeakPoints | null
     throw error;
   }
 }
+
+export const getJourney = (playerId: string) =>
+  request<Journey>(`/players/${encodeURIComponent(playerId)}/journey`);
+
+export const getWeeklyReport = (playerId: string) =>
+  request<WeeklyReport>(`/players/${encodeURIComponent(playerId)}/weekly-report`);
+
+export async function logDrill(playerId: string, statistic: string, drill: string): Promise<void> {
+  await request<unknown>(`/players/${encodeURIComponent(playerId)}/drills`, {
+    method: "POST",
+    body: JSON.stringify({ statistic, drill }),
+  });
+}
+
+export const getLeaderboard = () => request<Leaderboard>("/leaderboard");
+
+export async function watchMatch(playerId: string, proId: string): Promise<void> {
+  await request<unknown>(
+    `/players/${encodeURIComponent(playerId)}/watch/${encodeURIComponent(proId)}`,
+    { method: "PUT" },
+  );
+}
+
+export async function unwatchMatch(playerId: string, proId: string): Promise<void> {
+  await request<void>(
+    `/players/${encodeURIComponent(playerId)}/watch/${encodeURIComponent(proId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export const getAlerts = () => request<MatchAlerts>("/alerts");
+export const markAlertsSeen = () => request<MatchAlerts>("/alerts/seen", { method: "POST" });
 
 export async function getSimilar(playerId: string): Promise<SimilarPlayers | null> {
   try {

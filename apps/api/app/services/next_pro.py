@@ -80,7 +80,8 @@ def _pros(db: Session) -> list[N.Player]:
     return out
 
 
-def _youth(db: Session) -> list[N.Player]:
+def _youth(db: Session, before: date | None = None) -> list[N.Player]:
+    """Every academy footballer with enough minutes, from match rows before `before` if given."""
     consented = select(consent_subquery(ConsentPurpose.ANALYTICS.value).subquery().c.player_id)
     players = {
         str(p.id): p for p in db.execute(
@@ -95,7 +96,8 @@ def _youth(db: Session) -> list[N.Player]:
         for pid, metrics in db.execute(
             select(PerformanceEntry.player_id, PerformanceEntry.metrics)
             .where(PerformanceEntry.schema_ref == YOUTH_SCHEMA,
-                   PerformanceEntry.player_id.in_(list(players)))
+                   PerformanceEntry.player_id.in_(list(players)),
+                   *([PerformanceEntry.period_start < before] if before else []))
         ).all():
             t = totals.setdefault(str(pid), {})
             for k, v in (metrics or {}).items():

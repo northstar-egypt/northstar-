@@ -15,8 +15,8 @@ even if one shoots five times as often. So:
    Rates are taken as logs, as in ml/similarity.py.
 2. Each number is standardised within the player's own peer group: a professional against
    professionals in the same position group (`PRO_MIN_MINUTES`, same data source); an academy
-   player against academy players of the same position group, sex and age year (all ages of
-   that group when an age year has fewer than `MIN_PEERS`). This is where age is used: a
+   player against academy players of the same position group, sex and age year (against every
+   age of that group and sex when their age year has fewer than `MIN_PEERS`). This is where age is used: a
    14 year old is only ever judged against 14 year olds.
 3. The two profiles are compared by a weighted cosine similarity: the weights say which
    statistics matter for the position (`WEIGHTS`). Height counts lightly, against the same
@@ -141,7 +141,8 @@ def _standardise(players: list[Player]) -> dict[str, dict[str, float]]:
 
 
 def youth_peers(youth: list[Player]) -> list[Player]:
-    """Widens an age year with fewer than `MIN_PEERS` players to all ages of that group."""
+    """Marks a player whose age year has fewer than `MIN_PEERS` players to be judged against
+    every age of their position group (peers ``(sex, "any age")``)."""
     counts: dict[tuple, int] = {}
     for p in youth:
         counts[(family(p.position), *p.peers)] = counts.get((family(p.position), *p.peers), 0) + 1
@@ -151,6 +152,15 @@ def youth_peers(youth: list[Player]) -> list[Player]:
             p = Player(p.player_id, p.position, (p.peers[0], "any age"), p.raw)
         out.append(p)
     return out
+
+
+def youth_z(group: list[Player]) -> dict[str, dict[str, float]]:
+    """Academy z-scores within one position group: against the same sex and age year, or, for a
+    player whose age year is too small, against every age of the same sex."""
+    marked = youth_peers(group)
+    by_year = _standardise([p for p in marked if p.peers[1] != "any age"])
+    all_ages = _standardise([Player(p.player_id, p.position, (p.peers[0], "any age"), p.raw) for p in group])
+    return {p.player_id: (all_ages if p.peers[1] == "any age" else by_year)[p.player_id] for p in marked}
 
 
 def _weight(fam: str, key: str) -> float:
@@ -194,10 +204,10 @@ def matches(pro: Player, pros: list[Player], youth: list[Player], shown: int = S
     if len(peers) < MIN_PEERS:
         return []
     pz = _standardise(peers)[pro.player_id]
-    group = youth_peers([y for y in youth if family(y.position) == fam])
+    group = [y for y in youth if family(y.position) == fam]
     if len(group) < MIN_PEERS:
         return []
-    yz = _standardise(group)
+    yz = youth_z(group)
     out = []
     for y in group:
         m = compare(fam, pz, yz[y.player_id])
@@ -222,3 +232,41 @@ def pro_profile(pro: Player, pros: list[Player]) -> dict[str, float]:
     """The pro's standardised style, for the reasons line."""
     peers = [p for p in pros if family(p.position) == family(pro.position) and p.peers == pro.peers]
     return _standardise(peers).get(pro.player_id, {})
+
+
+def percent_between(pro_id: str, youth_id: str, pros: list[Player], youth: list[Player]) -> int | None:
+    """The style match between one professional and one academy player, or None when either
+    cannot be compared (no position group, too few peers, too little in common)."""
+    pro = next((p for p in pros if p.player_id == pro_id), None)
+    if pro is None:
+        return None
+    for m in matches(pro, pros, youth, shown=len(youth), keep_opposite=True):
+        if m.player_id == youth_id:
+            return m.percent
+    return None
+
+
+def idol(youth_id: str, pros: list[Player], youth: list[Player]) -> tuple[str, int] | None:
+    """The professional whose style an academy player matches best: (pro id, percent)."""
+    me = next((y for y in youth if y.player_id == youth_id), None)
+    fam = family(me.position) if me else None
+    if fam is None:
+        return None
+    group = [y for y in youth if family(y.position) == fam]
+    if len(group) < MIN_PEERS:
+        return None
+    yz = youth_z(group).get(youth_id, {})
+    best = None
+    by_source: dict[tuple, list[Player]] = {}
+    for p in pros:
+        if family(p.position) == fam:
+            by_source.setdefault(p.peers, []).append(p)
+    for peers in by_source.values():
+        if len(peers) < MIN_PEERS:
+            continue
+        pz = _standardise(peers)
+        for p in peers:
+            m = compare(fam, pz[p.player_id], yz)
+            if m is not None and (best is None or m.percent > best[1]):
+                best = (p.player_id, m.percent)
+    return best

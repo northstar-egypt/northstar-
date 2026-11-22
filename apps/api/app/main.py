@@ -22,6 +22,7 @@ from app.routers import (
     events,
     health,
     integrity,
+    journey,
     oversight,
     players,
     results,
@@ -69,6 +70,7 @@ app.include_router(events.router)
 app.include_router(analysis.router)
 app.include_router(gaps.router)
 app.include_router(scout.router)
+app.include_router(journey.router)
 app.include_router(results.router)
 app.include_router(oversight.router)
 app.include_router(integrity.router)

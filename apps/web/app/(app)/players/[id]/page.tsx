@@ -45,6 +45,10 @@ import {
   getAcademyMatches,
   getProExtras,
   getWeakPoints,
+  getJourney,
+  getWeeklyReport,
+  logDrill,
+  watchMatch,
   getSummary,
   logMeasurement,
   removeFromShortlist,
@@ -60,6 +64,8 @@ import type {
   AcademyMatches,
   ProExtras,
   WeakPoints,
+  Journey,
+  WeeklyReport,
   EventAnalysis,
   MergedRecord,
   Opponent,
@@ -347,12 +353,16 @@ export default function PlayerProfilePage() {
       <SimilarCard playerId={playerId} />
 
       {data.player.primarySport === "football" && data.player.tier === "youth" ? (
-        <WeakPointsCard playerId={playerId} />
+        <>
+          <JourneyCard playerId={playerId} />
+          <WeeklyReportCard playerId={playerId} />
+          <WeakPointsCard playerId={playerId} canLog={data.permissions.canLog || isOwnProfile} />
+        </>
       ) : null}
 
       {data.player.primarySport === "football" && data.player.tier !== "youth" ? (
         <>
-          <NextProCard playerId={playerId} />
+          <NextProCard playerId={playerId} canWatch={user?.role === "scout" || user?.role === "federation"} />
           <ProExtrasCards playerId={playerId} />
         </>
       ) : null}
@@ -1397,8 +1407,19 @@ function SimilarCard({ playerId }: { playerId: string }) {
  * (ml/next_pro.py; stability in ml/README.md). Style, not level: the note under the list says
  * so, and what the comparison cannot see. The API lists only players the caller may see.
  */
-function NextProCard({ playerId }: { playerId: string }) {
+function NextProCard({ playerId, canWatch }: { playerId: string; canWatch: boolean }) {
   const [data, setData] = useState<AcademyMatches | "loading" | "failed">("loading");
+  const [watched, setWatched] = useState<Record<string, "saving" | "done" | "failed">>({});
+
+  async function watch(kid: string) {
+    setWatched((w) => ({ ...w, [kid]: "saving" }));
+    try {
+      await watchMatch(kid, playerId);
+      setWatched((w) => ({ ...w, [kid]: "done" }));
+    } catch {
+      setWatched((w) => ({ ...w, [kid]: "failed" }));
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -1430,7 +1451,20 @@ function NextProCard({ playerId }: { playerId: string }) {
                   <Link href={`/players/${p.playerId}`} className="font-semibold text-slate-100 hover:text-sky-300">
                     <bdi>{p.fullName}</bdi>
                   </Link>
-                  <span className="text-sm font-semibold tabular-nums text-sky-300">{p.percent}% style match</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-sm font-semibold tabular-nums text-sky-300">{p.percent}% style match</span>
+                    {canWatch ? (
+                      <button
+                        type="button"
+                        className="rounded border border-slate-700 px-2 py-0.5 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-60"
+                        disabled={watched[p.playerId] === "saving" || watched[p.playerId] === "done"}
+                        onClick={() => watch(p.playerId)}
+                        title="Get an alert when this match jumps"
+                      >
+                        {watched[p.playerId] === "done" ? "Watching ✓" : watched[p.playerId] === "failed" ? "Try again" : "Watch"}
+                      </button>
+                    ) : null}
+                  </span>
                 </div>
                 <span className="text-xs text-slate-400">
                   {[p.position, p.ageLabel].filter(Boolean).join(" · ")}
@@ -1517,8 +1551,20 @@ function ProExtrasCards({ playerId }: { playerId: string }) {
  * on the radar's own comparison, built-in drills for each, and the player's own numbers season
  * by season (app/services/weak_points.py). Nothing is drawn as a weakness without a percentile.
  */
-function WeakPointsCard({ playerId }: { playerId: string }) {
+function WeakPointsCard({ playerId, canLog }: { playerId: string; canLog: boolean }) {
   const [data, setData] = useState<WeakPoints | "loading" | "failed">("loading");
+  const [done, setDone] = useState<Record<string, "saving" | "done" | "failed">>({});
+
+  async function markDone(statistic: string, drill: string) {
+    const key = `${statistic}:${drill}`;
+    setDone((d) => ({ ...d, [key]: "saving" }));
+    try {
+      await logDrill(playerId, statistic, drill);
+      setDone((d) => ({ ...d, [key]: "done" }));
+    } catch {
+      setDone((d) => ({ ...d, [key]: "failed" }));
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -1556,6 +1602,20 @@ function WeakPointsCard({ playerId }: { playerId: string }) {
                 {w.drills.map((d) => (
                   <li key={d.name} className="text-sm text-slate-300">
                     <span className="font-medium text-slate-100">{d.name}:</span> {d.how}
+                    {canLog ? (
+                      <button
+                        type="button"
+                        className="ml-2 rounded border border-slate-700 px-2 py-0.5 text-xs text-sky-300 hover:bg-slate-800 disabled:opacity-60"
+                        disabled={done[`${w.key}:${d.name}`] === "saving" || done[`${w.key}:${d.name}`] === "done"}
+                        onClick={() => markDone(w.key, d.name)}
+                      >
+                        {done[`${w.key}:${d.name}`] === "done"
+                          ? "Done today ✓"
+                          : done[`${w.key}:${d.name}`] === "failed"
+                            ? "Could not save, try again"
+                            : "Mark done today"}
+                      </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -1589,6 +1649,119 @@ function WeakPointsCard({ playerId }: { playerId: string }) {
           ) : null}
           <p className="text-xs text-slate-500">{data.note}</p>
         </div>
+      )}
+    </Card>
+  );
+}
+
+const points = (n: number) => `${n} point${n === 1 ? "" : "s"}`;
+const dayMonth = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+/** Game journey (part 7): XP, level, badges and idol, all counted from the record. */
+function JourneyCard({ playerId }: { playerId: string }) {
+  const [data, setData] = useState<Journey | "loading" | "failed">("loading");
+  useEffect(() => {
+    let alive = true;
+    getJourney(playerId)
+      .then((d) => alive && setData(d))
+      .catch(() => alive && setData("failed"));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+  if (data === "failed") return null;
+  if (data === "loading") return <Card><Skeleton className="h-16" /></Card>;
+  if (data.xp == null || !data.level) {
+    return (
+      <Card>
+        <SectionTitle>Journey</SectionTitle>
+        <p className="text-sm text-slate-500">{data.note}</p>
+      </Card>
+    );
+  }
+  const lv = data.level;
+  const toNext = lv.nextAt != null ? Math.min(100, Math.round((data.xp / lv.nextAt) * 100)) : 100;
+  return (
+    <Card>
+      <SectionTitle action={<span className="text-sm font-semibold text-amber-300">{data.xp} XP</span>}>Journey</SectionTitle>
+      <div className="flex flex-col gap-3">
+        <div>
+          <div className="flex justify-between text-sm">
+            <span className="font-semibold text-slate-100">{lv.name}</span>
+            <span className="text-slate-400">{lv.nextName ? `${lv.nextAt! - data.xp} XP to ${lv.nextName}` : "Top level"}</span>
+          </div>
+          <div className="mt-1 h-2 rounded bg-slate-800">
+            <div className="h-2 rounded bg-amber-400" style={{ width: `${toNext}%` }} />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {data.badges.map((b) => (
+            <Chip key={b.key} tone={b.earned ? "warn" : "default"} title={b.earned ? "Earned" : "Not earned yet"}>
+              {b.earned ? "★ " : "☆ "}
+              {b.label}
+            </Chip>
+          ))}
+        </div>
+        {data.idol ? (
+          <p className="text-sm text-slate-300">
+            Idol:{" "}
+            <Link href={`/players/${data.idol.proId}`} className="font-semibold text-sky-300 hover:underline">
+              <bdi>{data.idol.name}</bdi>
+            </Link>{" "}
+            · {data.idol.percent}% style match
+            {data.idol.before != null
+              ? data.idol.percent >= data.idol.before
+                ? ` · ${points(data.idol.percent - data.idol.before)} closer than ${data.idol.weeks} weeks ago`
+                : ` · ${points(data.idol.before - data.idol.percent)} further than ${data.idol.weeks} weeks ago`
+              : ""}
+          </p>
+        ) : null}
+        <p className="text-xs text-slate-500">{data.note}</p>
+      </div>
+    </Card>
+  );
+}
+
+/** Weekly report (part 6): this week, what went up or down over 4 weeks, and a next goal. */
+function WeeklyReportCard({ playerId }: { playerId: string }) {
+  const [data, setData] = useState<WeeklyReport | "loading" | "failed">("loading");
+  useEffect(() => {
+    let alive = true;
+    getWeeklyReport(playerId)
+      .then((d) => alive && setData(d))
+      .catch(() => alive && setData("failed"));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+  if (data === "failed") return null;
+  if (data === "loading") return <Card><Skeleton className="h-16" /></Card>;
+  const w = data.week;
+  return (
+    <Card>
+      <SectionTitle>This week</SectionTitle>
+      {w ? (
+        <div className="flex flex-col gap-3 text-sm">
+          <p className="text-slate-300">
+            {dayMonth(w.from)} to {dayMonth(w.to)}: {w.matches} match{w.matches === 1 ? "" : "es"}, {w.minutes} minutes,{" "}
+            {w.drills} drill{w.drills === 1 ? "" : "s"} done, <span className="text-amber-300">{w.xp} XP</span>.
+          </p>
+          {data.improved.length ? (
+            <p className="text-emerald-300">
+              Up: {data.improved.map((c) => `${c.label} ${num(c.before, 2)} → ${num(c.now, 2)} ${c.unit}`).join("; ")}
+            </p>
+          ) : null}
+          {data.dropped.length ? (
+            <p className="text-amber-300">
+              Down: {data.dropped.map((c) => `${c.label} ${num(c.before, 2)} → ${num(c.now, 2)} ${c.unit}`).join("; ")}
+            </p>
+          ) : null}
+          {data.goal ? <p className="font-medium text-slate-100">Next goal: {data.goal}</p> : null}
+          <p className="text-xs text-slate-500">{data.note}</p>
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500">{data.note}</p>
       )}
     </Card>
   );

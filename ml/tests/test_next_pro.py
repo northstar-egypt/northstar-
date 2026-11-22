@@ -56,3 +56,10 @@ def test_a_missing_statistic_is_not_taken_as_zero():
     metrics = _metrics(10, 1)
     del metrics["tackles"]
     assert N.rates(metrics) is None
+
+
+def test_a_child_alone_in_their_age_year_is_judged_against_all_ages():
+    kids = _pool("b", "ST", 2, ("male", "2010"), n=9) + [
+        N.Player("alone", "ST", ("male", "2014"), N.rates(_metrics(30, 2)))]
+    z = N.youth_z(kids)
+    assert z["alone"] and z["b0"]
