@@ -89,6 +89,7 @@ def test_the_weak_club_is_offered_strikers_from_other_clubs(client, auth, league
 
     body = _get(client, auth, f"/gaps/club/{clubs[0].id}", who="federation").json()
     assert body["club"]["season"] == SEASON and body["club"]["name"] == "Gap Club 0"
+    assert body["basic"] is False and body["minMinutes"] == 450
     chances = next(m for m in body["profile"] if m["key"] == "xg_for_per_game")
     assert chances["rank"] == 9 and chances["of"] == 9 and chances["weak"]
     need = next(n for n in chances["needs"] if n["group"] == "strikers")

@@ -53,3 +53,12 @@ The pro tier's records were designed around richer data than FootyStats publishe
   across sources is not built.
 - Whether the paid FootyStats plan adds deep player statistics is unverified; if it does, they
   go into the v2 record and everything built on it runs unchanged.
+
+## Update (2026-11-22): team gap analysis on basic seasons
+
+Point 1 listed team gap candidates among the views that compute nothing from the basic record.
+Team gap analysis now covers a league with basic player seasons only, on the statistics the
+record has: squad coverage and candidates on talent estimates of non-penalty goals and assists
+per 90, and candidates only for a weakness in making chances. Every other weakness says the
+basic data has no statistic for it (decision 0003, "Leagues with basic player data"). The
+scouting report, judged league seasons and "plays most like" still need the deep statistics.

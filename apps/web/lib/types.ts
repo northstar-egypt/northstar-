@@ -813,10 +813,15 @@ export interface ResultsImport {
 /** Team gap analysis (decision 0003); GET /gaps, /gaps/club/{id}, /gaps/national. */
 export interface GapOptions {
   clubs: { id: string; name: string; competition: string; seasons: string[] }[];
-  groups: { key: string; label: string; attributes: string[] }[];
-  attributes: { key: string; label: string; lowReliability: boolean; percent: boolean }[];
+  /** `basic`: a group for players with basic league seasons (FootyStats), ranked on talent estimates. */
+  groups: { key: string; label: string; attributes: string[]; basic: boolean }[];
+  /** `estimated`: ranked on its talent estimate, not the raw rate. */
+  attributes: { key: string; label: string; lowReliability: boolean; percent: boolean; estimated: boolean }[];
   minMinutes: number;
   minCohort: number;
+  /** The talent estimates' rules, used for basic groups. */
+  basicMinMinutes: number;
+  basicMinPeers: number;
 }
 
 export interface GapCandidate {
@@ -841,12 +846,16 @@ export interface GapNeed {
   group: string;
   label: string;
   attributes: string[];
+  /** Answered from basic league seasons, ranked on talent estimates. */
+  basic: boolean;
   candidates: GapCandidate[];
   unranked: GapCandidate[];
 }
 
 export interface ClubGaps {
   club: { id: string; name: string | null; competition: string; season: string };
+  /** The league has basic player seasons only, so the basic analysis was used. */
+  basic: boolean;
   profile: {
     key: string;
     label: string;

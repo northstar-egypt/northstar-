@@ -11,6 +11,10 @@
  * The rules are the analysis's: every percentile is shown, never a single fit score; a weakness
  * on a statistic that does not repeat from one half season to the next is shown and not acted
  * on; a player is ranked only with enough minutes, among enough players of their own league.
+ *
+ * A league with basic player data only (FootyStats: goals, assists, minutes, cards) is analysed
+ * on the source's position groups and on talent estimates of goals and assists per 90, the
+ * profile's numbers; the page says so wherever that happens.
  */
 
 import Link from "next/link";
@@ -97,7 +101,9 @@ export default function GapsPage() {
           A player is ranked only with {options.minMinutes} minutes or more in the season, among at least{" "}
           {options.minCohort} players of the same position group in the same league and season. That minimum comes
           from checking how well each statistic from one half of a season agrees with the other half. Statistics
-          marked * agree least, so weigh them less. A list is a starting point for a scout, not a recommendation.
+          marked * agree least, so weigh them less. In a league with basic player data only, players are ranked on
+          talent estimates instead, from {options.basicMinMinutes} minutes among at least {options.basicMinPeers} players.
+          A list is a starting point for a scout, not a recommendation.
         </p>
       ) : null}
     </div>
@@ -161,6 +167,16 @@ function ClubMode({ options, attributes }: { options: GapOptions; attributes: Re
         error ? null : <Skeleton className="h-64" />
       ) : (
         <>
+          {data.basic ? (
+            <Banner tone="info" title="Basic player data">
+              This league&apos;s player seasons are basic: appearances, minutes, goals, assists and cards, with no shots,
+              passes or defensive actions. So players are compared on non-penalty goals and assists per 90 only, as talent
+              estimates: their own record pulled towards their position group&apos;s, less as their minutes grow, the
+              same numbers as on their profile. A player is ranked from {data.minMinutes} minutes, among at least{" "}
+              {options.basicMinPeers} players of the same position group, league and season. Only a weakness in making
+              chances proposes players; nothing in this data answers the others.
+            </Banner>
+          ) : null}
           <Card>
             <SectionTitle>
               {data.club.name}, {data.club.competition} {data.club.season}: against the league
@@ -218,7 +234,7 @@ function ClubMode({ options, attributes }: { options: GapOptions; attributes: Re
                 ) : (
                   <div className="flex flex-col gap-4">
                     {m.needs.map((need) => (
-                      <NeedTable key={need.group} need={need} attributes={attributes} />
+                      <NeedTable key={need.group} need={need} attributes={attributes} minPeers={options.basicMinPeers} />
                     ))}
                   </div>
                 )}
@@ -285,7 +301,15 @@ function ClubMode({ options, attributes }: { options: GapOptions; attributes: Re
   );
 }
 
-function NeedTable({ need, attributes }: { need: GapNeed; attributes: Record<string, Attribute> }) {
+function NeedTable({
+  need,
+  attributes,
+  minPeers,
+}: {
+  need: GapNeed;
+  attributes: Record<string, Attribute>;
+  minPeers: number;
+}) {
   return (
     <div>
       <p className="mb-1 text-sm font-semibold text-slate-200">{need.label}</p>
@@ -297,8 +321,9 @@ function NeedTable({ need, attributes }: { need: GapNeed; attributes: Record<str
       {need.unranked.length > 0 ? (
         <div className="mt-3">
           <p className="mb-1 text-xs text-slate-400">
-            Not ranked: their league has too few players of this group on record to place them, so their numbers are
-            shown as they are. Do not compare them with the percentiles above.
+            {need.basic
+              ? `Not ranked: their league has too few players of this group on record (${minPeers} are needed) to estimate their rates. Their seasons are on their profile.`
+              : "Not ranked: their league has too few players of this group on record to place them, so their numbers are shown as they are. Do not compare them with the percentiles above."}
           </p>
           <CandidateTable candidates={need.unranked} need={need} attributes={attributes} ranked={false} />
         </div>
@@ -413,11 +438,26 @@ function NationalMode({ options, attributes }: { options: GapOptions; attributes
                 setPicked(next.attributes.slice(0, 2));
               }}
             >
-              {options.groups.map((g) => (
-                <option key={g.key} value={g.key}>
-                  {g.label}
-                </option>
-              ))}
+              <optgroup label="Full player data">
+                {options.groups
+                  .filter((g) => !g.basic)
+                  .map((g) => (
+                    <option key={g.key} value={g.key}>
+                      {g.label}
+                    </option>
+                  ))}
+              </optgroup>
+              {options.groups.some((g) => g.basic) ? (
+                <optgroup label="Basic player data (goals and assists)">
+                  {options.groups
+                    .filter((g) => g.basic)
+                    .map((g) => (
+                      <option key={g.key} value={g.key}>
+                        {g.label}
+                      </option>
+                    ))}
+                </optgroup>
+              ) : null}
             </select>
           </Field>
           <fieldset className="flex flex-col gap-1">
@@ -436,6 +476,15 @@ function NationalMode({ options, attributes }: { options: GapOptions; attributes
             </div>
           </fieldset>
         </div>
+        {spec.basic ? (
+          <p className="mt-3 text-xs text-slate-400">
+            This group is for players whose league publishes basic seasons only (goals, assists, minutes, cards), as
+            FootyStats, the Egyptian league&apos;s source, does. They are ranked on talent estimates, the numbers on their
+            profile, from{" "}
+            {options.basicMinMinutes} minutes among at least {options.basicMinPeers} players of their own league. Players
+            with full data are found through the groups above.
+          </p>
+        ) : null}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button
             disabled={picked.length === 0 || needs.length >= 6}
@@ -472,7 +521,7 @@ function NationalMode({ options, attributes }: { options: GapOptions; attributes
       {!busy && result
         ? result.map((need) => (
             <Card key={`${need.group}-${need.attributes.join()}`}>
-              <NeedTable need={need} attributes={attributes} />
+              <NeedTable need={need} attributes={attributes} minPeers={options.basicMinPeers} />
             </Card>
           ))
         : null}

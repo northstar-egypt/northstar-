@@ -39,6 +39,8 @@ class GapGroupOut(CamelModel):
     key: str
     label: str
     attributes: list[str]
+    # A group of the basic config: players with basic league seasons (FootyStats).
+    basic: bool = False
 
 
 class GapAttributeOut(CamelModel):
@@ -47,6 +49,8 @@ class GapAttributeOut(CamelModel):
     # Its season figure repeats poorly between half seasons (ml/README.md).
     low_reliability: bool
     percent: bool
+    # Ranked on its talent estimate, not the raw rate (app/services/gaps.py).
+    estimated: bool = False
 
 
 class GapOptionsOut(CamelModel):
@@ -55,6 +59,9 @@ class GapOptionsOut(CamelModel):
     attributes: list[GapAttributeOut]
     min_minutes: int
     min_cohort: int
+    # The basic config's rules: the talent estimates' (app/services/estimates.py).
+    basic_min_minutes: int
+    basic_min_peers: int
 
 
 class CandidateOut(CamelModel):
@@ -80,6 +87,8 @@ class NeedOut(CamelModel):
     group: str
     label: str
     attributes: list[str]
+    # Answered from basic league seasons, ranked on talent estimates.
+    basic: bool = False
     candidates: list[CandidateOut]
     # Players whose league has too few ranked players of the group to place them.
     unranked: list[CandidateOut] = []
@@ -127,6 +136,8 @@ class GapClubRefOut(CamelModel):
 
 class ClubGapsOut(CamelModel):
     club: GapClubRefOut
+    # The league has basic player seasons only, so the basic config was used.
+    basic: bool = False
     profile: list[ProfileMetricOut]
     coverage: list[CoverageOut]
     min_minutes: int
