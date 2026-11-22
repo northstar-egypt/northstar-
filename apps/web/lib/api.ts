@@ -53,6 +53,9 @@ import type {
   ClubGaps,
   GapOptions,
   NationalGaps,
+  Submission,
+  SubmissionInput,
+  SubmittedSeasons,
 } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -682,4 +685,50 @@ export async function undoMerge(mergedId: string, reason: string): Promise<void>
     method: "POST",
     body: JSON.stringify({ reason }),
   });
+}
+
+/* ------------------------------------------------------------- submissions */
+// Diaspora submissions (decision 0011; apps/api/app/routers/submissions.py).
+
+export async function createSubmission(input: SubmissionInput): Promise<Submission> {
+  return request<Submission>("/submissions", { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function updateSubmission(id: string, input: SubmissionInput): Promise<Submission> {
+  return request<Submission>(`/submissions/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) });
+}
+
+export async function getMySubmissions(): Promise<Submission[]> {
+  return (await request<{ submissions: Submission[] }>("/submissions/mine")).submissions;
+}
+
+export async function getSubmissionQueue(status?: string): Promise<Submission[]> {
+  const query = status ? `?${new URLSearchParams({ status })}` : "";
+  return (await request<{ submissions: Submission[] }>(`/submissions${query}`)).submissions;
+}
+
+export async function recordSubmissionConsent(id: string, guardianName: string | null): Promise<Submission> {
+  return request<Submission>(`/submissions/${encodeURIComponent(id)}/consent`, {
+    method: "POST",
+    body: JSON.stringify({ signed: true, guardianName }),
+  });
+}
+
+export async function decideSubmission(
+  id: string,
+  decision: { action: "approve" | "attach" | "reject" | "needs_info"; reason: string; playerId?: string },
+): Promise<Submission> {
+  return request<Submission>(`/submissions/${encodeURIComponent(id)}/decision`, {
+    method: "POST",
+    body: JSON.stringify(decision),
+  });
+}
+
+export async function getSubmittedSeasons(playerId: string): Promise<SubmittedSeasons | null> {
+  try {
+    return await request<SubmittedSeasons>(`/players/${encodeURIComponent(playerId)}/submitted-seasons`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
 }

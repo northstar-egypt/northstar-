@@ -1,7 +1,9 @@
 # 0011. Diaspora tier: players abroad are submitted, then verified by the federation
 
-Status: proposed 2026-11-22. Nothing is built yet. Questions 1, 2 and 4 at the end were
-answered on 2026-11-22 (the proposed option each time); question 3 is open for review.
+Status: first version built 2026-11-22 (see "What the build decided" at the end). Questions 1,
+2 and 4 were answered on 2026-11-22, the proposed option each time; the build settled question
+3. The checks are graded on planted submissions (section 5; ml/README.md, "Diaspora
+submission checks").
 Date: 2026-11-22
 
 ## Context
@@ -106,16 +108,58 @@ reported on others.
    needs rate limiting and a way to reach the submitter, neither of which exists. **Answered:
    left out. Logged-in scouts and players submit; federation staff can too.**
 3. **The source of a submitted season**: `self_submitted` for every submission, or a new
-   `submitted` value that says who submitted it (player or scout). Open. Since a submitted
-   season is kept out of the analytics (question 4), the source must say it was submitted
-   either way.
+   `submitted` value that says who submitted it (player or scout). **Settled by the build:
+   neither.** A submitted season never becomes a performance record at all. It stays on the
+   submission and the profile reads it from there, so no analytics query has to know to skip
+   it.
 4. **Whether a submitted season counts in the league analytics** (talent estimates, gap
    analysis) once approved, or stays on the profile only, marked as submitted, until a trusted
    source confirms it. Counting it lets one submitter shift a league's peer group.
    **Answered: profile only, marked as submitted, until a trusted source confirms it.**
 
+## What the build decided (2026-11-22)
+
+Code: `apps/api/app/services/submissions.py` (the rules), `app/routers/submissions.py`,
+`app/models/player_submission.py` (migration 0010), the `/submissions` screen, and a
+"Submitted seasons abroad" card on the profile (`GET /players/{id}/submitted-seasons`). Tests:
+`apps/api/tests/test_submissions.py`.
+
+- **Consent.** Whoever submits records the sign-up form the way a coach does at `POST /players`,
+  except a scout for a minor: that submission waits as `awaiting_consent` until the federation
+  records the named guardian's signature. A submission with no form waits the same way, and
+  nothing can be approved before the form is recorded.
+- **A different date of birth is its own rule.** The identity engine reads a conflicting date of
+  birth as strong evidence of two people (among 400 invented records, a pair agreeing on
+  everything else scored 0.91 with the same date and 0.0 with one 30 days apart), so a
+  re-registration with a younger date never reaches its link threshold. The check therefore
+  looks for the pattern directly: the same full name and given name with a date of birth more
+  than a week apart. A brother (a different given name) is not raised. Within a week it is
+  shown as a likely match instead, a typing slip.
+- **The engine's share of true pairs is floored.** Fitted on a register with no duplicates, the
+  engine's estimate of how many records are duplicates falls to nothing (1e-12), and then no
+  submission could ever match anyone. That estimate answers a different question ("how many of
+  these records repeat each other"), so the check uses the engine's own starting value (a tenth
+  of the records duplicated) when the estimate is lower.
+- **The model is fitted once and kept.** Fitting it on every player takes about 6 s for 3,000
+  records and 18 s for 6,000, so it is kept until the number of players moves by more than 2%,
+  or for an hour; a submission is then scored against every record in about 0.04 s, with the
+  engine's own blocking (checked on 30 random submissions: the same pairs every time). The first
+  submission after the API starts waits for the fit.
+- **Approval** creates the player through `writes.create_player` (tier `diaspora`,
+  Egypt-eligible), affiliated to the club abroad, found by name and country or added. **Attach**
+  links the submission to a player on record and changes nothing on the record.
+- **Graded** (section 5, `python -m ml.run_submission_eval`, ml/README.md, "Diaspora submission
+  checks"). Five reporting seeds, 1,300 planted submissions: "likely the same person" precision
+  0.887, recall 0.993; "same name, different date" precision 0.825, recall 0.920. A player on
+  record reaches the reviewer in 97% of plants, someone new raises anything in 1 of 500. The
+  false alarms are twins and namesakes born within three years, which the reviewer resolves.
+- **The date check looks up to three years apart.** Built on the engine's blocking alone (born
+  at most a year apart), it missed most frauds of more than a year on the calibration seeds; on
+  the reporting seeds it would have found 77 of 200 (recall 0.385) instead of 184.
+
 ## Consequences
 
 - The diaspora tier gets real entries without scraping, each one checked by a person.
-- It adds a table, a migration, two screens (submit, review) and a planted-case evaluation.
+- It adds a table, a migration, one screen with a submit form and a review queue, and a profile
+  card, and a graded evaluation of its checks on planted submissions.
 - The federation takes on a review workload. The queue shows how old each submission is.

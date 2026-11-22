@@ -1543,6 +1543,68 @@ A bug this surfaced, fixed here: app/names.py looped forever on a Latin word wit
 y read as a vowel ("Pryyma", a StatsBomb player). Any name search that met that name hung the
 API worker; the first run of the engine on the demo database ran out of memory on it.
 
+## Diaspora submission checks
+
+```bash
+python -m ml.run_submission_eval            # the reporting seeds, the numbers below
+python -m ml.run_submission_eval --tune     # the calibration seeds 101, 202 and 303
+```
+
+Decision 0011. When a player abroad is submitted, two checks built on the identity engine tell
+the federation reviewer whether the person is already on record
+(`ml/identity/submissions.py`, the code the API runs):
+
+- **likely the same person**: the engine's link threshold, or the same name born within a week;
+- **same name, different date of birth**: the same full name and given name, born more than a
+  week and at most three years apart. Possible age misrepresentation, or two people of one
+  name.
+
+**How it is graded.** `ml/submission_eval.py` takes a generated register of 1,060 players
+(the generator at 1,000, with its planted duplicates) and plants submissions with known
+answers:
+- **on record**: a player submitted again, half of them in Latin letters (the held-out
+  spellings), some with a typing slip or day and month swapped;
+- **age fraud**: a player with a date of birth 1 to 36 months later;
+- **sibling**: another given name, born the same day (twins) or 9 to 30 months apart;
+- **namesake**: another person of exactly the same name, born 1 to 10 years apart;
+- **new**: names recombined from the register's own words, nobody's name on record.
+
+Nothing is tuned: the link threshold and the week are the engine's. Five reporting seeds
+(20260827, 7, 99, 404, 555), 1,300 plants:
+
+| check | precision | recall | F1 |
+| --- | --- | --- | --- |
+| likely the same person (on-record plants) | 0.887 | 0.993 | 0.937 |
+| same name, different date (age-fraud plants) | 0.825 | 0.920 | 0.870 |
+
+- **A player on record is shown to the reviewer** by one check or the other in 483 of 500
+  plants (97%). Arabic as on record and Latin letters are found alike (99% and 99%), and so are
+  typing slips (50 of 50). Day and month swapped: 14 of 16.
+- **Someone new raises anything** in 1 of 500 plants.
+- **The false alarms are siblings and namesakes, and they are the reviewer's to resolve.**
+  Twins (same family name, same birthday) are named "likely the same person" in 38 of 41:
+  the engine weighs a different given name less than an exact date and family name together.
+  Other siblings: never. A namesake born within three years is named by the date check in 35
+  of 44, by design, since it cannot tell a namesake from a fraud; born further apart, never (0
+  of 106). The plant mix sets the precision: real registers have fewer twins than 30% of
+  siblings, and how many exact namesakes a register holds is not known.
+- **Age fraud by size**: 1 to 6 months 28 of 31, 7 to 12 months 26 of 28, 13 to 24 months 65 of
+  67, 25 to 36 months 65 of 74. In Latin letters 66 of 76, against 118 of 124 in Arabic.
+
+**What the three-year window bought.** The engine does not compare records born more than a
+year apart (its blocking). Built that way first, the date check missed 31 of the 48 frauds of
+13 to 24 months on the calibration seeds, so it now looks up to three years apart. Three is a
+judgment, wide enough for a player passed off as a year group or two younger, and was not
+fitted on any seed. On the reporting
+seeds, with the engine's blocking only, it found 77 of 200 frauds (recall 0.385, precision
+0.811, F1 0.522), none of 25 to 36 months, and named 13 of 150 namesakes; with the window, 184
+of 200 (F1 0.870) and 35 namesakes.
+
+**Limits.** The register and the names are generated; real registers have their own share of
+namesakes and twins, and the Latin spellings are a fixed table. A fraud with a changed name as
+well as a changed date is not caught by either check. Validation and the numbers check are
+deterministic and tested, not graded.
+
 ## Player similarity, professionals ("plays most like")
 
 ```bash

@@ -1002,3 +1002,94 @@ export interface StrongestGroup {
     ratedMatches: number;
   }[];
 }
+
+/** A diaspora submission's season: a football.season_basic.v1 record (decision 0011). */
+export interface SubmittedSeason {
+  competition: string;
+  season: string;
+  metrics: Record<string, number | string>;
+}
+
+export interface SubmissionMatch {
+  kind: "player" | "submission";
+  id: string;
+  fullName: string | null;
+  dateOfBirth: string | null;
+  /** The identity engine's probability; null for the submitter's own record. */
+  probability: number | null;
+  evidence: string[];
+  dobLevel: string | null;
+}
+
+export interface SubmissionCheck {
+  key: string;
+  label: string;
+  /** clear, attention, not_run or info. Only validation refuses, at the form. */
+  outcome: "clear" | "attention" | "not_run" | "info";
+  summary: string;
+  matches: SubmissionMatch[];
+}
+
+export type SubmissionStatus = "pending" | "awaiting_consent" | "needs_info" | "approved" | "rejected";
+
+/** GET /submissions/{id}. Seen by its submitter and federation staff only. */
+export interface Submission {
+  id: string;
+  status: SubmissionStatus;
+  submitterRole: string;
+  submittedByName: string | null;
+  mine: boolean;
+  fullName: string;
+  knownAs: string | null;
+  dateOfBirth: string;
+  isMinor: boolean;
+  sex: string | null;
+  nationality: string[];
+  eligibilityBasis: string;
+  position: string | null;
+  clubName: string;
+  clubCountry: string;
+  competition: string | null;
+  sourceUrl: string;
+  note: string;
+  seasons: SubmittedSeason[];
+  consent: { signed?: boolean; guardianName?: string | null; on?: string };
+  checks: SubmissionCheck[];
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt: string | null;
+  reviewReason: string | null;
+  playerId: string | null;
+}
+
+export interface SubmissionInput {
+  fullName: string;
+  knownAs?: string | null;
+  dateOfBirth: string;
+  sex?: string | null;
+  nationality: string[];
+  eligibilityBasis: string;
+  position?: string | null;
+  clubName: string;
+  clubCountry: string;
+  competition?: string | null;
+  sourceUrl: string;
+  note: string;
+  seasons: SubmittedSeason[];
+  consent?: { signed: boolean; guardianName?: string | null } | null;
+}
+
+/** GET /players/{id}/submitted-seasons: from approved submissions, never counted in analytics. */
+export interface SubmittedSeasons {
+  submissions: {
+    submissionId: string;
+    clubName: string;
+    clubCountry: string;
+    competition: string | null;
+    sourceUrl: string;
+    submitterRole: string;
+    approvedAt: string | null;
+    seasons: SubmittedSeason[];
+  }[];
+  note: string | null;
+}

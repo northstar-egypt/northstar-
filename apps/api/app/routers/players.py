@@ -29,6 +29,7 @@ from app.schemas.views import (
     SimilarPlayersOut,
     SquadRowOut,
 )
+from app.schemas.submissions import SubmittedSeasonsOut
 from app.schemas.writes import (
     ConsentWithdrawalIn,
     ConsentWithdrawnOut,
@@ -48,6 +49,7 @@ from app.services import (
     radar,
     scouting_report,
     similar,
+    submissions,
     summary,
     views,
     writes,
@@ -201,6 +203,18 @@ def player_radar(
     app/services/radar.py."""
     player = _viewable_player(db, caller, player_id)
     return RadarOut.model_validate(radar.player_radar(db, player))
+
+
+@router.get("/players/{player_id}/submitted-seasons", response_model=SubmittedSeasonsOut)
+def player_submitted_seasons(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> SubmittedSeasonsOut:
+    """Seasons from approved diaspora submissions: checked by the federation, not from a data
+    source, and never counted in league analytics. See app/services/submissions.py."""
+    player = _viewable_player(db, caller, player_id)
+    return SubmittedSeasonsOut.model_validate(submissions.submitted_seasons(db, player))
 
 
 @router.get("/players/{player_id}/pro-seasons", response_model=ProSeasonsOut)
