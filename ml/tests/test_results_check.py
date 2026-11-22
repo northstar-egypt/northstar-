@@ -70,6 +70,14 @@ def test_today_is_rounded_to_the_readme_precision():
     assert compare("c", _number(2), README_TEXT, "value 0.864").status == "same"  # bold cell
 
 
+def test_a_half_is_rounded_up_as_a_person_would():
+    """0.285 is stored as 0.28499999... in a float, so round() gives 0.28; the README says 0.29."""
+    number = Number("p", r"p = ([\d.]+)", r"^value ([\d.]+)")
+    assert compare("c", number, "p = 0.29", "value 0.285").status == "same"
+    assert compare("c", number, "p = 0.28", "value 0.285").status == "differs"
+    assert compare("c", number, "p = 0.28", "value 0.2849").status == "same"
+
+
 def test_a_rate_printed_as_a_fraction_is_scaled_to_the_readme_percent():
     number = Number("rate", md("rate", 1), r"^value ([\d.]+)", scale=100)
     outcome = compare("c", number, README_TEXT, "value 0.023")

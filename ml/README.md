@@ -32,7 +32,7 @@ We are graded on measured performance, so every model ships with a harness:
 ## Results check: every published number, re-run
 
 ```bash
-python -m ml.run_results_check                  # re-runs every evaluation below, about 11 minutes
+python -m ml.run_results_check                  # re-runs every evaluation below, about 20 minutes
 python -m ml.run_results_check --list           # what is checked, and what is not
 python -m ml.run_results_check --only detectors-20 --verbose   # one evaluation, every number
 ```
@@ -40,21 +40,20 @@ python -m ml.run_results_check --only detectors-20 --verbose   # one evaluation,
 Published numbers must not move silently. `ml/run_results_check.py` re-runs each evaluation this
 file publishes, with the command this file gives, reads the published number from this file and
 today's number from the evaluation's output, and prints every one that differs; the exit code is
-1 if any does. Today's value is rounded to the number of decimals written here before comparing.
-It covers **244 numbers from 19 evaluations**, the headline numbers of every section that runs
-on synthetic data. It only knows where each number is: the published values are read from this
-file, so a number edited here is checked as edited. Its tests (`ml/tests/test_results_check.py`)
-check in seconds that every one of those places still holds exactly one number, so moving or
-renaming a table without updating the check fails `pytest ml/tests`. Adding a number is one line
-in the file.
+1 if any does. Today's value is rounded half up to the number of decimals written here before
+comparing (0.285 matches 0.29). It covers **308 numbers from 22 evaluations**, the headline
+numbers of every section that runs on synthetic data. It only knows where each number is: the
+published values are read from this file, so a number edited here is checked as edited. Its
+tests (`ml/tests/test_results_check.py`) check in seconds that every one of those places still
+holds exactly one number, so moving or renaming a table without updating the check fails
+`pytest ml/tests`. Adding a number is one line in the file.
 
 Not checked, and why (`--list` prints the same): talent estimates (needs the FootyStats
 download), expected goals and "plays most like" (need StatsBomb's open data), identity on real
-data (needs a database export), the assistant (needs the local model), and the paired comparison
-over ten seeds in "Who to measure next", which no command in the repository prints. Tuning runs
-are not checked: they choose settings and publish no graded number. Rows describing earlier
-versions ("v1, growth only", "before growth timing") are history, which today's code no longer
-produces.
+data (needs a database export), and the assistant (needs the local model). Tuning runs are not
+checked: they choose settings and publish no graded number. Nor are numbers kept as history that
+no command reproduces today (the counts measured before growth timing or before result
+tampering, quoted beside the current ones).
 
 **First run, 2026-11-21, on main at `2667429`: 234 of 244 as published, 10 differ.**
 
@@ -71,19 +70,28 @@ produces.
 | XGBoost, MAE under 18, mean of five datasets | Height forecast: XGBoost wins | 0.86 | 0.87 |
 | similarity, football level, shots per 90 alone | Player similarity | 27% | 26% |
 
-What they are, as far as can be told without re-running old commits:
+All ten were corrected in #125, each cause verified by rerunning the commits on either side:
 
-- The first eight are one change: over the 20 reported datasets the v2 age rule now makes one
-  false accusation fewer (48, not 49) and the isolation forest four fewer (147, not 151), with
-  the same catches. Those tables were written on 2026-10-16; the generator gained the
-  result-tampering cases on 2026-10-19, which is the likeliest cause. Not verified.
-- XGBoost's 0.86 is the mean of the five per-seed values as printed (0.92, 0.85, 0.82, 0.87,
-  0.86, which average 0.864); the evaluation averages the unrounded values and prints 0.87. A
-  difference of rounding, not of the model.
-- The similarity baseline's 27% against 26%: cause not looked into.
+- The first eight are one change: result tampering (#55) took one wrongly accused player out of
+  the age population, so the v2 rule makes one false accusation fewer (48, not 49) and the
+  isolation forest four fewer (147, not 151), with the same catches.
+- XGBoost's 0.86 was the mean of the five per-seed values as printed (0.864); the evaluation
+  averages the unrounded values and prints 0.87. Rounding, not the model.
+- The similarity baseline printed 26% at the commit that published 27%: a transcription slip.
 
-None is corrected here. Each belongs to a section someone else owns, and a correction should say
-why the number moved; this run says only that it did. Correct a number and the check passes.
+The first run also found two tables no committed command printed: the paired comparison in "Who
+to measure next" and the "By stated age" table of the age rule. `run_measurement_eval --paired`
+(#124) and `run_age_bands` (#126) now print them, and both are checked.
+
+**Second run, 2026-11-22, on main at `4bcaf68` (after #119 and #124 to #126): 307 of 308 as
+published, 1 differs.**
+
+| number | section | published | today |
+| --- | --- | --- | --- |
+| v1 false accusations, quoted beside v2 in the what-if ("still fewer than v1's 112") | Age misrepresentation, v2 | 112 | 110 |
+
+The 112 is v1's count from before result tampering; the tables beside it were corrected to 110
+in #125, and this sentence was not.
 
 ## Running the detector evaluation
 

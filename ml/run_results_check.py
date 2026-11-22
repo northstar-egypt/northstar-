@@ -6,8 +6,9 @@
     python -m ml.run_results_check --keep-output DIR   # also save each evaluation's output
     python -m ml.run_results_check --from-output DIR   # compare saved outputs, run nothing
 
-Run from the repository root; the whole run takes about 11 minutes with three evaluations at a
-time, most of it the two measurement evaluations. Save outputs outside the repository.
+Run from the repository root; the whole run takes about 20 minutes with three evaluations at a
+time, most of it the three measurement evaluations (the paired one alone takes about 15). Save
+outputs outside the repository.
 
 Published numbers must not move silently (CLAUDE.md, "The quality bar"). This runs each
 evaluation the README publishes, with the same command the README gives, reads the published
@@ -18,9 +19,9 @@ How a number is compared
 ------------------------
 Each `Number` has two patterns, each with one group around the number: one finds the published
 value in ml/README.md, the other finds the same value in the command's output. Today's value
-is rounded to the README's own number of decimals and must then be equal: a README that says
-0.94 matches an output of 0.9412 and not one of 0.9461. Percent signs and thousands commas are
-ignored. A pattern that matches nothing, or matches two different values, is reported as
+is rounded half up to the README's own number of decimals and must then be equal: a README
+that says 0.94 matches an output of 0.9412 and not one of 0.9461, and 0.29 matches 0.285.
+Percent signs and thousands commas are ignored. A pattern that matches nothing, or matches two different values, is reported as
 broken rather than passed, because a check that silently finds nothing would be worse than
 no check: it means the README or the evaluation's output changed shape and the check needs
 updating.
@@ -50,9 +51,10 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT =Path(__file__).resolve().parents[1]
 README = ROOT / "ml" / "README.md"
 
 FIVE = ("20260827", "7", "99", "404", "555")
@@ -155,11 +157,18 @@ def compare(check_name: str, number: Number, readme_text: str, output: str) -> O
     if today is None:
         return Outcome(check_name, number.label, "broken", published, note=f"in the output: {why}")
     expected, decimals = parse(published)
-    found, _ = parse(today)
-    found *= number.scale
-    shown = today if number.scale == 1.0 else f"{found:.{decimals}f} ({today})"
-    status = "same" if round(found, decimals) == round(expected, decimals) else "differs"
+    parse(today)  # refuse what is not a number
+    found = _decimal(today) * Decimal(str(number.scale))
+    # Rounded half up, as a person rounds the printed value: an output of 0.285 is published as
+    # 0.29. Floats would round it to 0.28, because 0.285 is stored as 0.28499999...
+    rounded = found.quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP)
+    shown = today if number.scale == 1.0 else f"{rounded} ({today})"
+    status = "same" if rounded == _decimal(published) else "differs"
     return Outcome(check_name, number.label, status, published, shown)
+
+
+def _decimal(text: str) -> Decimal:
+    return Decimal(text.strip().replace("−", "-").rstrip("%").replace(",", ""))
 
 
 # ---------------------------------------------------------------------------
@@ -262,27 +271,54 @@ def out(label: str, index: int) -> str:
     return rf"^{label}[ \t]+(?:\S+[ \t]+){{{index}}}{NUM}(?!\S)"
 
 
+def fraction(label: str, index: int) -> str:
+    """Like `out`, for a field written "caught/planted": the number before the slash."""
+    return rf"^{label}[ \t]+(?:\S+[ \t]+){{{index}}}(\d+)/\d+(?!\S)"
+
+
+def quarter_rate(header: str, quarter: int) -> str:
+    """The false-positive rate in a birth-quarter block of the relative age audit's output."""
+    return (
+        rf"^{header}[^\n]*\n(?:  Q[^\n]*\n){{{quarter - 1}}}  Q{quarter}[^\n]*\s{NUM}"
+        rf"\s+[\d.]+ to [\d.]+[ \t]*$"
+    )
+
+
+def quarter_test(header: str, what: str) -> str:
+    """The chi-square (`what="chi-square"`) or its p value (`what="p"`) under a birth-quarter block."""
+    lead = r"chi-square " if what == "chi-square" else r"chi-square [\d.]+, 3 df, p = "
+    return rf"^{header}[^\n]*\n(?:  Q[^\n]*\n){{4}}  false positive rate: {lead}{NUM}"
+
+
 def _quarters(name: str, readme_label: str, output_header: str, after: str) -> list[Number]:
     """False-positive rate by birth quarter (README in %, output as a fraction), and the chi-square."""
     numbers = [
-        Number(
-            f"{name}, false positive rate, Q{q}",
-            md(readme_label, q),
-            rf"^{output_header}[^\n]*\n(?:  Q[^\n]*\n){{{q - 1}}}  Q{q}[^\n]*\s{NUM}\s+[\d.]+ to [\d.]+[ \t]*$",
-            after=after,
-            scale=100,
-        )
+        Number(f"{name}, false positive rate, Q{q}", md(readme_label, q), quarter_rate(output_header, q),
+               after=after, scale=100)
         for q in (1, 2, 3, 4)
     ]
     numbers.append(
-        Number(
-            f"{name}, chi-square",
-            md(readme_label, 5),
-            rf"^{output_header}[^\n]*\n(?:  Q[^\n]*\n){{4}}  false positive rate: chi-square {NUM}",
-            after=after,
-        )
+        Number(f"{name}, chi-square", md(readme_label, 5), quarter_test(output_header, "chi-square"), after=after)
     )
     return numbers
+
+
+_POOLED_AGE_BANDS = "Relative age, counts pooled over 20 datasets"
+_BANDS = ("11 to 13", "13 to 15", "15 to 17", "17+")
+
+
+def _by_stated_age() -> tuple[Number, ...]:
+    """The "By stated age" table: catches (before the slash) and false accusations, v1 and v2."""
+    return tuple(
+        Number(f"by stated age, {rule} {what}, {band}", md(readme, column), pattern(rf"  {rule} {what}", column - 1))
+        for rule, what, readme, pattern in (
+            ("v1", "caught", "v1 caught", fraction),
+            ("v2", "caught", r"\*\*v2 caught\*\*", fraction),
+            ("v1", "false accusations", "v1 false accusations", out),
+            ("v2", "false accusations", "v2 false accusations", out),
+        )
+        for column, band in enumerate(_BANDS, start=1)
+    )
 
 
 _POOLED_20 = "Relative age audit, counts pooled over 20 datasets"
@@ -324,6 +360,25 @@ def _measurement(seeds: str, readme_after: str) -> tuple[Number, ...]:
         for what, col, skip in (
             ("late bloomers flagged", 1, 0), ("too few readings", 2, 2), ("other small players flagged", 3, 3),
         )
+    )
+
+
+def _paired(budget: str) -> tuple[Number, ...]:
+    """One budget's row of the paired comparison: against nudge (mean, interval, seeds won),
+    the means against rota and random, and the extra false alarms."""
+    row = re.escape(budget)
+    cell = r"\S+ \([^)]*\), \d+ won, \d+ tied\s+"  # one comparison in the output row
+    return (
+        Number(f"paired, budget {budget}, against nudge", md(row, 1), rf"^\s+{row}\s+{NUM} \("),
+        Number(f"paired, budget {budget}, against nudge, interval low",
+               rf"^\| {row} \| [^(|]*\(([+-][\d.]+) to", rf"^\s+{row}\s+\S+ \({NUM} to"),
+        Number(f"paired, budget {budget}, against nudge, interval high",
+               rf"^\| {row} \| [^(|]*\([+-][\d.]+ to ([+-][\d.]+)\)", rf"^\s+{row}\s+\S+ \(\S+ to {NUM}\)"),
+        Number(f"paired, budget {budget}, against nudge, seeds won",
+               rf"^\| {row} \|[^|]*\), (\d+) won", rf"^\s+{row}\s+\S+ \([^)]*\), {NUM} won"),
+        Number(f"paired, budget {budget}, against rota", md(row, 2), rf"^\s+{row}\s+(?:{cell}){{1}}{NUM} \("),
+        Number(f"paired, budget {budget}, against random", md(row, 3), rf"^\s+{row}\s+(?:{cell}){{2}}{NUM} \("),
+        Number(f"paired, budget {budget}, extra false alarms", md(row, 4), rf"^\s+{row}\s+(?:{cell}){{3}}{NUM}"),
     )
 
 
@@ -381,6 +436,71 @@ CHECKS: tuple[Check, ...] = (
                 "control: birth-year cohort",
                 _POOLED_20,
             )[4:],
+            # "false positive rate 3.2% to 4.7% across quarters, p = 0.29": lowest in Q2, highest in Q1.
+            Number("isolation forest, lowest quarter false positive rate (Q2)",
+                   r"positive rate ([\d.]+)% to [\d.]+% across quarters, p = [\d.]+;",
+                   quarter_rate("fraud, age: isolation forest", 2), after=_POOLED_20, scale=100),
+            Number("isolation forest, highest quarter false positive rate (Q1)",
+                   r"positive rate [\d.]+% to ([\d.]+)% across quarters, p = [\d.]+;",
+                   quarter_rate("fraud, age: isolation forest", 1), after=_POOLED_20, scale=100),
+            Number("isolation forest, birth-quarter p",
+                   r"% across quarters, p = ([\d.]+);",
+                   quarter_test("fraud, age: isolation forest", "p"), after=_POOLED_20),
+        ),
+    ),
+    Check(
+        "age-bands",
+        "Age misrepresentation, v2: v1 against v2, by stated age; relative age audit",
+        ("ml.run_age_bands",),
+        (
+            *(
+                Number(f"age rule v1, {what}", md("v1, growth only", col), out("  v1, growth only", idx))
+                for what, col, idx in (
+                    ("caught", 1, 0), ("false accusations", 2, 1), ("precision", 3, 2), ("recall", 4, 3), ("F1", 5, 4),
+                )
+            ),
+            *_by_stated_age(),
+            *_quarters(
+                "relative age, age rule v1",
+                r"fraud: age misrepresentation \(v1, growth only\)",
+                "age rule v1",
+                _POOLED_AGE_BANDS,
+            ),
+        ),
+    ),
+    Check(
+        "age-bands-whatif",
+        "Age misrepresentation, v2: the what-if, by stated age and birth quarter",
+        ("ml.run_age_bands", "--performance-follows-maturity"),
+        (
+            # "v2 then catches 95 with 82 false accusations: still fewer than v1's 112"
+            Number("what-if, v1 false accusations quoted beside v2",
+                   r"still fewer than v1's (\d+)", out("  v1, growth only", 1)),
+            # "(19 against 15, and 25 against 22), and lower above 15 (35 against 69, 6 against 8)"
+            *(
+                Number(f"what-if, by stated age, {rule} false accusations, {band}", readme,
+                       out(rf"  {rule} false accusations", idx))
+                for rule, band, readme, idx in (
+                    ("v2", "11 to 13", r"higher than v1's\*\* \((\d+) against", 0),
+                    ("v1", "11 to 13", r"higher than v1's\*\* \(\d+ against (\d+),", 0),
+                    ("v2", "13 to 15", r"higher than v1's\*\* \(\d+ against \d+, and (\d+) against", 1),
+                    ("v1", "13 to 15", r"higher than v1's\*\* \(\d+ against \d+, and \d+ against (\d+)\)", 1),
+                    ("v2", "15 to 17", r"lower above 15\s+\((\d+) against", 2),
+                    ("v1", "15 to 17", r"lower above 15\s+\(\d+ against (\d+),", 2),
+                    ("v2", "17+", r"lower above 15\s+\(\d+ against \d+, (\d+) against", 3),
+                    ("v1", "17+", r"lower above 15\s+\(\d+ against \d+, \d+ against (\d+)\)", 3),
+                )
+            ),
+            # "In the what-if ... it is 2.2%, 1.6%, 2.3%, 2.4%, p = 0.53" (the age rule v2)
+            *(
+                Number(f"what-if, relative age, age rule v2, false positive rate, Q{q}",
+                       r"it is " + r"[\d.]+%, " * (q - 1) + r"([\d.]+)%,",
+                       quarter_rate("age rule v2", q), after=_POOLED_AGE_BANDS, scale=100)
+                for q in (1, 2, 3, 4)
+            ),
+            Number("what-if, relative age, age rule v2, p",
+                   r"it is [\d.]+%, [\d.]+%, [\d.]+%, [\d.]+%,\s+p = ([\d.]+)\.",
+                   quarter_test("age rule v2", "p"), after=_POOLED_AGE_BANDS),
         ),
     ),
     Check(
@@ -635,23 +755,27 @@ CHECKS: tuple[Check, ...] = (
                     ("as generated", "| *as generated* |", "as generated:"),
                     ("hard", "| *hard* |", "hard:"),
                 )
+                # "engine, now" is the engine as it runs: the output's `measured-tf` row (#119).
+                # The output's plain `measured` row is a method the README does not publish.
                 for label, readme, output in (
                     ("duplicate v1", "duplicate v1", "  duplicate v1"),
                     ("engine, no labels", "engine, no labels", "  engine, em"),
-                    ("engine, m measured", r"\*\*engine, m measured\*\*", "  engine, measured"),
+                    ("engine, now", r"\*\*engine, now\*\*", "  engine, measured-tf"),
                 )
                 for what, col, idx in (
                     ("pairs found", 1, 0), ("wrong", 2, 1), ("missed", 3, 2), ("F1", 6, 5), ("B-cubed F1", 7, 7),
                 )
             ),
             *(
+                # The output prints v1, em, measured and measured-tf; the README's columns are
+                # v1, no labels (em) and now (measured-tf), so "now" is the fourth percentage.
                 Number(f"hard, recall when {label}, {method}", md(label, col),
-                       rf"^    {key}\s+\(\s*\d+ pairs\)\s+(?:[\d.]+%\s+){{{col - 2}}}{NUM}")
+                       rf"^    {key}\s+\(\s*\d+ pairs\)\s+(?:[\d.]+%\s+){{{skip}}}{NUM}")
                 for label, key in (
                     ("nothing", "none"), ("spelled in Latin", "latin"),
                     ("no date of birth", "no_dob"), ("at another club", "other_club"),
                 )
-                for method, col in (("v1", 2), ("no labels", 3), ("m measured", 4))
+                for method, col, skip in (("v1", 2, 0), ("no labels", 3, 1), ("now", 4, 3))
             ),
         ),
     ),
@@ -666,6 +790,12 @@ CHECKS: tuple[Check, ...] = (
         "Who to measure next: fresh seeds",
         ("ml.run_measurement_eval", "--fresh"),
         _measurement("fresh seeds", "| *fresh seeds (3001 to 3005)"),
+    ),
+    Check(
+        "measurement-paired",
+        "Who to measure next: the paired comparison over ten seeds",
+        ("ml.run_measurement_eval", "--paired"),
+        (*_paired("0.5"), *_paired("1.0"), *_paired("1.5")),
     ),
     Check(
         "backtest",
@@ -741,10 +871,6 @@ NOT_CHECKED: dict[str, str] = {
     "plays most like": "needs StatsBomb's open data (python -m ml.run_style_eval --data-dir ...)",
     "identity, real data": "needs a database export (python -m ml.run_identity_eval --real-export DIR)",
     "assistant": "needs the local Ollama model (apps/api/eval)",
-    "measurement, paired": (
-        "the paired comparison over ten seeds in 'Who to measure next' is printed by no command "
-        "in the repository (run_measurement_eval prints the pooled tables only)"
-    ),
 }
 
 
