@@ -15,7 +15,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Banner, Button, Card, Chip, Field, SectionTitle, Skeleton, Table, Td, Th, inputClass } from "@/components/ui";
+import { Banner, Button, Card, Chip, Field, SectionTitle, Skeleton, Table, Tabs, Td, Th, inputClass } from "@/components/ui";
 import { getClubGaps, getGapOptions, getNationalGaps } from "@/lib/api";
 import { cx, ordinal } from "@/lib/format";
 import type { ClubGaps, GapCandidate, GapNeed, GapOptions } from "@/lib/types";
@@ -72,14 +72,9 @@ export default function GapsPage() {
           Where a team is weak, and which players are strong exactly there.
         </p>
       </div>
-      <div className="flex gap-2" role="tablist">
-        <Button variant={mode === "club" ? "primary" : "default"} onClick={() => setMode("club")} role="tab" aria-selected={mode === "club"}>
-          A club
-        </Button>
-        <Button variant={mode === "national" ? "primary" : "default"} onClick={() => setMode("national")} role="tab" aria-selected={mode === "national"}>
-          The national team
-        </Button>
-      </div>
+      <Tabs label="Team analysis" value={mode} onChange={value => setMode(value as "club" | "national")}
+        items={[{ value: "club", label: "A club", panelId: "club-analysis" }, { value: "national", label: "The national team", panelId: "national-analysis" }]} />
+      <div id={mode === "club" ? "club-analysis" : "national-analysis"} role="tabpanel" aria-labelledby={`${mode === "club" ? "club-analysis" : "national-analysis"}-tab`} tabIndex={0}>
       {error ? <Banner tone="warn" title="Could not load">{error}</Banner> : null}
       {!options ? (
         error ? null : <Skeleton className="h-40" />
@@ -92,6 +87,8 @@ export default function GapsPage() {
       ) : (
         <NationalMode options={options} attributes={attributes} />
       )}
+      </div>
+      <div hidden id={mode === "club" ? "national-analysis" : "club-analysis"} role="tabpanel" aria-labelledby={`${mode === "club" ? "national-analysis" : "club-analysis"}-tab`} />
       {options ? (
         <p className="text-xs text-slate-500">
           A player is ranked only with {options.minMinutes} minutes or more in the season, among at least{" "}

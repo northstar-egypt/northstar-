@@ -97,6 +97,11 @@ footer shows red.
 
 ## Checks
 
+The design proposal, audit, review gates and visual-check instructions are in
+[design/README.md](design/README.md). Shared tokens live in `app/tokens.css`.
+The layout-direction control supports RTL presentation; it does not translate domain copy.
+The professional report has a browser Print / Save PDF action.
+
 ```bash
 npx tsc --noEmit
 npm run build

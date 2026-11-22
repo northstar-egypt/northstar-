@@ -24,6 +24,7 @@ import { useState } from "react";
 import { homeFor, useAuth } from "@/lib/auth";
 import { Button, Card, Label, inputClass } from "@/components/ui";
 import type { UserRole } from "@/lib/types";
+import { LayoutDirection } from "@/components/layout-direction";
 
 const DEMO: { role: UserRole; label: string; blurb: string }[] = [
   { role: "coach", label: "Coach", blurb: "Logs and edits their own squad" },
@@ -61,11 +62,18 @@ export default function LoginPage() {
   const demoPassword = Object.values(demoAccounts)[0]?.demoPassword;
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-sm">
+    <main className="mx-auto grid min-h-screen max-w-6xl items-center gap-12 px-5 py-10 lg:grid-cols-2 lg:gap-24">
+      <section className="hidden border-s border-sky-400/50 ps-8 lg:block">
+        <p className="text-xs font-semibold uppercase tracking-[.2em] text-sky-300">NorthStar / Egyptian sports talent</p>
+        <h2 className="mt-6 text-5xl font-bold leading-tight tracking-tight">Every player deserves to be seen.</h2>
+        <p className="mt-6 max-w-md text-lg leading-relaxed text-slate-400">One record, built over years. Find potential, understand progress, and make decisions with the evidence in view.</p>
+        <div className="mt-10 flex gap-6 border-t border-slate-700 pt-6 text-sm text-slate-400"><span>Coaches</span><span>Scouts</span><span>Federations</span></div>
+      </section>
+      <div className="mx-auto w-full max-w-md">
+        <div className="mb-6 flex justify-end"><LayoutDirection /></div>
         <div className="mb-7 flex flex-col items-center gap-1.5 text-center">
           <span className="inline-block h-4 w-4 rotate-45 bg-sky-400" aria-hidden />
-          <h1 className="text-2xl font-bold tracking-tight">NorthStar</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Welcome to NorthStar</h1>
           <p className="text-xs uppercase tracking-[0.14em] text-slate-500">
             Egyptian sports talent
           </p>

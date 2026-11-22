@@ -22,6 +22,7 @@ import {
   Button,
   Card,
   Chip,
+  ErrorState,
   SectionTitle,
   Skeleton,
   Stat,
@@ -51,15 +52,20 @@ export default function OversightPage() {
   const [flags, setFlags] = useState<IntegrityFlag[] | null>(null);
   const [talent, setTalent] = useState<ScoutHome | null>(null);
   const [strongest, setStrongest] = useState<StrongestGroup[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadVersion, setLoadVersion] = useState(0);
 
   useEffect(() => {
     let alive = true;
     setData(null);
-    getOversight(sport).then((d) => alive && setData(d));
+    setLoadError(null);
+    getOversight(sport).then((d) => alive && setData(d)).catch(error => {
+      if (alive) setLoadError(error instanceof Error ? error.message : "The national picture is unavailable.");
+    });
     return () => {
       alive = false;
     };
-  }, [sport]);
+  }, [sport, loadVersion]);
 
   useEffect(() => {
     let alive = true;
@@ -69,7 +75,9 @@ export default function OversightPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [loadVersion]);
+
+  if (loadError) return <ErrorState title="Could not load federation oversight" onRetry={() => setLoadVersion(v => v + 1)}>{loadError}</ErrorState>;
 
   if (!data) {
     return (

@@ -14,6 +14,8 @@ import { useEffect } from "react";
 import { homeFor, useAuth } from "@/lib/auth";
 import { cx } from "@/lib/format";
 import { ROLE_IDENTITY } from "@/lib/roles";
+import { LayoutDirection } from "@/components/layout-direction";
+import { Skeleton } from "@/components/ui";
 
 const ROLES = [
   {
@@ -47,7 +49,7 @@ export default function Home() {
   }, [ready, user, router]);
 
   if (!ready || user) {
-    return <main className="min-h-screen" />;
+    return <main className="flex min-h-screen items-center justify-center p-6"><Skeleton className="h-24 w-full max-w-md" /></main>;
   }
 
   return (
@@ -58,9 +60,9 @@ export default function Home() {
             <span className="inline-block h-3 w-3 rotate-45 bg-sky-400" aria-hidden />
             NorthStar
           </span>
-          <Link href="/login" className="rounded-lg border border-slate-700 px-4 py-1.5 text-sm hover:bg-slate-900">
+          <div className="flex items-center gap-3"><LayoutDirection /><Link href="/login" className="ns-button flex items-center rounded-lg border border-slate-700 px-4 py-1.5 text-sm hover:bg-slate-900">
             Sign in
-          </Link>
+          </Link></div>
         </header>
 
         <section className="max-w-3xl">
@@ -116,7 +118,7 @@ export default function Home() {
         </section>
 
         <footer className="border-t border-slate-800 pt-6 text-sm text-slate-500">
-          A graduation project. Every player in this prototype is synthetic: no real person&apos;s data is used.
+          A graduation project. Youth records are synthetic; professional data uses FootyStats and StatsBomb test sources.
         </footer>
       </div>
     </main>

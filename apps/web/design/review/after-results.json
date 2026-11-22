@@ -1,0 +1,366 @@
+[
+  {
+    "name": "home",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "login",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "coach",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "add-player",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "profile",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "log-measurement",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "scout",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "search",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "compare",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "gaps",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "oversight",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "integrity",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "report",
+    "width": 360,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "home",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "login",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "coach",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "add-player",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "profile",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "log-measurement",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "scout",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "search",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "compare",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "gaps",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "oversight",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "integrity",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "report",
+    "width": 360,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "home",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "login",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "coach",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "add-player",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "profile",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "log-measurement",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "scout",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "search",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "compare",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "gaps",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "oversight",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "integrity",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "report",
+    "width": 1280,
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "home",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "login",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "coach",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "add-player",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "profile",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "log-measurement",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "scout",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "search",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "compare",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "gaps",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "oversight",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "integrity",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "report",
+    "width": 1280,
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  }
+]

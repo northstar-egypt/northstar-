@@ -15,6 +15,7 @@ import { useEffect } from "react";
 import { ApiStatus } from "@/components/api-status";
 import { Nav } from "@/components/nav";
 import { canAccess, homeFor, useAuth } from "@/lib/auth";
+import { Skeleton } from "@/components/ui";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, ready } = useAuth();
@@ -35,7 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!ready || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
-        Loading
+        <Skeleton className="h-24 w-64" />
       </div>
     );
   }
@@ -49,10 +50,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="app-shell flex min-h-screen flex-col lg:ps-60">
+      <a href="#main-content" className="skip-link">Skip to content</a>
       <Nav />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
-      <footer className="border-t border-slate-900 px-4 py-3">
+      <div className="workspace-heading border-b border-slate-800 px-4 py-3 sm:px-8">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+          <span>NorthStar <span aria-hidden="true" className="mx-2 text-slate-600">/</span> Talent intelligence</span>
+          <span className="text-amber-200">Prototype · Youth records are synthetic · Pro sources: FootyStats / StatsBomb</span>
+        </div>
+      </div>
+      <main id="main-content" tabIndex={-1} className="workspace-main mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 py-7 sm:px-8 sm:py-10">{children}</main>
+      <footer className="app-footer border-t border-slate-800 px-4 py-4 sm:px-8">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
           <ApiStatus />
         </div>

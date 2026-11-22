@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Interface primitives.
  *
@@ -14,6 +16,7 @@
  */
 
 import { cx } from "@/lib/format";
+import { forwardRef } from "react";
 
 /* ------------------------------------------------------------------ layout */
 
@@ -29,7 +32,7 @@ export function Card({
   return (
     <Tag
       className={cx(
-        "rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-[0_1px_0_0_rgb(255_255_255/0.03)_inset]",
+        "ns-card",
         className,
       )}
     >
@@ -78,10 +81,10 @@ export function Button({
     <button
       {...props}
       className={cx(
-        "inline-flex items-center justify-center gap-1.5 rounded-md border font-medium transition",
+        "ns-button inline-flex items-center justify-center gap-2 border font-semibold transition",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-1.5 text-sm",
+        size === "sm" ? "px-3 py-2 text-xs" : "px-4 py-2.5 text-sm",
         variant === "primary" &&
           "border-sky-500 bg-sky-500 text-slate-950 hover:bg-sky-400 hover:border-sky-400",
         variant === "default" &&
@@ -121,7 +124,7 @@ export function Chip({
     "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs whitespace-nowrap",
     tones[tone],
     active && "border-sky-400 bg-sky-500/15 text-sky-200",
-    onClick && "hover:border-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400",
+    onClick && "min-h-11 px-3 hover:border-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400",
   );
 
   if (onClick) {
@@ -157,8 +160,47 @@ export function Field({
 }
 
 export const inputClass =
-  "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 " +
+  "w-full min-h-11 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 " +
   "placeholder:text-slate-600 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500";
+
+/** Native input, including its ref for validation and keyboard focus. */
+export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  function Input({ className, ...props }, ref) {
+    return <input {...props} ref={ref} className={cx(inputClass, className)} />;
+  },
+);
+
+/** Controlled tabs with roving focus, arrow keys, Home and End, including RTL. */
+export function Tabs({ label, value, onChange, items }: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  items: { value: string; label: string; panelId: string }[];
+}) {
+  return <div role="tablist" aria-label={label} className="flex flex-wrap gap-2 rounded-xl border border-slate-700 bg-slate-950 p-1.5">
+    {items.map((item, index) => <button
+      key={item.value} id={`${item.panelId}-tab`} type="button" role="tab"
+      aria-selected={item.value === value} aria-controls={item.panelId}
+      tabIndex={item.value === value ? 0 : -1}
+      className={cx("ns-button rounded-lg px-4 py-2 text-sm font-semibold", item.value === value ? "bg-sky-300 text-slate-950" : "text-slate-300 hover:bg-slate-800")}
+      onClick={() => onChange(item.value)}
+      onKeyDown={event => {
+        const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
+        const forward = rtl ? "ArrowLeft" : "ArrowRight";
+        const backward = rtl ? "ArrowRight" : "ArrowLeft";
+        let next = index;
+        if (event.key === forward) next = (index + 1) % items.length;
+        else if (event.key === backward) next = (index + items.length - 1) % items.length;
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = items.length - 1;
+        else return;
+        event.preventDefault();
+        onChange(items[next].value);
+        document.getElementById(`${items[next].panelId}-tab`)?.focus();
+      }}
+    >{item.label}</button>)}
+  </div>;
+}
 
 /* ------------------------------------------------------------------ display */
 
@@ -205,7 +247,7 @@ export function Banner({
     bad: "border-rose-900/70 bg-rose-950/40 text-rose-200",
   } as const;
   return (
-    <div className={cx("rounded-xl border-l-4 px-4 py-3 text-sm", tones[tone])}>
+    <div role={tone === "bad" ? "alert" : "status"} className={cx("rounded-xl border-s-4 px-4 py-3 text-sm", tones[tone])}>
       {title ? <div className="mb-0.5 font-semibold">{title}</div> : null}
       <div className="text-slate-300">{children}</div>
     </div>
@@ -214,7 +256,7 @@ export function Banner({
 
 export function Table({ children }: { children: React.ReactNode }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="ns-table overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable data table">
       <table className="w-full min-w-[36rem] border-collapse text-sm">{children}</table>
     </div>
   );
@@ -230,7 +272,7 @@ export function Th({
   return (
     <th
       className={cx(
-        "border-b border-slate-700/80 px-2 py-2 text-left text-xs font-medium text-slate-400",
+        "border-b border-slate-700/80 px-2 py-2 text-start text-xs font-semibold text-slate-400",
         className,
       )}
     >
@@ -284,15 +326,20 @@ export function initials(name: string | null | undefined): string {
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cx("animate-pulse rounded bg-slate-800/70", className)} />;
+  return <div role="status" aria-label="Loading" className={cx("animate-pulse rounded-xl bg-slate-800/70", className)}><span className="sr-only">Loading</span></div>;
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-800 px-4 py-10 text-center text-sm text-slate-500">
+    <div role="status" className="ns-state text-center text-sm">
       {children}
     </div>
   );
+}
+
+/** A failed read has a clear explanation and an explicit retry, rather than a permanent skeleton. */
+export function ErrorState({ title, children, onRetry }: { title: string; children: React.ReactNode; onRetry: () => void }) {
+  return <Card className="mx-auto w-full max-w-xl space-y-5"><h1 className="text-xl font-bold">{title}</h1><Banner tone="bad">{children}</Banner><Button variant="primary" onClick={onRetry}>Try again</Button></Card>;
 }
 
 /**
