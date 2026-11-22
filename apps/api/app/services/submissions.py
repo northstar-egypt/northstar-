@@ -20,6 +20,8 @@ Checks on arrival (`run_checks`)
 --------------------------------
 Rerun on every change and before every decision. Only validation refuses anything; the rest is
 for the reviewer, with its evidence.
+Checks 2 and 3 are `ml/identity/submissions.py`, graded on planted submissions by
+`ml/submission_eval.py` (ml/README.md, "Diaspora submission checks").
 
 1. **Validation** (`check_claims`): the same rules as a new player, plus the eligibility basis,
    country codes, a web address for the source, and each season against the sport module
@@ -30,8 +32,9 @@ for the reviewer, with its evidence.
    submits themselves is matched to their own record.
 3. **Date of birth**: the engine reads a different date of birth as strong evidence of two
    people, so a re-registration with a younger date never reaches its threshold. This check
-   looks for that directly: a record with the same full name and given name and a different
-   date of birth is possible age misrepresentation, the fraud that matters most in youth
+   looks for that directly: a record with the same full name and given name and a date of
+   birth more than a week and at most three years apart (beyond the engine's own one-year
+   blocking) is possible age misrepresentation, the fraud that matters most in youth
    football, or two people of the same name. Born within a week, it is shown as a likely match
    instead (a typing slip).
 4. **Numbers**: a season whose goals or assists per 90 are above every player of its position
@@ -55,8 +58,7 @@ from __future__ import annotations
 import re
 import time
 import uuid
-from collections import Counter, defaultdict
-from dataclasses import replace
+from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlparse
 
@@ -79,6 +81,7 @@ from app.services import writes
 from app.services.access import Caller
 
 from ml.identity import engine  # noqa: E402
+from ml.identity import submissions as matching  # noqa: E402
 
 SPORT = "football"
 TIER = "diaspora"
@@ -209,41 +212,14 @@ def _player_records(db: Session) -> dict[str, engine.Record]:
     return out
 
 
-def _fitted(players: list[engine.Record]):
-    """The identity model fitted on the players on record (`engine.score`), with the name-word
-    shares its term-frequency adjustment reads. Kept between submissions (MODEL_DRIFT)."""
+def _fitted(players: list[engine.Record]) -> matching.Fitted:
+    """The identity model fitted on the players on record (`matching.fit`), kept between
+    submissions while the player count holds (MODEL_DRIFT) and for an hour."""
     now, n = time.monotonic(), len(players)
     if _FIT and abs(n - _FIT["n"]) <= MODEL_DRIFT * _FIT["n"] and now - _FIT["at"] < MODEL_AGE_SECONDS:
-        return _FIT["model"], _FIT["shares"], _FIT["u_avg"]
-    _, model = engine.score(players)
-    # The share of true pairs: the register's own estimate answers "how many of these records are
-    # duplicates of each other", which is not the question here, and on a register with no
-    # duplicates it falls to nothing, so that no submission could ever match. Below the engine's
-    # own starting value (a tenth of the records duplicated), the starting value is used.
-    everything = max(1, n * (n - 1) // 2)
-    model = replace(model, prior=max(model.prior, min(0.5, 0.1 * n / everything)))
-    shares = engine.term_shares(players)
-    _FIT.update(n=n, at=now, model=model, shares=shares, u_avg=sum(x * x for x in shares.values()))
-    return model, shares, _FIT["u_avg"]
-
-
-def _score_one(mine: engine.Record, records: dict[str, engine.Record]) -> list[engine.ScoredPair]:
-    """The submission against every record, with the engine's own blocking (`engine.candidates`:
-    enough shared name keys, none of them in more than MAX_POSTING records, and nothing ruling
-    the pair out) and its own scoring, but only the pairs that include the submission."""
-    model, shares, u_avg = _fitted([r for k, r in records.items() if not k.startswith("submission:")])
-    their_keys = {k: engine.keys(r) for k, r in records.items()}
-    posting = Counter(key for ks in their_keys.values() for key in ks)
-    mine_keys = {k for k in engine.keys(mine) if posting[k] + 1 <= engine.MAX_POSTING}
-    out = []
-    for k, r in records.items():
-        need = max(1, min(2, len(mine_keys), len(their_keys[k])))
-        if len(mine_keys & their_keys[k]) < need or not engine._compatible(mine, r):
-            continue
-        vector = engine.compare(mine, r)
-        offset = engine.tf_offset(mine, r, vector["name"], shares, u_avg)
-        out.append(engine.ScoredPair(mine.id, r.id, model.probability(vector, offset), vector))
-    return out
+        return _FIT["fitted"]
+    _FIT.update(n=n, at=now, fitted=matching.fit(players))
+    return _FIT["fitted"]
 
 
 def _identity(db: Session, s: PlayerSubmission, caller_player: uuid.UUID | None) -> tuple[dict, dict]:
@@ -253,18 +229,10 @@ def _identity(db: Session, s: PlayerSubmission, caller_player: uuid.UUID | None)
     for other in others:
         records[f"submission:{other.id}"] = _record(other)
     mine = _record(s)
-    scored = _score_one(mine, records)
-    found, twins = [], []
-    for pair in scored:
-        if mine.id not in (pair.a, pair.b):
-            continue
-        other = records[pair.b if pair.a == mine.id else pair.a]
-        same_name = pair.levels.get("name") == "all" and pair.levels.get("given") == "same"
-        if pair.probability >= engine.LINK or (same_name and pair.levels.get("dob") == "near"):
-            found.append((pair, other))
-        elif same_name and pair.levels.get("dob") == "conflict":
-            twins.append((pair, other))
-    found.sort(key=lambda x: -x[0].probability)
+    fitted = _fitted([r for k, r in records.items() if not k.startswith("submission:")])
+    likely, same_name = matching.classify(matching.score_one(mine, records, fitted))
+    found = [(pair, records[pair.b]) for pair in likely]
+    twins = [(pair, records[pair.b]) for pair in same_name]
     names = {str(o.id): o.full_name for o in others}
 
     def described(pair, other) -> dict:

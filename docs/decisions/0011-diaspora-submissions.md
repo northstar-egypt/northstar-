@@ -2,7 +2,8 @@
 
 Status: first version built 2026-11-22 (see "What the build decided" at the end). Questions 1,
 2 and 4 were answered on 2026-11-22, the proposed option each time; the build settled question
-3. Not done yet: grading the checks on planted submissions (section 5).
+3. The checks are graded on planted submissions (section 5; ml/README.md, "Diaspora
+submission checks").
 Date: 2026-11-22
 
 ## Context
@@ -147,13 +148,18 @@ Code: `apps/api/app/services/submissions.py` (the rules), `app/routers/submissio
 - **Approval** creates the player through `writes.create_player` (tier `diaspora`,
   Egypt-eligible), affiliated to the club abroad, found by name and country or added. **Attach**
   links the submission to a player on record and changes nothing on the record.
-- **Not done**: the planted-case evaluation (section 5), so the checks' precision and recall are
-  not known yet. On generated data the identity engine is graded (ml/README.md, "Player
-  identity"); this use of it is not.
+- **Graded** (section 5, `python -m ml.run_submission_eval`, ml/README.md, "Diaspora submission
+  checks"). Five reporting seeds, 1,300 planted submissions: "likely the same person" precision
+  0.887, recall 0.993; "same name, different date" precision 0.825, recall 0.920. A player on
+  record reaches the reviewer in 97% of plants, someone new raises anything in 1 of 500. The
+  false alarms are twins and namesakes born within three years, which the reviewer resolves.
+- **The date check looks up to three years apart.** Built on the engine's blocking alone (born
+  at most a year apart), it missed most frauds of more than a year on the calibration seeds; on
+  the reporting seeds it would have found 77 of 200 (recall 0.385) instead of 184.
 
 ## Consequences
 
 - The diaspora tier gets real entries without scraping, each one checked by a person.
 - It adds a table, a migration, one screen with a submit form and a review queue, and a profile
-  card. The planted-case evaluation is still to come.
+  card, and a graded evaluation of its checks on planted submissions.
 - The federation takes on a review workload. The queue shows how old each submission is.

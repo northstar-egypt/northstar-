@@ -212,6 +212,9 @@ def test_a_player_already_on_record_is_found_and_a_different_birth_date_is_raise
     dob = _check(younger, "date_of_birth")
     assert dob["outcome"] == "attention" and "age misrepresentation" in dob["summary"]
     assert dob["matches"][0]["id"] == str(on_record.id)
+    # Two years younger on paper: beyond the engine's own blocking, still raised.
+    older = _created(client, auth, dateOfBirth=(on_record.date_of_birth + timedelta(days=730)).isoformat())
+    assert _check(older, "date_of_birth")["matches"][0]["id"] == str(on_record.id)
     # A brother shares everything but the given name: not raised.
     brother = _created(client, auth, fullName="Omar Adel Mansour",
                        dateOfBirth=(on_record.date_of_birth + timedelta(days=150)).isoformat())
