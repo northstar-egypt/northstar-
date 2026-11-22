@@ -1220,7 +1220,8 @@ season and position group (players with analytics consent, 90+ minutes, at least
 them), and the range that percentile could plausibly be in. There is no minutes cut-off: a
 short season is shown with a wide range and a low weight on the player's own record. The peer
 rates are fitted on the whole group, the player included, as in the evaluation; the percentile
-is among the others.
+is among the others. Team gap analysis ranks the players of a league with basic data only on
+the same estimates and percentiles (`/gaps`; decision 0003, "Leagues with basic player data").
 
 ## Who to measure next (decision support)
 

@@ -11,11 +11,28 @@ names on the results.
   is left out, so the list never reveals a withheld player.
 - **National team mode**: the pool is every Egypt-eligible player with a league season, at
   home or abroad, each ranked only among their own league's players.
+
+Leagues with basic player data
+------------------------------
+FootyStats, the source of the Egyptian league, publishes a player's season as appearances,
+minutes, goals, assists and cards only (`football.season_basic.v1`, decision 0009). For a
+league with no full player seasons, the club view runs the same engine on the basic config
+(`teamGaps.basic` in the sport module): the source's position groups, non-penalty goals and
+assists per 90, and candidates only for the weakness those answer (chances made). Every other
+weakness says no basic statistic answers it.
+
+A goal or assist rate over one season is mostly chance, so basic players are ranked on their
+talent estimate (`ml/estimates`, graded in ml/README.md, "Talent estimates"), computed exactly
+as the profile's "Against league peers" (`app/services/estimates.py`): the same peers
+(analytics consent, the same league, season and position group, 90+ minutes), the same prior,
+at least 20 peers. A player's percentile here is the profile's. A player is ranked from 90
+minutes, the estimates' peer rule, instead of the 450 that guards raw rates.
 """
 
 from __future__ import annotations
 
 import uuid
+from collections import defaultdict
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,13 +40,16 @@ from sqlalchemy.orm import Session
 from app import sports
 from app.models.enums import ConsentPurpose
 from app.models.organization import Organization
+from app.models.performance_entry import PerformanceEntry
 from app.models.player import Player
 from app.models.team_season_stat import TeamSeasonStat
+from app.services import estimates, pro
 from app.services import forecast  # noqa: F401  (puts ml/ on the path)
-from app.services import pro
 from app.services.access import Caller, consent_subquery, may_view
 
+from ml.estimates import shrinkage  # noqa: E402
 from ml.pro import gaps as engine  # noqa: E402
+from ml.pro.seasons import SeasonRow  # noqa: E402
 
 
 # The league national team mode calls home; any other is shown as abroad.
@@ -52,10 +72,70 @@ def _team_rows(db: Session) -> list[engine.TeamRow]:
     ]
 
 
+def _consented(db: Session) -> set[str]:
+    return {str(pid) for pid in db.execute(consent_subquery(ConsentPurpose.ANALYTICS.value)).scalars()}
+
+
 def _player_rows(db: Session) -> list:
     """Every league season of a player whose analytics consent is in effect."""
-    consented = {str(pid) for pid in db.execute(consent_subquery(ConsentPurpose.ANALYTICS.value)).scalars()}
+    consented = _consented(db)
     return [r for r in pro._rows(db) if r.player_id in consented]
+
+
+def _basic_rows(db: Session, league: tuple[str, str] | None = None) -> list[SeasonRow]:
+    """Every basic league season of a player whose analytics consent is in effect, its position
+    the source's position group, with each estimated attribute's talent estimate on it. With
+    `league` (competition, season), that league season's only: a prior fit per position group
+    and statistic is the slow part."""
+    basic = _config().basic
+    consented = _consented(db)
+    rows = []
+    query = (select(PerformanceEntry, Player.date_of_birth).join(Player, Player.id == PerformanceEntry.player_id)
+             .where(PerformanceEntry.schema_ref == basic.player_period))
+    for entry, dob in db.execute(query).all():
+        if str(entry.player_id) not in consented:
+            continue
+        season = pro._season(entry.event, entry.period_start, entry.period_end)
+        competition = pro._competition(entry.event, season)
+        if league is not None and (competition, season) != league:
+            continue
+        rows.append(SeasonRow(
+            player_id=str(entry.player_id), season=season, end=entry.period_end, competition=competition,
+            club=str(entry.organization_id) if entry.organization_id else None,
+            position=entry.metrics.get(basic.position_field), date_of_birth=dob,
+            metrics=dict(entry.metrics), source=entry.source,
+        ))
+
+    groups: dict[tuple, list[SeasonRow]] = defaultdict(list)
+    for r in rows:
+        if basic.group_of(r.position):
+            groups[(r.competition, r.season, r.position)].append(r)
+    for members in groups.values():
+        peers = [r for r in members if r.minutes >= estimates.MIN_PEER_MINUTES]
+        for attr in (a for a in basic.attributes.values() if a.estimated):
+            fit = [(int(c), r.minutes / 90) for r in peers if (c := attr.count(r.metrics)) is not None]
+            if len(fit) < estimates.MIN_PEERS:
+                continue
+            prior = shrinkage.fit_prior([c for c, _ in fit], [e for _, e in fit])
+            for r in members:
+                count = attr.count(r.metrics)
+                # The peers are the others: the profile's rule (app/services/estimates.py).
+                others = len(fit) - (1 if r.minutes >= estimates.MIN_PEER_MINUTES else 0)
+                if count is not None and others >= estimates.MIN_PEERS:
+                    r.metrics[attr.key] = (int(count) + prior.k * prior.mean) / (r.minutes / 90 + prior.k)
+    return rows
+
+
+def _basis(db: Session, competition: str, season: str):
+    """(config, rows, minimum minutes) for a league season: the full analysis when it has full
+    player seasons, else the basic one when it has basic seasons."""
+    config = _config()
+    rows = _player_rows(db)
+    if config.basic is not None and not any(r.competition == competition and r.season == season for r in rows):
+        basic = _basic_rows(db, (competition, season))
+        if basic:
+            return config.basic, basic, estimates.MIN_PEER_MINUTES
+    return config, rows, engine.MIN_MINUTES
 
 
 def _people(db: Session, caller: Caller, ids: set[str]) -> dict[str, Player]:
@@ -86,13 +166,18 @@ def options(db: Session) -> dict:
         entry["seasons"].append(t.season)
     for entry in clubs.values():
         entry["seasons"].sort(reverse=True)
+    configs = [(config, False)] + ([(config.basic, True)] if config.basic else [])
     return {
         "clubs": sorted(clubs.values(), key=lambda c: c["name"]),
-        "groups": [{"key": g.key, "label": g.label, "attributes": g.attributes} for g in config.groups.values()],
-        "attributes": [{"key": a.key, "label": a.label, "lowReliability": a.low_reliability, "percent": not a.per90}
-                       for a in config.attributes.values()],
+        "groups": [{"key": g.key, "label": g.label, "attributes": g.attributes, "basic": basic}
+                   for c, basic in configs for g in c.groups.values()],
+        "attributes": [{"key": a.key, "label": a.label, "lowReliability": a.low_reliability, "percent": not a.per90,
+                        "estimated": a.estimated}
+                       for c, _ in configs for a in c.attributes.values()],
         "minMinutes": engine.MIN_MINUTES,
         "minCohort": engine.MIN_COHORT,
+        "basicMinMinutes": estimates.MIN_PEER_MINUTES,
+        "basicMinPeers": estimates.MIN_PEERS,
     }
 
 
@@ -110,11 +195,11 @@ def _candidate(c: engine.Candidate, people: dict[str, Player], clubs: dict[str, 
     }
 
 
-def _needs(needs: list[engine.Need], people, clubs) -> list[dict]:
+def _needs(needs: list[engine.Need], people, clubs, basic: set[str] = frozenset()) -> list[dict]:
     out = []
     for need in needs:
         out.append({
-            "group": need.group, "label": need.label, "attributes": need.attributes,
+            "group": need.group, "label": need.label, "attributes": need.attributes, "basic": need.group in basic,
             "candidates": [c for c in (_candidate(x, people, clubs) for x in need.candidates) if c],
             "unranked": [c for c in (_candidate(x, people, clubs) for x in need.unranked) if c],
         })
@@ -122,7 +207,6 @@ def _needs(needs: list[engine.Need], people, clubs) -> list[dict]:
 
 
 def club(db: Session, caller: Caller, club_id: uuid.UUID, season: str | None) -> dict:
-    config = _config()
     teams = _team_rows(db)
     mine = [t for t in teams if t.club == str(club_id)]
     if not mine:
@@ -131,10 +215,11 @@ def club(db: Session, caller: Caller, club_id: uuid.UUID, season: str | None) ->
     team = next((t for t in mine if t.season == season), None)
     if team is None:
         raise NotFound
-    rows = _player_rows(db)
+    config, rows, min_minutes = _basis(db, team.competition, season)
+    basic = config is _config().basic
     profile = engine.team_profile(config, teams, team.club, team.competition, season)
-    coverage = engine.squad_coverage(config, rows, team.club, team.competition, season)
-    needs = engine.club_needs(config, profile, rows, team.club, team.competition, season)
+    coverage = engine.squad_coverage(config, rows, team.club, team.competition, season, min_minutes=min_minutes)
+    needs = engine.club_needs(config, profile, rows, team.club, team.competition, season, min_minutes=min_minutes)
 
     ids = {p.player_id for g in coverage for p in g.players}
     ids |= {c.player_id for ns in needs.values() for n in ns for c in [*n.candidates, *n.unranked]}
@@ -143,10 +228,12 @@ def club(db: Session, caller: Caller, club_id: uuid.UUID, season: str | None) ->
                                            for c in n.candidates if c.club})
     return {
         "club": {"id": team.club, "name": clubs.get(team.club), "competition": team.competition, "season": season},
+        "basic": basic,
         "profile": [
             {"key": m.key, "label": m.label, "value": m.value, "rank": m.rank, "of": m.of, "better": m.better,
              "weak": m.weak, "bottomUnstable": m.bottom_unstable, "percent": m.percent,
-             "noPlayerLink": m.no_player_link, "needs": _needs(needs.get(m.key, []), people, clubs)}
+             "noPlayerLink": m.no_player_link,
+             "needs": _needs(needs.get(m.key, []), people, clubs, set(config.groups) if basic else set())}
             for m in profile
         ],
         "coverage": [
@@ -157,22 +244,31 @@ def club(db: Session, caller: Caller, club_id: uuid.UUID, season: str | None) ->
                          for p in g.players if p.player_id in people]}
             for g in coverage
         ],
-        "minMinutes": engine.MIN_MINUTES,
+        "minMinutes": min_minutes,
     }
 
 
 def national(db: Session, caller: Caller, asks: list[tuple[str, list[str]]]) -> dict:
-    """`asks`: (group, attributes) pairs the federation chose. Raises ValueError on an unknown one."""
-    config = _config()
+    """`asks`: (group, attributes) pairs the federation chose, from the full config's groups or
+    the basic one's (players with basic seasons). Raises ValueError on an unknown one."""
+    full = _config()
+    basic = full.basic
+    chosen = []
     for group, attributes in asks:
-        if group not in config.groups or not attributes or any(a not in config.attributes for a in attributes):
+        config = full if group in full.groups else basic if basic and group in basic.groups else None
+        if config is None or not attributes or any(a not in config.attributes for a in attributes):
             raise ValueError(f"unknown position group or statistic in {group}:{','.join(attributes)}")
-    rows = _player_rows(db)
+        chosen.append(config)
+    full_rows = _player_rows(db) if any(c is full for c in chosen) else []
+    basic_rows = _basic_rows(db) if any(c is not full for c in chosen) else []
     eligible = {str(pid) for pid in db.execute(
         select(Player.id).where(Player.is_egypt_eligible.is_(True), Player.primary_sport == "football")).scalars()}
-    needs = [engine.candidates(config, rows, group, attributes, competition=None, season=None, pool=eligible, limit=10)
-             for group, attributes in asks]
+    needs = [engine.candidates(config, full_rows if config is full else basic_rows, group, attributes,
+                               competition=None, season=None, pool=eligible, limit=10,
+                               min_minutes=engine.MIN_MINUTES if config is full else estimates.MIN_PEER_MINUTES)
+             for config, (group, attributes) in zip(chosen, asks)]
     ids = {c.player_id for n in needs for c in [*n.candidates, *n.unranked]}
     people = _people(db, caller, ids)
     clubs = _club_names(db, {c.club for n in needs for c in [*n.candidates, *n.unranked] if c.club})
-    return {"needs": _needs(needs, people, clubs), "minMinutes": engine.MIN_MINUTES}
+    return {"needs": _needs(needs, people, clubs, set(basic.groups) if basic else set()),
+            "minMinutes": engine.MIN_MINUTES}

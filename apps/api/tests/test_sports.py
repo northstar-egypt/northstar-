@@ -514,6 +514,25 @@ def test_football_declares_team_gap_analysis_and_table_tennis_does_not():
     assert {m.better for m in gaps.metrics} == {"higher", "lower"}
 
 
+def test_the_basic_team_gap_config_answers_only_what_basic_data_can():
+    gaps = sports.registry()["football"].team_gaps
+    basic = gaps.basic
+    assert basic.player_period == "football.season_basic.v1" and basic.position_field == "position_group"
+    assert basic.group_of("forward") == "forwards" and basic.group_of("goalkeeper") is None
+    assert all(a.estimated and a.per90 for a in basic.attributes.values())
+    # The same team statistics, in the same order, read the same way.
+    assert [(m.key, m.numerator, m.better, m.stable) for m in basic.metrics] == [
+        (m.key, m.numerator, m.better, m.stable) for m in gaps.metrics]
+    by_key = {m.key: m for m in basic.metrics}
+    assert {m.key for m in basic.metrics if m.links} == {"xg_for_per_game"}
+    # A statistic no player answers keeps its own reason; one only full data answers says so.
+    assert by_key["points_per_game"].no_player_link == next(
+        m.no_player_link for m in gaps.metrics if m.key == "points_per_game")
+    assert "basic" in by_key["possession_pct"].no_player_link
+    np_goals = basic.attributes["np_goals_per_90"]
+    assert np_goals.count({"goals": 7, "penalty_goals": 2}) == 5 and np_goals.count({"goals": 7}) is None
+
+
 @pytest.mark.parametrize(
     ("change", "match"),
     [
@@ -523,6 +542,15 @@ def test_football_declares_team_gap_analysis_and_table_tennis_does_not():
         (lambda g: g["metrics"][1].update(better="more"), "higher or lower"),
         (lambda g: g["attributes"][0].update(numerator=["saves"]), "unknown field"),
         (lambda g: g["groups"]["strikers"]["roles"].append("CB"), "repeated role"),
+        (lambda g: g["basic"]["groups"]["forwards"]["roles"].append("ST"), "unknown or repeated role"),
+        (lambda g: g["basic"].update(positionField="goals"), "fixed values"),
+        (lambda g: g["basic"]["attributes"][0].update(key="npxg_per_90"), "must differ"),
+        (lambda g: g["basic"]["attributes"][0].update(minus=["own_goals"]), "unknown field"),
+        (lambda g: g["basic"]["attributes"][0].update(per90=False, denominator=["appearances"]), "per 90"),
+        (lambda g: g["basic"]["links"].update(xg_fr_per_game=[]), "unknown metrics"),
+        (lambda g: g["basic"]["links"].update(
+            points_per_game=[{"group": "forwards", "attributes": ["assists_per_90"]}]), "no player answers"),
+        (lambda g: g["basic"]["links"]["xg_for_per_game"][0].update(group="strikers"), "unknown group"),
     ],
 )
 def test_a_broken_team_gap_config_is_refused(tmp_path, change, match):

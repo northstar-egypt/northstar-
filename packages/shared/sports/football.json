@@ -362,7 +362,27 @@
         ] },
       { "key": "late_conceded_per_game", "stable": false, "label": "Goals conceded in the last 15 minutes per game", "numerator": ["goals_against_last_15"], "denominator": ["matches"], "better": "lower",
         "noPlayerLink": "season totals say nothing about who is on the pitch late in games" }
-    ]
+    ],
+    "basic": {
+      "playerPeriod": "football.season_basic.v1",
+      "positionField": "position_group",
+      "attributes": [
+        { "key": "np_goals_per_90", "label": "Non-penalty goals per 90, estimated", "numerator": ["goals"], "minus": ["penalty_goals"], "per90": true, "estimated": true },
+        { "key": "assists_per_90", "label": "Assists per 90, estimated", "numerator": ["assists"], "per90": true, "estimated": true }
+      ],
+      "groups": {
+        "forwards": { "label": "Forwards", "roles": ["forward"], "attributes": ["np_goals_per_90", "assists_per_90"] },
+        "midfielders": { "label": "Midfielders", "roles": ["midfielder"], "attributes": ["np_goals_per_90", "assists_per_90"] },
+        "defenders": { "label": "Defenders", "roles": ["defender"], "attributes": ["assists_per_90"] }
+      },
+      "links": {
+        "xg_for_per_game": [
+          { "group": "forwards", "attributes": ["np_goals_per_90", "assists_per_90"] },
+          { "group": "midfielders", "attributes": ["np_goals_per_90", "assists_per_90"] }
+        ]
+      },
+      "noPlayerLink": "this league's player data is basic (appearances, minutes, goals, assists, cards), with no player statistic that answers this"
+    }
   },
   "scoutingReport": {
     "phrases": {

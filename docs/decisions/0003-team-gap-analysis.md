@@ -138,6 +138,33 @@ Negative / trade-offs:
 - **Players abroad are listed unranked** in national team mode: their leagues have too few
   players on record to give a percentile, so their numbers are shown as they are.
 
+## Leagues with basic player data (2026-11-22)
+
+FootyStats, the Egyptian league's source, publishes a player's season as appearances, minutes,
+goals, assists and cards only (decision 0009), so the analysis above had no player statistic to
+work with there. A second, smaller config (`teamGaps.basic` in the football module) now covers
+those leagues, and the club view uses it when a league season has no full player seasons:
+
+- **The same team statistics and the same team ranks.** Only the player side changes.
+- **The source's position groups**: forwards, midfielders and defenders. Goalkeepers are not
+  compared on goals and assists.
+- **Two statistics: non-penalty goals and assists per 90, as talent estimates** (`ml/estimates`,
+  graded in `ml/README.md`, "Talent estimates"). The raw rate is the wrong number to rank on:
+  the evaluation found it worse than the estimate at predicting next season, even for regulars.
+  The estimates are computed exactly as the profile's "Against league peers", so a percentile on
+  this screen is the profile's. A player is ranked from 90 minutes, among at least 20 peers.
+- **Defenders are shown on assists only.** Their goal rates barely differ beyond chance (a
+  fitted strength of 189 matches, five seasons), so a percentile on them would mean little.
+- **Candidates only for chances made**, from forwards and midfielders. Every other weakness that
+  the full config answers with passes, tackles, duels or aerial duels says the basic data has no
+  statistic for it. Goals and assists are outcomes, not chances, so they answer a weakness in
+  making chances less directly than xG and xA do.
+- **National team mode** offers the basic groups too, for Egypt-eligible players whose league
+  publishes basic seasons.
+
+`ml/pro/gaps.py` did not change: the engine runs on either config. The published gap numbers
+did not move (`python -m ml.run_gap_eval` and `--tune`, 2026-11-22).
+
 ## Alternatives considered
 
 - **A single "fit score" per candidate.** Rejected: it hides which numbers drove it, and the
