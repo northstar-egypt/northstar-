@@ -20,12 +20,15 @@ def _season(db, player, org, competition, start_year, *, group="forward", minute
     from app.models.performance_entry import PerformanceEntry
 
     label = f"{start_year}/{str(start_year + 1)[-2:]}"
+    metrics = {"position_group": group, "appearances": apps, "minutes_played": minutes, "goals": goals,
+               "assists": assists, "penalty_goals": pens, "yellow_cards": yellow, "red_cards": red}
+    if pens is None:  # FootyStats does not always publish it
+        del metrics["penalty_goals"]
     db.add(PerformanceEntry(
         id=uuid.uuid4(), player_id=player.id, sport="football", period_type="season_aggregate",
         period_start=date(start_year, 8, 1), period_end=date(start_year + 1, 5, 30), organization_id=org.id,
         event=f"{competition} {label}", schema_ref=SCHEMA, source="footystats", is_validated=True,
-        metrics={"position_group": group, "appearances": apps, "minutes_played": minutes, "goals": goals,
-                 "assists": assists, "penalty_goals": pens, "yellow_cards": yellow, "red_cards": red},
+        metrics=metrics,
     ))
 
 
@@ -101,6 +104,20 @@ def test_rates_are_left_out_below_450_minutes_and_the_row_says_why(client, auth,
     per_90 = _row(_compare(client, auth, a, b)["seasons"], "Non-penalty goals per 90")
     assert per_90["values"][0] is None and per_90["values"][1] == pytest.approx(3 / 5)
     assert "450 minutes" in per_90["note"]
+
+
+def test_penalty_goals_the_source_does_not_publish_are_unknown_not_zero(client, auth, world, db):
+    org = world["orgs"]["a"]
+    a, b = _pro(db, org, "Seasons Rho"), _pro(db, org, "Seasons Sigma")
+    _season(db, a, org, "Seasons Pens", 2030, goals=10, pens=None)
+    _season(db, b, org, "Seasons Pens", 2030, goals=10, pens=2)
+    db.flush()
+
+    section = _compare(client, auth, a, b)["seasons"]
+    assert _row(section, "Goals")["values"] == [10, 10]
+    per_90 = _row(section, "Non-penalty goals per 90")
+    assert per_90["values"][0] is None and per_90["values"][1] == pytest.approx(8 / 30)
+    assert "penalty goals" in per_90["note"]
 
 
 def test_different_position_groups_are_warned_about(client, auth, world, db):

@@ -79,19 +79,25 @@ def _seasons(db: Session, player: Player) -> dict[str, dict]:
         if not entry.event:
             continue
         season = by_event.setdefault(entry.event, {
-            "event": entry.event, "end": entry.period_end, "clubs": [], "metrics": dict.fromkeys(_COUNTS),
+            "event": entry.event, "end": entry.period_end, "clubs": [], "metrics": dict.fromkeys(_COUNTS, 0),
+            "unknown": set(),
         })
         season["end"] = max(season["end"], entry.period_end)
         if entry.organization_id and entry.organization_id not in season["clubs"]:
             season["clubs"].append(entry.organization_id)
         for key in _COUNTS:
             value = entry.metrics.get(key)
-            if value is not None:
-                season["metrics"][key] = (season["metrics"][key] or 0) + value
+            if value is None:
+                # Not published for one of the season's clubs: the season's total is unknown.
+                season["unknown"].add(key)
+            else:
+                season["metrics"][key] += value
         group = entry.metrics.get("position_group")
         if group:
             minutes_by_group[entry.event][group] += entry.metrics.get("minutes_played") or 0
     for event, season in by_event.items():
+        for key in season.pop("unknown"):
+            season["metrics"][key] = None
         groups = minutes_by_group.get(event)
         # The group the player spent most of the season in.
         season["position_group"] = max(groups, key=groups.get) if groups else None
@@ -116,10 +122,11 @@ def _rate(metrics: dict, numerator: str) -> float | None:
     if minutes < RATE_MINUTES:
         return None
     if numerator == "np_goals":
+        # Penalty goals the source does not publish are unknown, not zero (the estimates' rule).
         goals, pens = metrics.get("goals"), metrics.get("penalty_goals")
-        if goals is None:
+        if goals is None or pens is None:
             return None
-        count = goals - (pens or 0)
+        count = goals - pens
     else:
         count = metrics.get(numerator)
         if count is None:
@@ -173,10 +180,14 @@ def league_seasons(db: Session, players: list[Player]) -> dict | None:
     metrics = []
     for key, label, unit, higher in _ROWS:
         values = [(_value(s["metrics"], key) if s else None) for s in picked]
-        note = None
+        notes = []
         if key.endswith("_per_90") and any(
                 s and (s["metrics"].get("minutes_played") or 0) < RATE_MINUTES for s in picked):
-            note = f"Rates per 90 only from {RATE_MINUTES} minutes: below that they are mostly chance."
+            notes.append(f"Rates per 90 only from {RATE_MINUTES} minutes: below that they are mostly chance.")
+        if key == "np_goals_per_90" and any(s and s["metrics"]["penalty_goals"] is None for s in picked):
+            notes.append("The source does not publish penalty goals for every player here, so their "
+                         "non-penalty goals are not known.")
+        note = " ".join(notes) or None
         metrics.append({"label": label, "unit": unit, "higher_is_better": higher, "values": values, "note": note})
 
     metrics.extend(_estimate_rows(db, players, chosen))
