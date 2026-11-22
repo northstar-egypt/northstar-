@@ -1,0 +1,27 @@
+/* NorthStar's shared visual contract. Verified by scripts/design-review.mjs. */
+:root {
+  --canvas: #080e19;
+  --surface: #111c2e;
+  --surface-raised: #17253a;
+  --line: #33445e;
+  --ink: #f1f5f9;
+  --ink-muted: #b0bfd2;
+  --ink-subtle: #94a7c0;
+  --brand: #7dd3fc;
+  --positive: #6ee7b7;
+  --attention: #fcd34d;
+  --critical: #fda4af;
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --radius-control: .625rem;
+  --radius-panel: 1rem;
+  --shadow-panel: 0 12px 32px rgb(0 0 0 / .12), inset 0 1px rgb(255 255 255 / .035);
+  --type-caption: .75rem;
+  --type-body: .9375rem;
+  --type-title: clamp(1.75rem, 3vw, 2.25rem);
+}

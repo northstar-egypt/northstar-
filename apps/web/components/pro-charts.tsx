@@ -245,7 +245,7 @@ export function FinishingLine({ goals, expected, low, high }: { goals: number; e
   const X = (v: number) => 30 + (v / top) * 540;
   const ticks = Array.from({ length: top / 5 + 1 }, (_, i) => i * 5);
   return (
-    <svg viewBox="0 0 600 84" role="img" className="h-auto w-full"
+    <svg viewBox="0 0 600 112" role="img" className="h-auto w-full"
       aria-label={`Scored ${goals}; expected ${expected}; the usual range is ${low} to ${high}`}>
       <line x1={30} y1={44} x2={570} y2={44} stroke="#2b3a57" strokeWidth={2} />
       <rect x={X(low)} y={34} width={X(high) - X(low)} height={20} rx={4} fill={CHANCE} fillOpacity={0.2}
@@ -258,7 +258,7 @@ export function FinishingLine({ goals, expected, low, high }: { goals: number; e
       <text x={(X(low) + X(high)) / 2} y={20} textAnchor="middle" fontSize={13} fill={CHANCE}>
         usual range {low} to {high}
       </text>
-      <text x={X(goals)} y={20} textAnchor="middle" fontSize={13} fontWeight={600} fill={GOAL}>scored {goals}</text>
+      <text x={X(goals)} y={102} textAnchor="middle" fontSize={13} fontWeight={600} fill={GOAL}>scored {goals}</text>
     </svg>
   );
 }

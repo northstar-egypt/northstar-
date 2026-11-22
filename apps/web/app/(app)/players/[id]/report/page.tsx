@@ -14,7 +14,8 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Children, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   AREA_COLOURS,
   CHANCE,
@@ -25,7 +26,7 @@ import {
   ShotMap,
   TouchHeatMap,
 } from "@/components/pro-charts";
-import { Avatar, Banner, Skeleton } from "@/components/ui";
+import { Avatar, Banner, Button, Skeleton } from "@/components/ui";
 import { getProfile, getScoutingReport } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { cx } from "@/lib/format";
@@ -74,12 +75,22 @@ export default function ScoutingReportPage() {
   const [report, setReport] = useState<ScoutingReport | null | "loading">("loading");
   const [note, setNote] = useState<string | null>(null);
   const [choice, setChoice] = useState<{ competition: string; season: string } | undefined>(undefined);
+  const [printedAt, setPrintedAt] = useState("");
+
+  useEffect(() => {
+    const stamp = () => setPrintedAt(new Date().toLocaleString("en-GB", { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" }) + " (Cairo)");
+    stamp();
+    const beforePrint = () => flushSync(stamp);
+    window.addEventListener("beforeprint", beforePrint);
+    return () => window.removeEventListener("beforeprint", beforePrint);
+  }, []);
 
   useEffect(() => {
     let alive = true;
+    setProfile(null);
     getProfile(playerId).then((p) => {
       if (alive && p && !("mergedInto" in p)) setProfile(p);
-    });
+    }).catch(() => { if (alive) setProfile(null); });
     return () => {
       alive = false;
     };
@@ -122,7 +133,7 @@ export default function ScoutingReportPage() {
     );
   }
 
-  const name = profile?.player.fullName ?? "";
+  const name = profile?.player.fullName ?? "Player name not available";
   const pitch = report.pitch;
   const hasPitch = !!pitch && (pitch.shots.length > 0 || pitch.keyPasses.length > 0 || pitch.touchMap !== null);
   const goals = pitch?.shots.filter((s) => s.outcome === "goal").length ?? 0;
@@ -136,8 +147,13 @@ export default function ScoutingReportPage() {
   const fromStatsBomb = pitch?.eventSource === "statsbomb";
 
   return (
-    <div className="flex flex-col gap-7">
-      {back}
+    <ReportPages footer={<>
+      NorthStar · <bdi>{name}</bdi> · {report.competition} {report.season} · Source: {report.pitch?.eventSource ?? "season records; original source not supplied"} · Printed {printedAt}
+    </>}>
+      <div className="print-hide flex flex-wrap items-center justify-between gap-3">
+        {back}
+        <Button variant="primary" onClick={() => window.print()}>Print / Save PDF</Button>
+      </div>
 
       {/* The verdict: who, how good, and the three lines a scout reads first. */}
       <section aria-label="Verdict" className={cx(panel, "overflow-hidden")}>
@@ -156,14 +172,13 @@ export default function ScoutingReportPage() {
               </div>
             </div>
             {report.seasons.length > 1 ? (
-              <div role="tablist" aria-label="Season" className="flex flex-wrap gap-2">
+              <div role="group" aria-label="Season" className="print-hide flex flex-wrap gap-2">
                 {report.seasons.map((s) => (
                   <button
                     key={`${s.competition}-${s.season}`}
                     type="button"
-                    role="tab"
-                    aria-selected={s.selected}
-                    disabled={!s.gradable || s.selected}
+                    aria-pressed={s.selected}
+                    disabled={!s.gradable}
                     title={s.gradable ? undefined : "Too few minutes to grade"}
                     onClick={() => setChoice({ competition: s.competition, season: s.season })}
                     className={cx(
@@ -267,14 +282,14 @@ export default function ScoutingReportPage() {
                   </span>
                 </div>
                 {area.evidence.map((e) => (
-                  <div key={e.key} className="grid grid-cols-[minmax(0,9.5rem)_4rem_minmax(0,1fr)_2.25rem] items-center gap-2.5 text-[13px]">
+                  <div key={e.key} data-report-evidence className="grid grid-cols-[minmax(0,1fr)_3.25rem_minmax(2rem,1fr)_2rem] items-center gap-2 text-[13px]">
                     <span className="truncate text-slate-300">
                       {e.label}
                       {e.lowReliability ? "*" : ""}
                     </span>
                     <span className="font-mono tabular-nums text-slate-100">{amount(e)}</span>
-                    <span className="relative block h-2 rounded bg-slate-800" title={`median ${e.unit === "%" ? `${e.median}%` : e.median}`}>
-                      <span className={cx("absolute inset-y-0 left-0 rounded", barColour(e.percentile))} style={{ width: `${e.percentile}%` }} />
+                    <span data-percentile-track className="relative block h-2 rounded bg-slate-800" title={`median ${e.unit === "%" ? `${e.median}%` : e.median}`}>
+                      <span data-percentile-fill className={cx("absolute inset-y-0 left-0 rounded", barColour(e.percentile))} style={{ width: `${e.percentile}%` }} />
                       <span className="absolute -inset-y-1 left-1/2 w-px bg-slate-500" aria-hidden />
                     </span>
                     <span className="text-right font-mono font-semibold tabular-nums">{e.percentile}</span>
@@ -496,8 +511,16 @@ export default function ScoutingReportPage() {
           ? " Expected goals (xG, npxG, xA) are NorthStar's own model, trained on 37,488 shots and graded against StatsBomb's own xG on three tournaments it never saw."
           : ""}
       </p>
-    </div>
+    </ReportPages>
   );
+}
+
+/** Separate layout rows let browsers repeat the footer while keeping each report section together. */
+function ReportPages({ children, footer }: { children: React.ReactNode; footer: React.ReactNode }) {
+  return <div className="scouting-report flex flex-col gap-7"><table className="report-document" role="presentation">
+    <tbody>{Children.toArray(children).map((section, index) => <tr key={index}><td>{section}</td></tr>)}</tbody>
+    <tfoot className="report-print-footer"><tr><td>{footer}</td></tr></tfoot>
+  </table></div>;
 }
 
 function Legend({ items }: { items: { colour: string; label: string; filled?: boolean }[] }) {
@@ -506,6 +529,7 @@ function Legend({ items }: { items: { colour: string; label: string; filled?: bo
       {items.map((i) => (
         <span key={i.label} className="flex items-center gap-2">
           <span
+            data-legend-marker={i.filled ? "filled" : "outline"}
             className="h-3 w-3 rounded-full"
             style={i.filled ? { background: i.colour } : { background: `${i.colour}29`, border: `1px solid ${i.colour}` }}
           />

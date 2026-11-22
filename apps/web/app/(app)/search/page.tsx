@@ -23,6 +23,7 @@ import {
   Card,
   Chip,
   Empty,
+  ErrorState,
   Label,
   SectionTitle,
   Skeleton,
@@ -56,6 +57,7 @@ export default function SearchPage() {
     setPicked((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < 4 ? [...ids, id] : ids));
   const [parsed, setParsed] = useState<ParsedQuery>({ chips: [] });
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // The filters in force, in words, for an empty result: "youth tier" was on by default and
   // nothing said so, so a search for a pro player found nobody and said "widen the filters".
   const activeFilters = [
@@ -69,6 +71,7 @@ export default function SearchPage() {
   // `clear` re-runs with filters taken off, for the buttons in an empty result.
   async function run(q: string, clear: { tier?: boolean; all?: boolean } = {}) {
     setBusy(true);
+    setLoadError(null);
     if (clear.tier || clear.all) setTier(null);
     if (clear.all) {
       setPosition("");
@@ -76,6 +79,7 @@ export default function SearchPage() {
       setSport(null);
       setSex(null);
     }
+    try {
     const res = await search(q, {
       tier: usesTier && !clear.tier && !clear.all ? tier : null,
       position: clear.all ? "" : position,
@@ -86,7 +90,9 @@ export default function SearchPage() {
     setResults(res.results);
     setParsed(res.parsed);
     setSubmitted(q);
-    setBusy(false);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Search is unavailable.");
+    } finally { setBusy(false); }
   }
 
   useEffect(() => {
@@ -100,6 +106,8 @@ export default function SearchPage() {
     // Runs once on mount to populate the default list. Filters re-run explicitly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (loadError) return <ErrorState title="Could not search players" onRetry={() => void run(query)}>{loadError}</ErrorState>;
 
   return (
     <div className="flex flex-col gap-5">

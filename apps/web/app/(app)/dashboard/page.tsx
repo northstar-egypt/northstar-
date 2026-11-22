@@ -22,6 +22,7 @@ import {
   Card,
   Chip,
   Empty,
+  ErrorState,
   SectionTitle,
   Skeleton,
   Stat,
@@ -45,10 +46,14 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<Filter>("all");
   // Bumped after a reading is saved, so the squad's numbers catch up.
   const [version, setVersion] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    getSquad().then((r) => alive && setRows(r));
+    setLoadError(null);
+    getSquad().then((r) => alive && setRows(r)).catch(error => {
+      if (alive) setLoadError(error instanceof Error ? error.message : "The squad is unavailable.");
+    });
     return () => {
       alive = false;
     };
@@ -76,6 +81,8 @@ export default function DashboardPage() {
     // Attention first: the stalest records at the top, because this is a work queue.
     return [...filtered].sort((a, b) => (b.daysSinceLastLog ?? 9999) - (a.daysSinceLastLog ?? 9999));
   }, [rows, filter]);
+
+  if (loadError) return <ErrorState title="Could not load your squad" onRetry={() => setVersion(v => v + 1)}>{loadError}</ErrorState>;
 
   return (
     <div className="flex flex-col gap-6">

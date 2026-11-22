@@ -28,6 +28,7 @@ import {
   Card,
   Chip,
   Empty,
+  ErrorState,
   Label,
   SectionTitle,
   Skeleton,
@@ -99,16 +100,20 @@ export default function IntegrityPage() {
   // means the record with more history.
   const [keep, setKeep] = useState<"A" | "B" | null>(null);
   const [resolved, setResolved] = useState<Record<string, Decision>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadVersion, setLoadVersion] = useState(0);
 
   useEffect(() => {
     let alive = true;
     getFlagCounts().then((c) => {
       if (alive) setTotals(c);
+    }).catch(error => {
+      if (alive) setLoadError(error instanceof Error ? error.message : "The case counts are unavailable.");
     });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [loadVersion]);
 
   useEffect(() => {
     let alive = true;
@@ -117,11 +122,13 @@ export default function IntegrityPage() {
       if (!alive) return;
       setFlags(f);
       setSelectedId(f[0]?.id ?? null);
+    }).catch(error => {
+      if (alive) setLoadError(error instanceof Error ? error.message : "The integrity queue is unavailable.");
     });
     return () => {
       alive = false;
     };
-  }, [filter]);
+  }, [filter, loadVersion]);
 
   const open = useMemo(
     () => (flags ?? []).filter((f) => !resolved[f.id]),
@@ -158,6 +165,8 @@ export default function IntegrityPage() {
     const next = open.find((f) => f.id !== selected.id);
     setSelectedId(next?.id ?? null);
   }
+
+  if (loadError) return <ErrorState title="Could not load the integrity board" onRetry={() => { setLoadError(null); setLoadVersion(v => v + 1); }}>{loadError}</ErrorState>;
 
   if (!flags) {
     return (

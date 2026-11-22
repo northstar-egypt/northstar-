@@ -6,6 +6,7 @@ import { ROUTE_ROLES, homeFor, useAuth } from "@/lib/auth";
 import { cx } from "@/lib/format";
 import { ROLE_IDENTITY } from "@/lib/roles";
 import type { UserRole } from "@/lib/types";
+import { LayoutDirection } from "@/components/layout-direction";
 
 const LINKS: { href: string; label: string }[] = [
   { href: "/scout", label: "Home" },
@@ -36,15 +37,15 @@ export function Nav() {
   });
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+    <header className="app-navigation sticky top-0 z-20 border-b border-slate-700 bg-slate-950/95 backdrop-blur lg:fixed lg:inset-y-0 lg:start-0 lg:w-60 lg:overflow-y-auto lg:border-b-0 lg:border-e">
+      <div className="mx-auto flex h-full max-w-6xl flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 lg:h-auto lg:min-h-full lg:flex-col lg:items-stretch lg:gap-7 lg:px-5 lg:py-7">
         <Link href={homeFor(user.role)} className="flex items-center gap-2 font-bold tracking-tight">
           <span className={cx("inline-block h-2.5 w-2.5 rotate-45", identity.mark)} aria-hidden />
           NorthStar
-          <span className={cx("text-xs font-medium uppercase tracking-wide", identity.text)}>{identity.title}</span>
+          <span className={cx("rounded-md border border-slate-700 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide", identity.text)}>{identity.title}</span>
         </Link>
 
-        <nav className="flex flex-wrap items-center gap-1" aria-label="Main">
+        <nav className="order-last flex w-full gap-1 overflow-x-auto pb-1 lg:order-none lg:flex-col lg:overflow-visible" aria-label="Main">
           {visible.map((l) => {
             const active = pathname === l.href || pathname.startsWith(`${l.href}/`);
             return (
@@ -53,23 +54,25 @@ export function Nav() {
                 href={l.href}
                 aria-current={active ? "page" : undefined}
                 className={cx(
-                  "rounded-lg px-3 py-1.5 text-sm transition",
+                  "flex min-h-11 shrink-0 items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-medium transition",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400",
                   active
                     ? identity.active
                     : "text-slate-400 hover:bg-slate-900 hover:text-slate-200",
                 )}
               >
+                <span aria-hidden="true" className={cx("hidden h-1.5 w-1.5 rounded-full lg:block", active ? identity.mark : "bg-slate-600")} />
                 {l.label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="ms-auto flex flex-wrap items-center gap-2 lg:ms-0 lg:mt-auto lg:flex-col lg:items-stretch lg:border-t lg:border-slate-800 lg:pt-5">
           {user.organizationName ? (
             <span className="hidden text-xs text-slate-500 sm:inline">{user.organizationName}</span>
           ) : null}
+          <LayoutDirection />
 
           {/*
             Development only, and only when the API lists demo accounts. Switching signs in
@@ -115,10 +118,7 @@ export function Nav() {
         </div>
       </div>
 
-      <div className={cx("h-0.5", identity.bar)} aria-hidden />
-      <div className="border-t border-amber-900/30 bg-amber-950/20 px-4 py-0.5 text-center text-[0.68rem] text-amber-300/80">
-        Prototype. Youth players are synthetic; professionals come from FootyStats and StatsBomb test data.
-      </div>
+      <div className={cx("h-0.5 lg:hidden", identity.bar)} aria-hidden />
     </header>
   );
 }

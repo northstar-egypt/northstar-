@@ -55,9 +55,11 @@ def open_profile(page, player_id: str) -> None:
     The summary is a separate request that can take a minute or two while a local model
     writes it, so waiting for the network to go quiet would time out whenever Ollama runs.
     The last card on the profile appears only once the profile's own data has loaded.
+    The first profile can also warm the local forecaster, so give that data request an
+    explicit two-minute budget without waiting for the written summary.
     """
     page.goto(f"{WEB_URL}/players/{player_id}", wait_until="load")
-    page.get_by_text("Where this data came from").wait_for(timeout=30000)
+    page.get_by_text("Where this data came from").wait_for(timeout=120000)
     page.wait_for_timeout(SETTLE_MS)
 
 
@@ -227,7 +229,7 @@ def test_the_profile_states_what_is_not_known_yet(sign_in, page, identities):
     or fills the maturity and summary slots with placeholders.
     """
     squad = api("/players", identities["coach"]["email"])
-    profile = api(f"/players/{squad[0]['player']['id']}/profile", identities["coach"]["email"])
+    profile = api(f"/players/{squad[0]['player']['id']}/profile", identities["coach"]["email"], timeout=120)
     for point in profile["growth"]["forecast"]:
         assert point["lower"] < point["value"] < point["upper"]
     assert profile["growth"]["forecastNote"]
@@ -367,8 +369,8 @@ def test_a_scout_reads_a_scouting_report_from_the_profile(sign_in, page, identit
     page.wait_for_url(f"**/players/{player_id}/report", timeout=20000)
     page.get_by_text("What would change this verdict").wait_for(timeout=30000)
     body = text_of(page)
-    assert report["recommendation"].lower() in body and "not in our data" in body
-    assert f"compared with {report['population']}" in body
+    assert report["recommendation"].lower() in body and "what this data cannot see" in body
+    assert f"graded against {report['population']}" in body
 
 
 # ---------------------------------------------------------------------------
@@ -803,11 +805,14 @@ def test_the_assistant_answers_from_the_records_and_shows_its_reading(sign_in, p
     scout = identities["scout"]["email"]
     try:
         # Long, because the first question loads the model, which takes most of a minute.
-        api("/assistant", scout, body={"question": "warm up"}, timeout=240)
+        warmup = api("/assistant", scout, body={"question": "warm up"}, timeout=240)
     except Exception as exc:  # noqa: BLE001
         if "503" in str(exc):
             pytest.skip("the local language model is not running (docker compose --profile llm)")
         raise
+
+    if warmup["reader"] == "rules":
+        pytest.skip("the optional language model is off; fixed rules do not cover this model-only follow-up")
 
     sign_in("Scout", "/scout", then="/search")
     page.goto(f"{WEB_URL}/ask", wait_until="load")

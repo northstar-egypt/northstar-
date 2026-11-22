@@ -22,6 +22,7 @@ import {
   Button,
   Card,
   Chip,
+  ErrorState,
   Label,
   SectionTitle,
   Skeleton,
@@ -93,21 +94,27 @@ export default function PlayerProfilePage() {
   // Bumped after a write, so the whole profile is fetched again and every part of it that
   // depends on consent (percentiles, forecast, flags) shows the new state.
   const [version, setVersion] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     let alive = true;
+    setLoadError(null);
     getProfile(playerId).then((p) => {
       if (!alive) return;
       // A second registration merged into another record: show the record kept instead.
       if (p && "mergedInto" in p) router.replace(`/players/${p.mergedInto}`);
       else setData(p ?? "missing");
+    }).catch(error => {
+      if (alive) setLoadError(error instanceof Error ? error.message : "The player profile is unavailable.");
     });
     return () => {
       alive = false;
     };
   }, [playerId, version, router]);
+
+  if (loadError) return <ErrorState title="Could not load this player" onRetry={() => setVersion(v => v + 1)}>{loadError}</ErrorState>;
 
   if (data === null) {
     return (
