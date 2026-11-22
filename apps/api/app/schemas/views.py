@@ -513,6 +513,83 @@ class SimilarPlayersOut(CamelModel):
     note: str
 
 
+class AcademyMatchOut(CamelModel):
+    player_id: uuid.UUID
+    full_name: str
+    position: str | None = None
+    age_label: str
+    # How alike the two styles are, 0 to 100 (ml/next_pro.py). Not a level or a prediction.
+    percent: int
+    # Up to three ways the two stand out alike among their peers, in words.
+    alike: list[str] = []
+    # The statistic on which they differ most, if they differ clearly on one.
+    differs: str | None = None
+
+
+class AcademyMatchesOut(CamelModel):
+    """GET /players/{id}/academy-matches ("find the next <pro>"). `note` always says what this is
+    or why the list is empty."""
+
+    pro: str
+    items: list[AcademyMatchOut] = []
+    note: str
+
+
+class ProManagerOut(CamelModel):
+    name: str
+    club: str | None = None
+    years: str | None = None
+    style: str | None = None
+
+
+class ProVideoOut(CamelModel):
+    title: str
+    # A YouTube video id, checked to be one; the page embeds it from youtube-nocookie.com.
+    youtube: str
+    kind: str | None = None
+
+
+class ProExtrasOut(CamelModel):
+    """GET /players/{id}/pro-extras: the hand-made managers box and videos. Both lists are empty
+    when nothing is on file for the player (app/services/pro_extras.py)."""
+
+    managers: list[ProManagerOut] = []
+    videos: list[ProVideoOut] = []
+    note: str
+
+
+class DrillOut(CamelModel):
+    name: str
+    how: str
+
+
+class WeakPointOut(CamelModel):
+    key: str
+    label: str
+    value: float
+    unit: str
+    # The radar's percentile for this statistic, always below the weak point threshold.
+    percentile: int
+    drills: list[DrillOut] = []
+
+
+class SeasonProgressOut(CamelModel):
+    season: str
+    minutes: int
+    # Statistic key -> the player's own rate that season (per 90, or % for pass completion).
+    values: dict[str, float] = {}
+
+
+class WeakPointsOut(CamelModel):
+    """GET /players/{id}/weak-points (app/services/weak_points.py). `items` may be empty; `note`
+    always says what this is or why."""
+
+    items: list[WeakPointOut] = []
+    progress: list[SeasonProgressOut] = []
+    population: str | None = None
+    note: str
+
+
 class ProfileSummaryOut(CamelModel):
     """The written summary for the profile, from GET /players/{id}/summary.
 

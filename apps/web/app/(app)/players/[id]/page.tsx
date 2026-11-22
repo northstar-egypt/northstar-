@@ -42,6 +42,13 @@ import {
   getSports,
   getShortlistIds,
   getSimilar,
+  getAcademyMatches,
+  getProExtras,
+  getWeakPoints,
+  getJourney,
+  getWeeklyReport,
+  logDrill,
+  watchMatch,
   getSummary,
   logMeasurement,
   removeFromShortlist,
@@ -54,6 +61,11 @@ import {
 import { canAccess, useAuth } from "@/lib/auth";
 import { cx, flagsByType, num, ordinal, shortDate, times } from "@/lib/format";
 import type {
+  AcademyMatches,
+  ProExtras,
+  WeakPoints,
+  Journey,
+  WeeklyReport,
   EventAnalysis,
   MergedRecord,
   Opponent,
@@ -339,6 +351,21 @@ export default function PlayerProfilePage() {
       )}
 
       <SimilarCard playerId={playerId} />
+
+      {data.player.primarySport === "football" && data.player.tier === "youth" ? (
+        <>
+          <JourneyCard playerId={playerId} />
+          <WeeklyReportCard playerId={playerId} />
+          <WeakPointsCard playerId={playerId} canLog={data.permissions.canLog || isOwnProfile} />
+        </>
+      ) : null}
+
+      {data.player.primarySport === "football" && data.player.tier !== "youth" ? (
+        <>
+          <NextProCard playerId={playerId} canWatch={user?.role === "scout" || user?.role === "federation"} />
+          <ProExtrasCards playerId={playerId} />
+        </>
+      ) : null}
 
       {/* provenance */}
       <Card className="bg-slate-900/40">
@@ -1370,6 +1397,371 @@ function SimilarCard({ playerId }: { playerId: string }) {
           </ul>
           <p className="mt-2 text-xs text-slate-500">{similar.note}</p>
         </>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * "Find the next <pro>": academy players whose style looks like this professional's
+ * (ml/next_pro.py; stability in ml/README.md). Style, not level: the note under the list says
+ * so, and what the comparison cannot see. The API lists only players the caller may see.
+ */
+function NextProCard({ playerId, canWatch }: { playerId: string; canWatch: boolean }) {
+  const [data, setData] = useState<AcademyMatches | "loading" | "failed">("loading");
+  const [watched, setWatched] = useState<Record<string, "saving" | "done" | "failed">>({});
+
+  async function watch(kid: string) {
+    setWatched((w) => ({ ...w, [kid]: "saving" }));
+    try {
+      await watchMatch(kid, playerId);
+      setWatched((w) => ({ ...w, [kid]: "done" }));
+    } catch {
+      setWatched((w) => ({ ...w, [kid]: "failed" }));
+    }
+  }
+
+  useEffect(() => {
+    let alive = true;
+    setData("loading");
+    getAcademyMatches(playerId)
+      .then((d) => alive && setData(d ?? "failed"))
+      .catch(() => alive && setData("failed"));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (data === "failed") return null;
+
+  return (
+    <Card>
+      <SectionTitle>{data === "loading" ? "Find the next…" : `Find the next ${data.pro}`}</SectionTitle>
+      {data === "loading" ? (
+        <Skeleton className="h-16" />
+      ) : data.items.length === 0 ? (
+        <p className="text-sm text-slate-500">{data.note}</p>
+      ) : (
+        <>
+          <p className="mb-2 text-sm text-slate-400">Academy players whose style is most like this player&apos;s.</p>
+          <ul className="flex flex-col divide-y divide-slate-800">
+            {data.items.map((p) => (
+              <li key={p.playerId} className="flex flex-col gap-1 py-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <Link href={`/players/${p.playerId}`} className="font-semibold text-slate-100 hover:text-sky-300">
+                    <bdi>{p.fullName}</bdi>
+                  </Link>
+                  <span className="flex items-center gap-2">
+                    <span className="text-sm font-semibold tabular-nums text-sky-300">{p.percent}% style match</span>
+                    {canWatch ? (
+                      <button
+                        type="button"
+                        className="rounded border border-slate-700 px-2 py-0.5 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-60"
+                        disabled={watched[p.playerId] === "saving" || watched[p.playerId] === "done"}
+                        onClick={() => watch(p.playerId)}
+                        title="Get an alert when this match jumps"
+                      >
+                        {watched[p.playerId] === "done" ? "Watching ✓" : watched[p.playerId] === "failed" ? "Try again" : "Watch"}
+                      </button>
+                    ) : null}
+                  </span>
+                </div>
+                <span className="text-xs text-slate-400">
+                  {[p.position, p.ageLabel].filter(Boolean).join(" · ")}
+                  {p.alike.length ? ` · both: ${p.alike.join("; ")}` : ""}
+                  {p.differs ? ` · differs most on ${p.differs}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-500">{data.note}</p>
+        </>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * The managers box and "Learn from the pro" videos, from a hand-made list kept outside the
+ * repository (app/services/pro_extras.py). Nothing is drawn when nothing is on file.
+ */
+function ProExtrasCards({ playerId }: { playerId: string }) {
+  const [data, setData] = useState<ProExtras | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getProExtras(playerId)
+      .then((d) => alive && setData(d))
+      .catch(() => alive && setData(null));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (!data) return null;
+  return (
+    <>
+      {data.managers.length ? (
+        <Card>
+          <SectionTitle>Managers</SectionTitle>
+          <ul className="flex flex-col divide-y divide-slate-800">
+            {data.managers.map((m, i) => (
+              <li key={i} className="flex flex-col gap-1 py-2">
+                <span className="font-semibold text-slate-100">
+                  <bdi>{m.name}</bdi>
+                  <span className="ml-2 text-xs font-normal text-slate-400">
+                    {[m.club, m.years].filter(Boolean).join(" · ")}
+                  </span>
+                </span>
+                {m.style ? <span className="text-sm text-slate-300">{m.style}</span> : null}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-500">{data.note}</p>
+        </Card>
+      ) : null}
+      {data.videos.length ? (
+        <Card>
+          <SectionTitle>Learn from the pro</SectionTitle>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {data.videos.map((v) => (
+              <figure key={v.youtube} className="flex flex-col gap-1">
+                <iframe
+                  className="aspect-video w-full rounded"
+                  src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(v.youtube)}`}
+                  title={v.title}
+                  loading="lazy"
+                  allow="encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+                <figcaption className="text-sm text-slate-300">{v.title}</figcaption>
+              </figure>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">{data.note}</p>
+        </Card>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Improve weak points: the statistics that matter for the position where the player is lowest
+ * on the radar's own comparison, built-in drills for each, and the player's own numbers season
+ * by season (app/services/weak_points.py). Nothing is drawn as a weakness without a percentile.
+ */
+function WeakPointsCard({ playerId, canLog }: { playerId: string; canLog: boolean }) {
+  const [data, setData] = useState<WeakPoints | "loading" | "failed">("loading");
+  const [done, setDone] = useState<Record<string, "saving" | "done" | "failed">>({});
+
+  async function markDone(statistic: string, drill: string) {
+    const key = `${statistic}:${drill}`;
+    setDone((d) => ({ ...d, [key]: "saving" }));
+    try {
+      await logDrill(playerId, statistic, drill);
+      setDone((d) => ({ ...d, [key]: "done" }));
+    } catch {
+      setDone((d) => ({ ...d, [key]: "failed" }));
+    }
+  }
+
+  useEffect(() => {
+    let alive = true;
+    setData("loading");
+    getWeakPoints(playerId)
+      .then((d) => alive && setData(d ?? "failed"))
+      .catch(() => alive && setData("failed"));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+
+  if (data === "failed") return null;
+
+  return (
+    <Card>
+      <SectionTitle>Improve weak points</SectionTitle>
+      {data === "loading" ? (
+        <Skeleton className="h-16" />
+      ) : data.items.length === 0 ? (
+        <p className="text-sm text-slate-500">{data.note}</p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {data.population ? <p className="text-xs text-slate-500">Compared with {data.population}.</p> : null}
+          {data.items.map((w) => (
+            <div key={w.key} className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-semibold text-slate-100">{w.label}</span>
+                <span className="text-sm tabular-nums text-amber-300">
+                  {num(w.value, 2)} {w.unit} · {ordinal(w.percentile)} percentile
+                </span>
+              </div>
+              <PercentileBar percentile={w.percentile} higherIsBetter />
+              <ul className="flex flex-col gap-1 pl-3">
+                {w.drills.map((d) => (
+                  <li key={d.name} className="text-sm text-slate-300">
+                    <span className="font-medium text-slate-100">{d.name}:</span> {d.how}
+                    {canLog ? (
+                      <button
+                        type="button"
+                        className="ml-2 rounded border border-slate-700 px-2 py-0.5 text-xs text-sky-300 hover:bg-slate-800 disabled:opacity-60"
+                        disabled={done[`${w.key}:${d.name}`] === "saving" || done[`${w.key}:${d.name}`] === "done"}
+                        onClick={() => markDone(w.key, d.name)}
+                      >
+                        {done[`${w.key}:${d.name}`] === "done"
+                          ? "Done today ✓"
+                          : done[`${w.key}:${d.name}`] === "failed"
+                            ? "Could not save, try again"
+                            : "Mark done today"}
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {data.progress.length ? (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Season</Th>
+                  {data.items.map((w) => (
+                    <Th key={w.key}>
+                      {w.label} ({w.unit})
+                    </Th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.progress.map((s) => (
+                  <tr key={s.season}>
+                    <Td>
+                      {s.season} <span className="text-xs text-slate-500">· {s.minutes} min</span>
+                    </Td>
+                    {data.items.map((w) => (
+                      <Td key={w.key}>{s.values[w.key] != null ? num(s.values[w.key], 2) : "not on record"}</Td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          ) : null}
+          <p className="text-xs text-slate-500">{data.note}</p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+const points = (n: number) => `${n} point${n === 1 ? "" : "s"}`;
+const dayMonth = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+/** Game journey (part 7): XP, level, badges and idol, all counted from the record. */
+function JourneyCard({ playerId }: { playerId: string }) {
+  const [data, setData] = useState<Journey | "loading" | "failed">("loading");
+  useEffect(() => {
+    let alive = true;
+    getJourney(playerId)
+      .then((d) => alive && setData(d))
+      .catch(() => alive && setData("failed"));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+  if (data === "failed") return null;
+  if (data === "loading") return <Card><Skeleton className="h-16" /></Card>;
+  if (data.xp == null || !data.level) {
+    return (
+      <Card>
+        <SectionTitle>Journey</SectionTitle>
+        <p className="text-sm text-slate-500">{data.note}</p>
+      </Card>
+    );
+  }
+  const lv = data.level;
+  const toNext = lv.nextAt != null ? Math.min(100, Math.round((data.xp / lv.nextAt) * 100)) : 100;
+  return (
+    <Card>
+      <SectionTitle action={<span className="text-sm font-semibold text-amber-300">{data.xp} XP</span>}>Journey</SectionTitle>
+      <div className="flex flex-col gap-3">
+        <div>
+          <div className="flex justify-between text-sm">
+            <span className="font-semibold text-slate-100">{lv.name}</span>
+            <span className="text-slate-400">{lv.nextName ? `${lv.nextAt! - data.xp} XP to ${lv.nextName}` : "Top level"}</span>
+          </div>
+          <div className="mt-1 h-2 rounded bg-slate-800">
+            <div className="h-2 rounded bg-amber-400" style={{ width: `${toNext}%` }} />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {data.badges.map((b) => (
+            <Chip key={b.key} tone={b.earned ? "warn" : "default"} title={b.earned ? "Earned" : "Not earned yet"}>
+              {b.earned ? "★ " : "☆ "}
+              {b.label}
+            </Chip>
+          ))}
+        </div>
+        {data.idol ? (
+          <p className="text-sm text-slate-300">
+            Idol:{" "}
+            <Link href={`/players/${data.idol.proId}`} className="font-semibold text-sky-300 hover:underline">
+              <bdi>{data.idol.name}</bdi>
+            </Link>{" "}
+            · {data.idol.percent}% style match
+            {data.idol.before != null
+              ? data.idol.percent >= data.idol.before
+                ? ` · ${points(data.idol.percent - data.idol.before)} closer than ${data.idol.weeks} weeks ago`
+                : ` · ${points(data.idol.before - data.idol.percent)} further than ${data.idol.weeks} weeks ago`
+              : ""}
+          </p>
+        ) : null}
+        <p className="text-xs text-slate-500">{data.note}</p>
+      </div>
+    </Card>
+  );
+}
+
+/** Weekly report (part 6): this week, what went up or down over 4 weeks, and a next goal. */
+function WeeklyReportCard({ playerId }: { playerId: string }) {
+  const [data, setData] = useState<WeeklyReport | "loading" | "failed">("loading");
+  useEffect(() => {
+    let alive = true;
+    getWeeklyReport(playerId)
+      .then((d) => alive && setData(d))
+      .catch(() => alive && setData("failed"));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
+  if (data === "failed") return null;
+  if (data === "loading") return <Card><Skeleton className="h-16" /></Card>;
+  const w = data.week;
+  return (
+    <Card>
+      <SectionTitle>This week</SectionTitle>
+      {w ? (
+        <div className="flex flex-col gap-3 text-sm">
+          <p className="text-slate-300">
+            {dayMonth(w.from)} to {dayMonth(w.to)}: {w.matches} match{w.matches === 1 ? "" : "es"}, {w.minutes} minutes,{" "}
+            {w.drills} drill{w.drills === 1 ? "" : "s"} done, <span className="text-amber-300">{w.xp} XP</span>.
+          </p>
+          {data.improved.length ? (
+            <p className="text-emerald-300">
+              Up: {data.improved.map((c) => `${c.label} ${num(c.before, 2)} → ${num(c.now, 2)} ${c.unit}`).join("; ")}
+            </p>
+          ) : null}
+          {data.dropped.length ? (
+            <p className="text-amber-300">
+              Down: {data.dropped.map((c) => `${c.label} ${num(c.before, 2)} → ${num(c.now, 2)} ${c.unit}`).join("; ")}
+            </p>
+          ) : null}
+          {data.goal ? <p className="font-medium text-slate-100">Next goal: {data.goal}</p> : null}
+          <p className="text-xs text-slate-500">{data.note}</p>
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500">{data.note}</p>
       )}
     </Card>
   );

@@ -19,6 +19,9 @@ from app.models.enums import ConsentPurpose
 from app.models.player import Player
 from app.schemas.core import MeasurementOut, PlayerOut
 from app.schemas.views import (
+    AcademyMatchesOut,
+    ProExtrasOut,
+    WeakPointsOut,
     PlayerProfileOut,
     ProfileSummaryOut,
     EstimatesOut,
@@ -44,12 +47,15 @@ from app.services import (
     estimates,
     imports,
     measuring_plan,
+    next_pro,
     pro,
+    pro_extras,
     radar,
     scouting_report,
     similar,
     summary,
     views,
+    weak_points,
     writes,
 )
 from app.services.access import (
@@ -255,6 +261,46 @@ def player_similar(
     """
     player = _viewable_player(db, caller, player_id)
     return SimilarPlayersOut.model_validate(similar.similar_players(db, caller, player))
+
+
+@router.get("/players/{player_id}/academy-matches", response_model=AcademyMatchesOut)
+def player_academy_matches(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> AcademyMatchesOut:
+    """Find the next <pro>: academy players whose style looks like this professional's.
+    See app/services/next_pro.py and ml/next_pro.py.
+
+    Only academy players the caller may see are listed, and only those with analytics consent
+    in effect are compared at all.
+    """
+    player = _viewable_player(db, caller, player_id)
+    return AcademyMatchesOut.model_validate(next_pro.academy_matches(db, caller, player))
+
+
+@router.get("/players/{player_id}/pro-extras", response_model=ProExtrasOut)
+def player_pro_extras(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> ProExtrasOut:
+    """The pro page's managers box and videos, from a hand-made list kept outside the repository.
+    See app/services/pro_extras.py."""
+    player = _viewable_player(db, caller, player_id)
+    return ProExtrasOut.model_validate(pro_extras.for_player(player))
+
+
+@router.get("/players/{player_id}/weak-points", response_model=WeakPointsOut)
+def player_weak_points(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> WeakPointsOut:
+    """A youth player's weakest match statistics, drills for them, and season progress.
+    See app/services/weak_points.py. Same comparison and consent rules as the radar."""
+    player = _viewable_player(db, caller, player_id)
+    return WeakPointsOut.model_validate(weak_points.weak_points(db, player))
 
 
 # ---------------------------------------------------------------------------

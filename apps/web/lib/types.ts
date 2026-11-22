@@ -1002,3 +1002,80 @@ export interface StrongestGroup {
     ratedMatches: number;
   }[];
 }
+
+/**
+ * GET /players/{id}/academy-matches: "find the next <pro>", academy players whose style looks
+ * like this professional's (ml/next_pro.py). `items` may be empty; `note` always says why.
+ */
+export interface AcademyMatches {
+  pro: string;
+  items: {
+    playerId: string;
+    fullName: string;
+    position: string | null;
+    ageLabel: string;
+    /** How alike the styles are, 0 to 100. Not a level or a prediction. */
+    percent: number;
+    /** Up to three ways the two stand out alike among their peers, in words. */
+    alike: string[];
+    /** The statistic they differ on most, if they clearly differ on one. */
+    differs: string | null;
+  }[];
+  note: string;
+}
+
+/** GET /players/{id}/pro-extras: the hand-made managers box and videos; empty when none on file. */
+export interface ProExtras {
+  managers: { name: string; club: string | null; years: string | null; style: string | null }[];
+  videos: { title: string; youtube: string; kind: string | null }[];
+  note: string;
+}
+
+/** GET /players/{id}/weak-points: a youth player's weakest statistics, drills and progress. */
+export interface WeakPoints {
+  items: {
+    key: string;
+    label: string;
+    value: number;
+    unit: string;
+    /** The radar's percentile, below the weak point threshold. */
+    percentile: number;
+    drills: { name: string; how: string }[];
+  }[];
+  /** The player's own rate per season for each weak statistic; no percentiles. */
+  progress: { season: string; minutes: number; values: Record<string, number> }[];
+  population: string | null;
+  note: string;
+}
+
+/** GET /players/{id}/journey: XP, level, badges and idol (part 7). */
+export interface Journey {
+  xp: number | null;
+  level: { name: string; nextName: string | null; nextAt: number | null } | null;
+  minutes: number;
+  drills: number;
+  badges: { key: string; label: string; earned: boolean }[];
+  idol: { proId: string; name: string; position: string | null; percent: number; before: number | null; weeks: number } | null;
+  note: string;
+}
+
+/** GET /players/{id}/weekly-report (part 6). */
+export interface WeeklyReport {
+  week: { from: string; to: string; matches: number; minutes: number; drills: number; xp: number } | null;
+  improved: { key: string; label: string; before: number; now: number; unit: string }[];
+  dropped: { key: string; label: string; before: number; now: number; unit: string }[];
+  goal: string | null;
+  note: string;
+}
+
+/** GET /leaderboard (part 8). */
+export interface Leaderboard {
+  items: { playerId: string; fullName: string; position: string | null; ageLabel: string; xp: number; minutes: number; drills: number }[];
+  note: string;
+}
+
+/** GET /alerts (part 9). */
+export interface MatchAlerts {
+  items: { playerId: string; fullName: string; proId: string; proName: string; before: number | null; now: number | null; alert: boolean }[];
+  note: string;
+}

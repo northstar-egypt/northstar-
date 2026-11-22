@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     # takes about 80 seconds instead of about 50. Measured in the PR that added this.
     ollama_summary_num_gpu: int | None = None
 
+    # The hand-made list behind the pro page's managers box and "Learn from the pro" videos
+    # (app/services/pro_extras.py). Facts about real people, so it stays on your machine,
+    # outside git; the format is packages/shared/football/pro_extras.sample.json. Unset means
+    # the pro page shows neither box.
+    pro_extras_file: str | None = None
+
     # Sessions: a signed token in an HttpOnly cookie. See app/security.py.
     jwt_secret: str = DEVELOPMENT_JWT_SECRET
     session_hours: int = 8
