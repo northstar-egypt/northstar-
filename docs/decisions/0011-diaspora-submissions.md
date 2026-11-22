@@ -1,7 +1,7 @@
 # 0011. Diaspora tier: players abroad are submitted, then verified by the federation
 
-Status: proposed 2026-11-22. Nothing is built yet; the open questions at the end need answers
-before any code, because the answer to the first is a schema change.
+Status: proposed 2026-11-22. Nothing is built yet. Questions 1, 2 and 4 at the end were
+answered on 2026-11-22 (the proposed option each time); question 3 is open for review.
 Date: 2026-11-22
 
 ## Context
@@ -96,19 +96,23 @@ of birth; numbers that do not add up; honest new players), and the checks are sc
 precision and recall against them, reported in `ml/README.md`. Tuned on seeds 101, 202 and 303,
 reported on others.
 
-## Open questions (answer before building)
+## Questions, and the answers so far
 
 1. **Where submissions live**: the new table above (a schema change and a migration), or a
    player record with a new status `pending`, which needs every query that reads players to
-   exclude it. The table is proposed.
+   exclude it. **Answered: the new table.**
 2. **Guardians and players without an account**: leave them out of the first version (a scout
    or the federation submits for them), or add a public form with no account. A public form
-   needs rate limiting and a way to reach the submitter, neither of which exists.
+   needs rate limiting and a way to reach the submitter, neither of which exists. **Answered:
+   left out. Logged-in scouts and players submit; federation staff can too.**
 3. **The source of a submitted season**: `self_submitted` for every submission, or a new
-   `submitted` value that says who submitted it (player or scout).
+   `submitted` value that says who submitted it (player or scout). Open. Since a submitted
+   season is kept out of the analytics (question 4), the source must say it was submitted
+   either way.
 4. **Whether a submitted season counts in the league analytics** (talent estimates, gap
    analysis) once approved, or stays on the profile only, marked as submitted, until a trusted
    source confirms it. Counting it lets one submitter shift a league's peer group.
+   **Answered: profile only, marked as submitted, until a trusted source confirms it.**
 
 ## Consequences
 
