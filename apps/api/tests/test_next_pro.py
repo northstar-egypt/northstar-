@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -43,6 +43,24 @@ def _write(db, player, shots: int, assists: int) -> None:
     ))
 
 
+def _youth_matches(db, player, *, shots, assists, key_passes, tackles, n=6):
+    """Academy matches that vary on several statistics, so a style can be measured."""
+    from app.models.performance_entry import PerformanceEntry
+
+    for i in range(n):
+        db.add(PerformanceEntry(
+            id=uuid.uuid4(), player_id=player.id, sport="football", period_type="match",
+            period_start=date(2026, 1, 1) + timedelta(days=7 * i),
+            metrics={
+                "minutes_played": 90, "shots": shots, "shots_on_target": min(shots, 1 + i % 2),
+                "goals": i % 2 if shots > 2 else 0, "assists": assists, "key_passes": key_passes,
+                "tackles": tackles, "passes_attempted": 30 + shots, "passes_completed": 20 + i % 3,
+                "distance_km": 9.0, "yellow_cards": 0, "red_cards": 0,
+            },
+            schema_ref="football.match.v1", source="coach_logged", is_validated=True,
+        ))
+
+
 @pytest.fixture
 def league(db, world):
     """`adult_a` as a striker with nine league peers; youth strikers from `world` and a few more."""
@@ -55,12 +73,11 @@ def league(db, world):
     keeper = _add_player(db, org, "League Keeper", age=28, position="GK", shots=0, n_matches=0)
     _write(db, keeper, shots=0, assists=0)
     for i in range(8):
-        kid = _add_player(db, org, f"Academy Striker {i}", age=13, position="ST", shots=1 + i % 4)
+        kid = _add_player(db, org, f"Academy Striker {i}", age=13, position="ST", shots=1, n_matches=0)
         kid.tier = "youth"
-    for name, shots in {"minor_ok_a": 4, "minor_no_a": 4}.items():
-        from tests.test_similar import _matches
-
-        _matches(db, world["players"][name], shots)
+        _youth_matches(db, kid, shots=1 + i % 4, assists=i % 3, key_passes=i % 5, tackles=1 + i % 2)
+    for name in ("minor_ok_a", "minor_no_a"):
+        _youth_matches(db, world["players"][name], shots=4, assists=2, key_passes=3, tackles=1)
     db.flush()
     return {**world, "keeper": keeper}
 
