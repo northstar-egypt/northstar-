@@ -84,6 +84,19 @@ The what-if world (`--performance-follows-maturity`, see "Age misrepresentation,
 ml/README.md) changes only the reported datasets: the models and thresholds are the ones fitted
 and chosen in the ordinary world, as the v2 rule's thresholds were. A model that only learned
 the generator's quirks falls apart there.
+
+The stated-age ablation (asked for in review, #122)
+---------------------------------------------------
+Gradient boosting leaned on `stated_age` more than on any z score. Every z score is already
+taken within stated age, so what stated age adds is mostly where the generator plants cases:
+late bloomers only at recorded ages 11.5 to 17, age cheats from true ages 14 to 21 shifted down.
+A real academy would not have that. The ablation refits both models without that one input,
+changing nothing else (same models, settings, seeds and threshold rule), with its thresholds
+chosen on the calibration seeds and committed in `ABLATION_FILE` before the reported seeds are
+run, and `report` prints both sets of rows side by side:
+
+    python -m ml.challengers.learned calibrate --drop stated_age     # writes ABLATION_FILE
+    python -m ml.challengers.learned report                          # reads both files
 """
 
 from __future__ import annotations
@@ -130,6 +143,7 @@ COLUMNS = FEATURES + tuple(f"{name} missing" for name in MAY_BE_MISSING)
 
 THRESHOLDS = tuple(round(0.05 * i, 2) for i in range(1, 20))
 THRESHOLDS_FILE = Path(__file__).with_name("learned_thresholds.json")
+ABLATION_FILE = Path(__file__).with_name("learned_thresholds_no_stated_age.json")
 
 # The fraud subtypes that are not age misrepresentation. Left out of the age model's training
 # and scoring, exactly as `ml/evaluation/harness.py` leaves them out of the rule's age score.
@@ -206,6 +220,19 @@ def vector(pf: PlayerFeatures) -> list[float]:
     row = [0.0 if values[name] is None else float(values[name]) for name in FEATURES]
     row += [1.0 if values[name] is None else 0.0 for name in MAY_BE_MISSING]
     return row
+
+
+def kept(drop: Iterable[str] = ()) -> list[int]:
+    """The positions in `COLUMNS` a model reads when the named inputs are left out.
+
+    Only a feature that cannot be missing may be dropped (`stated_age`, the readings): leaving
+    out a feature with a missing marker would leave its marker behind.
+    """
+    drop = tuple(drop)
+    unknown = [name for name in drop if name not in FEATURES or name in MAY_BE_MISSING]
+    if unknown:
+        raise ValueError(f"cannot drop {unknown}: only features that cannot be missing")
+    return [i for i, name in enumerate(COLUMNS) if name not in drop]
 
 
 @dataclass
@@ -294,13 +321,14 @@ class Learned:
     detector: str
     model: str
     estimator: object
+    drop: tuple[str, ...] = ()
 
     def scores(self, features: FeatureSet) -> dict[str, float]:
         """A score between 0 and 1 for every eligible player. Higher means flag sooner."""
         players = eligible(features, self.detector)
         if not players:
             return {}
-        x = np.asarray([vector(pf) for pf in players], dtype=float)
+        x = np.asarray([vector(pf) for pf in players], dtype=float)[:, kept(self.drop)]
         scored = self.estimator.predict_proba(x)[:, 1]
         return {pf.player_id: float(value) for pf, value in zip(players, scored)}
 
@@ -313,8 +341,11 @@ class Learned:
         }
 
 
-def fit(datasets: Iterable[Labelled], detector: str, model: str) -> Learned:
+def fit(datasets: Iterable[Labelled], detector: str, model: str, drop: Iterable[str] = ()) -> Learned:
+    """Fit one model on the training datasets, leaving out the inputs named in `drop`."""
+    drop = tuple(drop)
     x, y = training_rows(datasets, detector)
+    x = x[:, kept(drop)]
     planted = int(y.sum())
     if planted == 0 or planted == len(y):
         raise ValueError(
@@ -323,7 +354,7 @@ def fit(datasets: Iterable[Labelled], detector: str, model: str) -> Learned:
         )
     estimator = _estimator(model, y)
     estimator.fit(x, y)
-    return Learned(detector=detector, model=model, estimator=estimator)
+    return Learned(detector=detector, model=model, estimator=estimator, drop=drop)
 
 
 def explain(pf: PlayerFeatures, learned: Learned, score: float, threshold: float) -> str:
@@ -399,8 +430,9 @@ def choose_threshold(by_threshold: dict[float, Counts], *, max_false: int | None
     return best
 
 
-def calibrate(train: list[Labelled], calibration: list[Labelled]) -> dict:
+def calibrate(train: list[Labelled], calibration: list[Labelled], drop: Iterable[str] = ()) -> dict:
     """Fit on the training datasets and choose both thresholds on the calibration ones."""
+    drop = tuple(drop)
     frozen: dict = {
         "note": (
             "Written by `python -m ml.challengers.learned calibrate` and committed before "
@@ -411,6 +443,8 @@ def calibrate(train: list[Labelled], calibration: list[Labelled]) -> dict:
         "rule": {},
         "models": {},
     }
+    if drop:
+        frozen["dropped"] = list(drop)
     for detector in DETECTORS:
         rule_scores = [
             score_ids("rule", rule(d.features, detector), d.truth[detector], d.population[detector])
@@ -422,7 +456,7 @@ def calibrate(train: list[Labelled], calibration: list[Labelled]) -> dict:
         frozen["rule"][detector] = {"tp": rule_counts.tp, "fp": rule_counts.fp, "fn": rule_counts.fn}
         frozen["models"][detector] = {}
         for model in MODELS:
-            learned = fit(train, detector, model)
+            learned = fit(train, detector, model, drop)
             grid = _grid(learned, calibration)
             frozen["models"][detector][model] = {
                 "thresholds": {
@@ -452,6 +486,11 @@ def check_same_model(
     system, so a refit on Linux can move a few players across a threshold. None when the model
     is the frozen one.
     """
+    if tuple(frozen.get("dropped", ())) != learned.drop:
+        raise ValueError(
+            f"the thresholds file is for a model without {frozen.get('dropped', [])}, "
+            f"this one is without {list(learned.drop)}"
+        )
     expected = frozen["models"][learned.detector][learned.model]["grid"]
     found = {f"{t:.2f}": [c.tp, c.fp, c.fn] for t, c in _grid(learned, calibration).items()}
     if found == expected:
@@ -461,8 +500,9 @@ def check_same_model(
         sum(abs(a - b) for a, b in zip(found.get(t, [0, 0, 0]), expected[t])) for t in differ
     )
     message = (
-        f"{learned.detector}, {learned.model}: the refitted model scores the calibration seeds "
-        f"differently from {THRESHOLDS_FILE.name} at {len(differ)} of {len(expected)} thresholds "
+        f"{learned.detector}, {learned.model}{' without ' + ', '.join(learned.drop) if learned.drop else ''}: "
+        f"the refitted model scores the calibration seeds differently from its thresholds file "
+        f"at {len(differ)} of {len(expected)} thresholds "
         f"(at most {largest} counts apart), so it is not exactly the model whose thresholds were "
         f"chosen."
     )
@@ -494,10 +534,11 @@ def importance(
     from sklearn.inspection import permutation_importance
 
     x, y = training_rows(datasets, learned.detector)
+    columns = kept(learned.drop)
     result = permutation_importance(
-        learned.estimator, x, y, scoring="average_precision", n_repeats=repeats, random_state=0
+        learned.estimator, x[:, columns], y, scoring="average_precision", n_repeats=repeats, random_state=0
     )
-    rows = zip(COLUMNS, result.importances_mean, result.importances_std)
+    rows = zip((COLUMNS[i] for i in columns), result.importances_mean, result.importances_std)
     return sorted(((c, float(m), float(s)) for c, m, s in rows), key=lambda r: -r[1])
 
 
@@ -510,7 +551,8 @@ def logistic_weights(learned: Learned) -> list[tuple[str, float]]:
     if learned.model != "logistic":
         raise ValueError("only the logistic regression has weights to read")
     coefficients = learned.estimator[-1].coef_[0]
-    return sorted(zip(COLUMNS, map(float, coefficients)), key=lambda r: -abs(r[1]))
+    names = [COLUMNS[i] for i in kept(learned.drop)]
+    return sorted(zip(names, map(float, coefficients)), key=lambda r: -abs(r[1]))
 
 
 # ---------------------------------------------------------------------------
@@ -586,7 +628,7 @@ class Row:
 
 
 def score_reported(
-    frozen: dict,
+    frozen: dict | list[dict],
     train: list[Labelled],
     calibration: list[Labelled],
     reported: list[Labelled],
@@ -596,30 +638,43 @@ def score_reported(
 ) -> dict[str, list[Row]]:
     """Every detector's rule and model rows on the reported datasets.
 
-    With `strict=False`, a model that differs from the frozen one is scored anyway and the
-    difference is appended to `notes`.
+    `frozen` is one thresholds file or several (the models as calibrated, and the same models
+    with an input left out); each file's models are refitted as that file says and get their
+    own rows, after the rule's. With `strict=False`, a model that differs from the frozen one is
+    scored anyway and the difference is appended to `notes`.
     """
+    files = [frozen] if isinstance(frozen, dict) else list(frozen)
+    for other in files[1:]:
+        if (other["train_seeds"], other["calibration_seeds"]) != (
+            files[0]["train_seeds"], files[0]["calibration_seeds"],
+        ):
+            raise ValueError("thresholds files fitted on different seeds cannot share one report")
     rows: dict[str, list[Row]] = {}
     for detector in DETECTORS:
         rule_row = Row("rule")
         for data in reported:
             rule_row.add(data, detector, rule(data.features, detector))
         rows[detector] = [rule_row]
-        for model in MODELS:
-            learned = fit(train, detector, model)
-            difference = check_same_model(frozen, learned, calibration, strict=strict)
-            if difference and notes is not None:
-                notes.append(difference)
-            scores = [learned.scores(data.features) for data in reported]
-            thresholds = frozen["models"][detector][model]["thresholds"]
-            for point in OPERATING_POINTS:
-                threshold = thresholds[point]
-                if threshold is None:
-                    continue
-                row = Row(f"{_MODEL_LABEL[model]}, {point.replace('_', ' ')} (from {threshold:.2f})")
-                for data, scored in zip(reported, scores):
-                    row.add(data, detector, (pid for pid, s in scored.items() if s >= threshold))
-                rows[detector].append(row)
+        for this in files:
+            drop = tuple(this.get("dropped", ()))
+            without = f" without {', '.join(drop).replace('_', ' ')}" if drop else ""
+            for model in MODELS:
+                learned = fit(train, detector, model, drop)
+                difference = check_same_model(this, learned, calibration, strict=strict)
+                if difference and notes is not None:
+                    notes.append(difference)
+                scores = [learned.scores(data.features) for data in reported]
+                thresholds = this["models"][detector][model]["thresholds"]
+                for point in OPERATING_POINTS:
+                    threshold = thresholds[point]
+                    if threshold is None:
+                        continue
+                    row = Row(
+                        f"{_MODEL_LABEL[model]}{without}, {point.replace('_', ' ')} (from {threshold:.2f})"
+                    )
+                    for data, scored in zip(reported, scores):
+                        row.add(data, detector, (pid for pid, s in scored.items() if s >= threshold))
+                    rows[detector].append(row)
     return rows
 
 
@@ -745,15 +800,19 @@ def main(argv: list[str] | None = None) -> int:
     cal = commands.add_parser("calibrate", help="fit on the training seeds, choose thresholds")
     cal.add_argument("--train-seeds", type=int, nargs="+", default=list(TRAIN_SEEDS))
     cal.add_argument("--calibration-seeds", type=int, nargs="+", default=list(CALIBRATION_SEEDS))
-    cal.add_argument("--out", type=Path, default=THRESHOLDS_FILE)
+    cal.add_argument("--drop", nargs="+", default=[], choices=FEATURES, metavar="FEATURE",
+                     help="leave these inputs out (the ablation); writes ABLATION_FILE by default")
+    cal.add_argument("--out", type=Path, default=None)
     rep = commands.add_parser("report", help="score the reported seeds with the frozen thresholds")
-    rep.add_argument("--thresholds", type=Path, default=THRESHOLDS_FILE)
     rep.add_argument("--seeds", type=int, nargs="+", default=list(REPORTED_SEEDS))
     rep.add_argument("--performance-follows-maturity", action="store_true")
     rep.add_argument("--json", type=Path, default=None, help="also write the counts as JSON")
     exp = commands.add_parser("explain", help="what drives each model, on the calibration seeds")
-    exp.add_argument("--thresholds", type=Path, default=THRESHOLDS_FILE)
     for command in (rep, exp):
+        command.add_argument(
+            "--thresholds", type=Path, nargs="+", default=None,
+            help="thresholds files (default: the frozen one, and the ablation's when it exists)",
+        )
         command.add_argument(
             "--allow-refit-difference",
             action="store_true",
@@ -771,41 +830,48 @@ def main(argv: list[str] | None = None) -> int:
             check_seeds(args.train_seeds, args.calibration_seeds, REPORTED_SEEDS)
             train = generate(args.train_seeds, Path(tmp))
             calibration = generate(args.calibration_seeds, Path(tmp))
-            frozen = calibrate(train, calibration)
-            args.out.write_text(json.dumps(frozen, indent=2) + "\n", encoding="utf-8")
+            frozen = calibrate(train, calibration, args.drop)
+            out = args.out or (ABLATION_FILE if args.drop else THRESHOLDS_FILE)
+            out.write_text(json.dumps(frozen, indent=2) + "\n", encoding="utf-8")
             print(json.dumps({d: frozen["rule"][d] for d in DETECTORS}, indent=2))
             for detector in DETECTORS:
                 for model in MODELS:
                     chosen = frozen["models"][detector][model]["thresholds"]
                     print(f"{detector}, {model}: {chosen}")
-            print(f"wrote {args.out}")
+            print(f"wrote {out}")
             return 0
 
-        if not args.thresholds.exists():
-            print(f"No thresholds at {args.thresholds}. Run calibrate first.", file=sys.stderr)
+        paths = args.thresholds or [THRESHOLDS_FILE, *([ABLATION_FILE] if ABLATION_FILE.exists() else [])]
+        missing = [str(p) for p in paths if not p.exists()]
+        if missing:
+            print(f"No thresholds at {', '.join(missing)}. Run calibrate first.", file=sys.stderr)
             return 1
-        frozen = json.loads(args.thresholds.read_text(encoding="utf-8"))
+        files = [json.loads(p.read_text(encoding="utf-8")) for p in paths]
         reported_seeds = REPORTED_SEEDS if args.command == "explain" else args.seeds
-        check_seeds(frozen["train_seeds"], frozen["calibration_seeds"], reported_seeds)
-        train = generate(frozen["train_seeds"], Path(tmp))
-        calibration = generate(frozen["calibration_seeds"], Path(tmp))
+        for frozen in files:
+            check_seeds(frozen["train_seeds"], frozen["calibration_seeds"], reported_seeds)
+        train = generate(files[0]["train_seeds"], Path(tmp))
+        calibration = generate(files[0]["calibration_seeds"], Path(tmp))
 
         strict = not args.allow_refit_difference
         if args.command == "explain":
-            for detector in DETECTORS:
-                for model in MODELS:
-                    learned = fit(train, detector, model)
-                    difference = check_same_model(frozen, learned, calibration, strict=strict)
-                    print(f"\n{_DETECTOR_LABEL[detector]}, {_MODEL_LABEL[model]}")
-                    if difference:
-                        print(f"  Not the frozen model. {difference}")
-                    print("  permutation importance on the calibration seeds (drop in average precision):")
-                    for column, mean, spread in importance(learned, calibration):
-                        print(f"    {column:24} {mean:+.3f}  (sd {spread:.3f})")
-                    if model == "logistic":
-                        print("  weights, per standard deviation of the input (log odds):")
-                        for column, weight in logistic_weights(learned):
-                            print(f"    {column:24} {weight:+.2f}")
+            for frozen in files:
+                drop = tuple(frozen.get("dropped", ()))
+                for detector in DETECTORS:
+                    for model in MODELS:
+                        learned = fit(train, detector, model, drop)
+                        difference = check_same_model(frozen, learned, calibration, strict=strict)
+                        without = f", without {', '.join(drop)}" if drop else ""
+                        print(f"\n{_DETECTOR_LABEL[detector]}, {_MODEL_LABEL[model]}{without}")
+                        if difference:
+                            print(f"  Not the frozen model. {difference}")
+                        print("  permutation importance on the calibration seeds (drop in average precision):")
+                        for column, mean, spread in importance(learned, calibration):
+                            print(f"    {column:24} {mean:+.3f}  (sd {spread:.3f})")
+                        if model == "logistic":
+                            print("  weights, per standard deviation of the input (log odds):")
+                            for column, weight in logistic_weights(learned):
+                                print(f"    {column:24} {weight:+.2f}")
             return 0
 
         from data.pipelines.synthetic import players
@@ -821,7 +887,7 @@ def main(argv: list[str] | None = None) -> int:
             players.PERFORMANCE_FOLLOWS_MATURITY = before
 
         notes: list[str] = []
-        rows = score_reported(frozen, train, calibration, reported, strict=strict, notes=notes)
+        rows = score_reported(files, train, calibration, reported, strict=strict, notes=notes)
         print(render(rows, f"Learned detectors against the rules, {world}", notes))
         if args.json:
             payload: dict = {"not_the_frozen_model": notes} if notes else {}

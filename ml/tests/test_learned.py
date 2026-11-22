@@ -382,15 +382,90 @@ def test_the_commands_run_end_to_end_on_generated_datasets(tmp_path):
     frozen = json.loads(frozen_path.read_text(encoding="utf-8"))
     assert frozen["train_seeds"] == [2000, 2001] and frozen["calibration_seeds"] == [101]
 
-    assert learned.main(["report", "--thresholds", str(frozen_path), "--seeds", "7",
+    ablation_path = tmp_path / "thresholds_no_age.json"
+    assert learned.main(["calibrate", "--train-seeds", "2000", "2001", "--calibration-seeds", "101",
+                         "--drop", "stated_age", "--out", str(ablation_path)]) == 0
+    assert json.loads(ablation_path.read_text(encoding="utf-8"))["dropped"] == ["stated_age"]
+
+    assert learned.main(["report", "--thresholds", str(frozen_path), str(ablation_path), "--seeds", "7",
                          "--performance-follows-maturity", "--json", str(report_path)]) == 0
     assert players.PERFORMANCE_FOLLOWS_MATURITY is False
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert set(report) == set(learned.DETECTORS)
     assert all("rule" in rows for rows in report.values())
+    assert all(any("without stated age" in name for name in rows) for rows in report.values())
 
     with pytest.raises(ValueError, match="two roles"):
         learned.main(["report", "--thresholds", str(frozen_path), "--seeds", "101"])
+
+
+# ---------------------------------------------------------------------------
+# The stated-age ablation
+# ---------------------------------------------------------------------------
+
+
+def test_dropping_stated_age_removes_only_its_column():
+    columns = learned.kept(("stated_age",))
+    assert len(columns) == len(learned.COLUMNS) - 1
+    assert [learned.COLUMNS[i] for i in columns] == [c for c in learned.COLUMNS if c != "stated_age"]
+    assert learned.kept() == list(range(len(learned.COLUMNS)))
+
+
+@pytest.mark.parametrize("name", ["output_z", "velocity_z", "not a feature"])
+def test_only_a_feature_that_cannot_be_missing_can_be_dropped(name):
+    with pytest.raises(ValueError, match="cannot drop"):
+        learned.kept((name,))
+
+
+def _planted_by_age(world: learned.Labelled) -> learned.Labelled:
+    """The same world with the age cheats moved to stated ages 15 to 16.5, as the generator
+    plants them in a narrower range than the rule judges: stated age now carries information."""
+    for pf in world.features.players.values():
+        if pf.player_id in world.truth["age_fraud"]:
+            pf.stated_age = 15.0 + (int(pf.player_id.rsplit("p", 1)[1]) % 4) * 0.5
+    return world
+
+
+@pytest.mark.parametrize("model", learned.MODELS)
+def test_a_model_without_stated_age_never_reads_it(model):
+    """Change every player's stated age (inside the rule's range, so nobody's eligibility
+    moves): the ablated model's scores must not move at all.
+
+    The test can fail: the full logistic regression, which gives every input a weight, does
+    move. (Boosting may simply not use an input it does not need on these clean invented
+    players, so only the logistic model proves the point.)"""
+    train = [_planted_by_age(_world(s)) for s in (1, 2, 3, 4)]
+    unseen = _planted_by_age(_world(99))
+    aged = _planted_by_age(_world(99))
+    for pf in aged.features.players.values():
+        pf.stated_age = 12.0 if pf.stated_age > 14.0 else 16.0
+
+    without = learned.fit(train, "age_fraud", model, drop=("stated_age",))
+    assert without.scores(unseen.features) == without.scores(aged.features)
+
+    if model == "logistic":
+        full = learned.fit(train, "age_fraud", model)
+        assert full.scores(unseen.features) != full.scores(aged.features)
+
+
+def test_the_ablation_has_its_own_thresholds_and_its_own_rows(frozen):
+    ablated = learned.calibrate(TRAIN, CALIBRATION, drop=("stated_age",))
+    assert ablated["dropped"] == ["stated_age"] and "dropped" not in frozen
+
+    full = learned.fit(TRAIN, "late_bloomer", "logistic")
+    with pytest.raises(ValueError, match="without"):
+        learned.check_same_model(ablated, full, CALIBRATION)  # a file is for one input set
+
+    rows = learned.score_reported([frozen, ablated], TRAIN, CALIBRATION, [UNSEEN])
+    for detector in learned.DETECTORS:
+        names = [row.name for row in rows[detector]]
+        assert names[0] == "rule"
+        assert any("without stated age" in n for n in names)
+        assert any("without" not in n and n != "rule" for n in names)
+
+    other = dict(ablated, train_seeds=[9])
+    with pytest.raises(ValueError, match="different seeds"):
+        learned.score_reported([frozen, other], TRAIN, CALIBRATION, [UNSEEN])
 
 
 @pytest.mark.parametrize(
