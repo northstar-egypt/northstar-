@@ -513,6 +513,28 @@ class SimilarPlayersOut(CamelModel):
     note: str
 
 
+class AcademyMatchOut(CamelModel):
+    player_id: uuid.UUID
+    full_name: str
+    position: str | None = None
+    age_label: str
+    # How alike the two styles are, 0 to 100 (ml/next_pro.py). Not a level or a prediction.
+    percent: int
+    # Up to three ways the two stand out alike among their peers, in words.
+    alike: list[str] = []
+    # The statistic on which they differ most, if they differ clearly on one.
+    differs: str | None = None
+
+
+class AcademyMatchesOut(CamelModel):
+    """GET /players/{id}/academy-matches ("find the next <pro>"). `note` always says what this is
+    or why the list is empty."""
+
+    pro: str
+    items: list[AcademyMatchOut] = []
+    note: str
+
+
 class ProfileSummaryOut(CamelModel):
     """The written summary for the profile, from GET /players/{id}/summary.
 

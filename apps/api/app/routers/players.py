@@ -19,6 +19,7 @@ from app.models.enums import ConsentPurpose
 from app.models.player import Player
 from app.schemas.core import MeasurementOut, PlayerOut
 from app.schemas.views import (
+    AcademyMatchesOut,
     PlayerProfileOut,
     ProfileSummaryOut,
     EstimatesOut,
@@ -44,6 +45,7 @@ from app.services import (
     estimates,
     imports,
     measuring_plan,
+    next_pro,
     pro,
     radar,
     scouting_report,
@@ -255,6 +257,22 @@ def player_similar(
     """
     player = _viewable_player(db, caller, player_id)
     return SimilarPlayersOut.model_validate(similar.similar_players(db, caller, player))
+
+
+@router.get("/players/{player_id}/academy-matches", response_model=AcademyMatchesOut)
+def player_academy_matches(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> AcademyMatchesOut:
+    """Find the next <pro>: academy players whose style looks like this professional's.
+    See app/services/next_pro.py and ml/next_pro.py.
+
+    Only academy players the caller may see are listed, and only those with analytics consent
+    in effect are compared at all.
+    """
+    player = _viewable_player(db, caller, player_id)
+    return AcademyMatchesOut.model_validate(next_pro.academy_matches(db, caller, player))
 
 
 # ---------------------------------------------------------------------------
