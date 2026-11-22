@@ -1030,3 +1030,20 @@ export interface ProExtras {
   videos: { title: string; youtube: string; kind: string | null }[];
   note: string;
 }
+
+/** GET /players/{id}/weak-points: a youth player's weakest statistics, drills and progress. */
+export interface WeakPoints {
+  items: {
+    key: string;
+    label: string;
+    value: number;
+    unit: string;
+    /** The radar's percentile, below the weak point threshold. */
+    percentile: number;
+    drills: { name: string; how: string }[];
+  }[];
+  /** The player's own rate per season for each weak statistic; no percentiles. */
+  progress: { season: string; minutes: number; values: Record<string, number> }[];
+  population: string | null;
+  note: string;
+}

@@ -22,6 +22,7 @@
  */
 
 import type {
+  WeakPoints,
   AcademyMatches,
   ProExtras,
   AssistantAnswer,
@@ -330,6 +331,15 @@ export async function getAcademyMatches(playerId: string): Promise<AcademyMatche
 export async function getProExtras(playerId: string): Promise<ProExtras | null> {
   try {
     return await request<ProExtras>(`/players/${encodeURIComponent(playerId)}/pro-extras`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function getWeakPoints(playerId: string): Promise<WeakPoints | null> {
+  try {
+    return await request<WeakPoints>(`/players/${encodeURIComponent(playerId)}/weak-points`);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;

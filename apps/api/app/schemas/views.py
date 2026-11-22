@@ -558,6 +558,38 @@ class ProExtrasOut(CamelModel):
     note: str
 
 
+class DrillOut(CamelModel):
+    name: str
+    how: str
+
+
+class WeakPointOut(CamelModel):
+    key: str
+    label: str
+    value: float
+    unit: str
+    # The radar's percentile for this statistic, always below the weak point threshold.
+    percentile: int
+    drills: list[DrillOut] = []
+
+
+class SeasonProgressOut(CamelModel):
+    season: str
+    minutes: int
+    # Statistic key -> the player's own rate that season (per 90, or % for pass completion).
+    values: dict[str, float] = {}
+
+
+class WeakPointsOut(CamelModel):
+    """GET /players/{id}/weak-points (app/services/weak_points.py). `items` may be empty; `note`
+    always says what this is or why."""
+
+    items: list[WeakPointOut] = []
+    progress: list[SeasonProgressOut] = []
+    population: str | None = None
+    note: str
+
+
 class ProfileSummaryOut(CamelModel):
     """The written summary for the profile, from GET /players/{id}/summary.
 

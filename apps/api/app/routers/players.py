@@ -21,6 +21,7 @@ from app.schemas.core import MeasurementOut, PlayerOut
 from app.schemas.views import (
     AcademyMatchesOut,
     ProExtrasOut,
+    WeakPointsOut,
     PlayerProfileOut,
     ProfileSummaryOut,
     EstimatesOut,
@@ -54,6 +55,7 @@ from app.services import (
     similar,
     summary,
     views,
+    weak_points,
     writes,
 )
 from app.services.access import (
@@ -287,6 +289,18 @@ def player_pro_extras(
     See app/services/pro_extras.py."""
     player = _viewable_player(db, caller, player_id)
     return ProExtrasOut.model_validate(pro_extras.for_player(player))
+
+
+@router.get("/players/{player_id}/weak-points", response_model=WeakPointsOut)
+def player_weak_points(
+    player_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(current_user),
+) -> WeakPointsOut:
+    """A youth player's weakest match statistics, drills for them, and season progress.
+    See app/services/weak_points.py. Same comparison and consent rules as the radar."""
+    player = _viewable_player(db, caller, player_id)
+    return WeakPointsOut.model_validate(weak_points.weak_points(db, player))
 
 
 # ---------------------------------------------------------------------------

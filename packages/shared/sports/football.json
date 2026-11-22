@@ -520,5 +520,119 @@
         "rateLabel": "scored", "minAttempts": 10
       }
     }
+  },
+  "weakPoints": {
+    "_about": "Part 5 of 'find the next pro': built-in starter drills for a youth player's weakest match statistics. Keys are the radar's statistics. 'matters' says which statistics count as a weak point for each kind of position: a striker with few tackles is not shown that as a weakness. Plain coaching advice, written by the team; coaches adding their own drills needs a database table and is future work.",
+    "matters": {
+      "forward": [
+        "goals",
+        "shots",
+        "key_passes",
+        "assists",
+        "pass_completion",
+        "distance_km"
+      ],
+      "midfielder": [
+        "passes_attempted",
+        "pass_completion",
+        "key_passes",
+        "assists",
+        "tackles",
+        "distance_km",
+        "shots"
+      ],
+      "defender": [
+        "tackles",
+        "pass_completion",
+        "passes_attempted",
+        "distance_km"
+      ],
+      "goalkeeper": [
+        "passes_attempted",
+        "pass_completion"
+      ]
+    },
+    "drills": {
+      "goals": [
+        {
+          "name": "Finishing from the box",
+          "how": "Ten shots from different spots in the box, first time and after one touch. Aim low and to the corners. Count goals out of ten each week."
+        },
+        {
+          "name": "One against the keeper",
+          "how": "Start at the halfway line and run at a goalkeeper. Pick a side early and finish with the inside of the foot."
+        }
+      ],
+      "shots": [
+        {
+          "name": "Shoot on sight",
+          "how": "Small-sided game where a goal from outside the box counts double, so players look up and shoot when there is space."
+        },
+        {
+          "name": "Turn and shoot",
+          "how": "Receive with your back to goal at the edge of the box, turn in one touch and shoot within three seconds."
+        }
+      ],
+      "key_passes": [
+        {
+          "name": "Final pass rondo",
+          "how": "Four against two in a box, then a pass through a small gate to a runner. Count how many passes reach the runner."
+        },
+        {
+          "name": "Cut-back drill",
+          "how": "Wide player runs to the byline and cuts the ball back to a teammate arriving at the penalty spot."
+        }
+      ],
+      "assists": [
+        {
+          "name": "Assist game",
+          "how": "Small-sided game where only goals from a teammate's pass count. Players learn to look for the free man."
+        },
+        {
+          "name": "Crossing and arriving",
+          "how": "Crosses from both wings to two attackers making near-post and far-post runs."
+        }
+      ],
+      "passes_attempted": [
+        {
+          "name": "Show for the ball",
+          "how": "Possession game where a player must move to offer a passing angle after every pass. Count touches per player."
+        },
+        {
+          "name": "Two-touch circuit",
+          "how": "Pass and move around four cones, two touches maximum, both feet."
+        }
+      ],
+      "pass_completion": [
+        {
+          "name": "Passing gates",
+          "how": "Pairs pass through small gates over 10 to 20 metres, weight and accuracy first, then speed. Count completed passes out of twenty."
+        },
+        {
+          "name": "Scan before you receive",
+          "how": "Before every pass arrives, look over your shoulder and call out what you see. Safer passes come from knowing where everyone is."
+        }
+      ],
+      "tackles": [
+        {
+          "name": "Jockey and win",
+          "how": "One against one in a channel: stay side-on, show the attacker one way, and tackle only when the ball is away from their foot."
+        },
+        {
+          "name": "Press in pairs",
+          "how": "Two defenders press one attacker: one presses, one covers, swap roles when the ball is won."
+        }
+      ],
+      "distance_km": [
+        {
+          "name": "Box-to-box runs",
+          "how": "Interval runs between the boxes: 30 seconds hard, 30 seconds easy, eight times. Keep it light for younger players."
+        },
+        {
+          "name": "Recover after losing the ball",
+          "how": "In small-sided games, the player who loses the ball must sprint back behind the ball within five seconds."
+        }
+      ]
+    }
   }
 }
