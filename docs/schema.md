@@ -286,6 +286,35 @@ player whose consent is withdrawn after being saved is counted as withheld, not 
 
 One row per user and player (`uq_shortlist_entry_user_player`). Migration 0009.
 
+## DrillLog
+
+A drill a youth player did, for "find the next pro" (weekly report, game journey XP,
+leaderboard). Pending the lead's agreement to the feature; its own migration (0010) so it can be
+dropped alone.
+
+| Column | Type | Notes |
+|---|---|---|
+| player_id | uuid FK player | cascade delete |
+| logged_by | uuid FK user, null | the coach or the player; set null if the user is deleted |
+| done_on | date | |
+| statistic | text | the weak statistic the drill works on |
+| drill | text | the drill's name |
+
+## MatchWatch
+
+A scout or federation user following an academy player against one professional, for the
+"find the next pro" alert. Private to the user, like ShortlistEntry. Migration 0011, pending the
+lead's agreement.
+
+| Column | Type | Notes |
+|---|---|---|
+| user_id | uuid FK user | cascade delete |
+| player_id | uuid FK player | the academy player |
+| pro_id | uuid FK player | the professional |
+| last_percent | int, null | the style match when the user last looked |
+
+One row per user, player and professional (`uq_match_watch_user_player_pro`).
+
 ## Consent
 
 Consent and privacy records, first-class because much of the youth data is about minors.
