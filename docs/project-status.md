@@ -69,7 +69,7 @@ on the synthetic league (see "What to do next").
 | --- | --- | --- |
 | Youth academies | Synthetic, plus coach entry and spreadsheet import in the app | Nothing to build. Real academy data is not obtainable, so the youth tier stays synthetic by design |
 | Pro tier (Egyptian Premier League) | A synthetic league in FootyStats' shape (#88) | A FootyStats client that fills the same tables. Waiting on the API subscription; the real field names are checked first |
-| Diaspora | A tier value on synthetic players abroad | Not decided: a manual entry form with a source link, FootyStats leagues abroad, or future work. Transfermarkt's terms forbid scraping |
+| Diaspora | Synthetic players abroad, plus submissions: a scout, federation staff or the player submits a player abroad with a source link, and the federation verifies it (decision 0011, `/submissions`) | Grading the checks on planted submissions in the generator. Transfermarkt's terms forbid scraping, so submissions are the route |
 | Table tennis results | Spreadsheet import | ITTF and WTT block automated access (`docs/results-import.md`), so import stays the route |
 | Player self-submission | Only in the synthetic data: rows marked `self_submitted`, which the fraud rules check | A screen where a player adds their own results, for table tennis players seeking clubs abroad |
 
@@ -87,7 +87,7 @@ No real player data is in this repository, and none ever will be (`CLAUDE.md`).
    rewritten. Then fill the pro-tier tables from the API instead of the generator. Key in
    `.env` only, responses cached in a gitignored folder, a test on the field names that uses no
    real data. Then breakouts, finishing and team gaps run on the real league.
-4. **Diaspora decision** (see the table above).
+4. **Diaspora submissions: grade the checks** on planted submissions (decision 0011).
 5. Smaller pieces a teammate can pick up alone: split the player profile page
    (`apps/web/app/(app)/players/[id]/page.tsx`) into one component per card, add unit tests
    for `components/charts.tsx`, and finish or close the security plan draft (PR #54).

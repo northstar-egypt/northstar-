@@ -165,6 +165,7 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   "/oversight": ["federation", "admin"],
   "/results": ["federation", "admin"],
   "/integrity": ["federation", "admin"],
+  "/submissions": ["scout", "federation", "player"],
 };
 
 export function canAccess(role: UserRole | undefined, path: string): boolean {

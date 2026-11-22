@@ -286,6 +286,44 @@ player whose consent is withdrawn after being saved is counted as withheld, not 
 
 One row per user and player (`uq_shortlist_entry_user_player`). Migration 0009.
 
+## PlayerSubmission
+
+An Egypt-eligible player abroad, submitted by a scout, federation staff or the player, for the
+federation to verify (decision 0011). It is not a player: nothing in it reaches search, the
+profile's analytics or the ML until a federation reviewer approves it. Approval creates the
+player (tier `diaspora`) or attaches the submission to one already on record; the submitted
+seasons stay here and are shown on the profile as submitted, never counted in league
+analytics. Seen by its submitter and federation staff only. Service:
+`apps/api/app/services/submissions.py`.
+
+| Column               | Type          | Notes                                                              |
+|----------------------|---------------|--------------------------------------------------------------------|
+| id                   | UUID PK       |                                                                    |
+| submitted_by_user_id | UUID FK, null | To User. Null if the account is deleted.                           |
+| submitter_role       | text          | scout, player or federation, when submitted.                       |
+| status               | text          | pending, awaiting_consent, needs_info, approved, rejected.         |
+| sport                | text          | `football`: the diaspora tier is football's.                       |
+| full_name, known_as  | text          | The claimed identity.                                              |
+| date_of_birth        | date          |                                                                    |
+| sex                  | text, null    | The player's gender, as on `player`.                               |
+| nationality          | text[]        | ISO 3166-1 alpha-2 codes.                                          |
+| eligibility_basis    | text          | Why they could play for Egypt (EligibilityBasis), as claimed.      |
+| position             | text, null    | A football position code.                                          |
+| club_name, club_country | text       | The club abroad. Approval finds it by name and country, or adds it. |
+| competition          | text, null    | The league abroad.                                                 |
+| source_url           | text          | Where the claims can be checked. http(s) only.                     |
+| note                 | text          | The submitter's note.                                              |
+| seasons              | JSONB         | `[{competition, season, metrics}]`, metrics a `football.season_basic.v1` record. |
+| consent              | JSONB         | The sign-up form as recorded: signed, guardian name, by whom, when. |
+| checks               | JSONB         | The checks on arrival, rerun on every change.                      |
+| reviewed_by_user_id  | UUID FK, null | To User.                                                           |
+| reviewed_at          | timestamp, null |                                                                  |
+| review_reason        | text, null    | Required with every decision; the submitter sees it.               |
+| player_id            | UUID FK, null | To Player: the record the submission became or was attached to.   |
+| created_at, updated_at | timestamp   |                                                                    |
+
+Indexed on submitter, status and player. Migration 0010.
+
 ## Consent
 
 Consent and privacy records, first-class because much of the youth data is about minors.

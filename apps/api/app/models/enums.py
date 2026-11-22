@@ -125,6 +125,30 @@ class FlagAction(StrEnum):
     COMMENTED = "commented"
 
 
+class SubmissionStatus(StrEnum):
+    """Where a diaspora submission stands (models/player_submission.py, decision 0011)."""
+
+    PENDING = "pending"
+    # A minor submitted by someone who cannot record their guardian's consent: the federation
+    # records it before anything else happens.
+    AWAITING_CONSENT = "awaiting_consent"
+    # The reviewer asked for more; the submitter edits and it is pending again.
+    NEEDS_INFO = "needs_info"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class EligibilityBasis(StrEnum):
+    """Why a submitted player could play for Egypt, as the submitter claims it. The reviewer
+    checks it outside the platform."""
+
+    EGYPTIAN_NATIONALITY = "egyptian_nationality"
+    BORN_IN_EGYPT = "born_in_egypt"
+    PARENT_BORN_IN_EGYPT = "parent_born_in_egypt"
+    GRANDPARENT_BORN_IN_EGYPT = "grandparent_born_in_egypt"
+    OTHER = "other"
+
+
 class ConsentPurpose(StrEnum):
     DATA_STORAGE = "data_storage"
     ANALYTICS = "analytics"

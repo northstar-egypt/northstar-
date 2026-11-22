@@ -18,6 +18,7 @@ const LINKS: { href: string; label: string }[] = [
   { href: "/gaps", label: "Team gaps" },
   { href: "/ask", label: "Ask" },
   { href: "/integrity", label: "Integrity" },
+  { href: "/submissions", label: "Players abroad" },
 ];
 
 const ROLES: UserRole[] = ["coach", "scout", "federation", "player", "admin"];

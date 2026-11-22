@@ -30,6 +30,11 @@ not compliance checkboxes.
    before exposing minors. Every RBAC case is a test that must pass.
 2. **Self-submission fraud.** Players inflating their own stats. Mitigation: anomaly-based
    fraud detection (crosses over with the ML workstream), validation on ingest, audit trail.
+   Diaspora submissions (decision 0011) never become a player without a federation reviewer
+   who is not the submitter; they are validated against the sport module, checked against the
+   players on record (including the same name with a different date of birth), shown with the
+   submitter's history, and their seasons are never counted in league analytics. No rate
+   limiting yet: the submitter's history is the only brake.
 3. **Duplicate / spoofed identities.** Mitigation: duplicate detection, canonical player
    records with merge tracking.
 4. **Credential compromise.** Mitigation: argon2id password hashes, short signed sessions in

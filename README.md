@@ -48,7 +48,7 @@ source is connected yet:
 | --- | --- |
 | Youth | Synthetic, plus coach entry and spreadsheet import in the app. Stays synthetic by design: real academy data is not obtainable |
 | Pro | A synthetic Egyptian league in FootyStats' shape. The FootyStats client that fills the same tables waits on the API subscription |
-| Diaspora | Synthetic players at clubs abroad. The real source is not decided |
+| Diaspora | Synthetic players at clubs abroad, plus submissions the federation verifies (`/submissions`, decision 0011) |
 | Table tennis | Spreadsheet import. ITTF and WTT block automated access, so there is no scraper (`docs/results-import.md`) |
 
 `docs/project-status.md` has the detail and the order of what comes next.
@@ -195,7 +195,8 @@ screens show the product):
 
 - **Self-submission by players.** The fraud rules already check self-submitted rows, but those
   rows exist only in the synthetic data. There is no screen yet for a player to add their own
-  results.
+  match results. (A player abroad can submit their club and league seasons for the federation
+  to verify, at `/submissions`, decision 0011.)
 - **Editing an existing player.** The add-player form, loaded with the player's values, once
   the API serves one.
 - **Offline saving on the add-player form.** Drawn in the wireframe. It needs a service

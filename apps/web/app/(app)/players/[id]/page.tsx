@@ -15,6 +15,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SubmittedSeasonsCard } from "@/components/submitted-seasons";
 import { GrowthChart, PercentileBar, PercentileRangeBar, Pitch, Radar, ShareRange, TennisTable } from "@/components/charts";
 import {
   Avatar,
@@ -322,6 +323,7 @@ export default function PlayerProfilePage() {
 
       {data.player.primarySport === "football" ? <EstimatesCard playerId={playerId} /> : null}
       {data.player.primarySport === "football" ? <LeagueSeasonsCard playerId={playerId} /> : null}
+      {data.player.primarySport === "football" ? <SubmittedSeasonsCard playerId={playerId} /> : null}
       {data.player.primarySport === "football" ? <ShotMapCard playerId={playerId} /> : null}
       {data.player.primarySport === "table_tennis" ? <PointsCard playerId={playerId} /> : null}
       <TaggedRateCard playerId={playerId} sport={data.player.primarySport} gender={data.player.sex ?? null} />
