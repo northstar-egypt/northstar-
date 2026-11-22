@@ -646,13 +646,262 @@ a label on real data, and on a real deployment those labels are what would measu
 detectors (`export_db.py` and "What this means for a backtest on real data", below). The
 learner is kept, tested and runnable, and is not wired into `write_flags.py`.
 
+### Learned detectors: gradient boosting beats both rules, partly by learning where the generator plants cases (2026-11-21, ablation 2026-11-22)
+
+```bash
+python -m ml.challengers.learned calibrate    # fit on seeds 2000 to 2049, thresholds on 101, 202, 303
+python -m ml.challengers.learned calibrate --drop stated_age   # the same models without stated age
+python -m ml.challengers.learned report       # the 20 reported seeds, both thresholds files
+python -m ml.challengers.learned report --performance-follows-maturity
+python -m ml.challengers.learned explain      # what drives each model, on the calibration seeds
+```
+
+**Question.** Does a model trained on the rules' own features, with the generator's answer key
+as labels, beat the late-bloomer rule and the v2 age-misrepresentation rule on the reported
+seeds, without flagging more children who are not cases?
+
+**Method** (`ml/challengers/learned.py`; its docstring has every setting).
+
+- Inputs: the numbers `ml/detectors/features.py` already computes for the rules (stated age;
+  height z mean, last and lowest; growth velocity over the whole record and the last 400 days;
+  velocity z; maturity mismatch; output z; number of readings), with a 0/1 column for each value
+  that can be missing. Nothing from the answer key, and not gender, because every z score is
+  already taken within gender. Gender is used afterwards, to break the results down.
+- Who is judged: exactly the players each rule could judge (its age range, its minimum number of
+  readings). For age misrepresentation the other two fraud subtypes are left out of training and
+  scoring, as the harness leaves them out of the rule's subtype score.
+- Models: logistic regression (standardised, `C=1`) and XGBoost (300 trees of depth 3, learning
+  rate 0.05), both weighting the planted cases up to balance the classes.
+- Split by dataset, never by player: trained on 50 datasets from seeds 2000 to 2049; the decision
+  threshold chosen on 101, 202 and 303, which are not trained on, so the threshold is not chosen
+  on the model's own training players; reported once on the 20 seeds below.
+- Two thresholds per model, both chosen on the calibration seeds from 0.05 to 0.95 in steps of
+  0.05: the best F1 ("best F1"), and the best F1 among thresholds that flag no more non-cases
+  than the rule did on the same seeds ("no more flags"). The second is the operating point the
+  replacement question is asked at.
+- The settings were committed first, then the thresholds (`ml/challengers/learned_thresholds.json`),
+  both before any reported seed was run. `report` refits the models and refuses to run unless
+  they reproduce the calibration counts in that file. Run twice on the same machine, it gave
+  identical counts; on another operating system see "Reproduce" below.
+
+**Results.** Counts pooled over the 20 reported seeds (20260827, 7, 99, 404, 555 and 1000 to
+1014). Intervals are 95%, on the paired difference from the rule, resampling whole datasets
+(2,000 draws). Datasets won, lost and tied compare F1 per dataset.
+
+Late bloomer, 280 planted cases:
+
+| | caught | false flags | precision | recall | F1 | datasets won / lost / tied | F1 gain | false flags gained |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| v1 rule | 121 | 101 | 0.545 | 0.432 | 0.482 | | | |
+| logistic regression, no more flags (0.85) | 125 | 70 | 0.641 | 0.446 | 0.526 | 15 / 5 / 0 | +0.001 to +0.086 | -46 to -17 |
+| logistic regression, best F1 (0.80) | 147 | 110 | 0.572 | 0.525 | 0.547 | 14 / 5 / 1 | +0.026 to +0.107 | -8 to +27 |
+| **gradient boosting, no more flags (0.85)** | **140** | **50** | **0.737** | 0.500 | 0.596 | 16 / 4 / 0 | +0.056 to +0.169 | -71 to -33 |
+| gradient boosting, best F1 (0.60) | 221 | 188 | 0.540 | 0.789 | 0.642 | 18 / 2 / 0 | +0.105 to +0.219 | +62 to +114 |
+
+Age misrepresentation, 180 planted cases:
+
+| | caught | false accusations | precision | recall | F1 | datasets won / lost / tied | F1 gain | false accusations gained |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| v2 rule | 94 | 48 | 0.662 | 0.522 | 0.584 | | | |
+| logistic regression, no more flags (0.95) | 77 | 17 | 0.819 | 0.428 | 0.562 | 7 / 13 / 0 | -0.064 to +0.017 | -43 to -20 |
+| logistic regression, best F1 (0.70) | 140 | 124 | 0.530 | 0.778 | 0.631 | 11 / 9 / 0 | -0.011 to +0.107 | +60 to +91 |
+| **gradient boosting, 0.85 at both points** | **119** | **29** | **0.804** | **0.661** | **0.726** | 18 / 1 / 1 | +0.095 to +0.190 | -33 to -7 |
+
+Where gradient boosting ("no more flags") lost to the rule: for late bloomers on seeds 404
+(0.636 against 0.750), 1004, 1010 and 1013, and on no dataset did it flag more non-cases than
+the rule; for age misrepresentation only on 1012 (0.625 against 0.750), tied on 1004, but it
+made more false accusations than the rule on 3 of the 20 datasets. The logistic regression's
+"no more flags" threshold for age misrepresentation is 0.95, the top of the grid: the cap on
+false accusations would have accepted a higher one if the grid had offered it, so that row may
+understate the logistic model slightly.
+
+The intervals hold the thresholds fixed. They leave out the uncertainty of choosing a threshold
+on three calibration datasets, so the real uncertainty of the gain is somewhat wider.
+
+The rule rows are the harness's own: late bloomer averages F1 0.479 per dataset, and the age
+rule catches 94 with 48 false accusations (F1 0.584), as published above.
+
+The what-if world (`--performance-follows-maturity`), same models and same thresholds:
+
+| | caught | false flags | F1 | datasets won / lost / tied | F1 gain | false flags gained |
+| --- | --- | --- | --- | --- | --- | --- |
+| late bloomer, v1 rule | 121 | 101 | 0.482 | | | |
+| late bloomer, gradient boosting, no more flags | 138 | 52 | 0.587 | 15 / 4 / 1 | +0.049 to +0.159 | -68 to -32 |
+| age, v2 rule | 95 | 82 | 0.532 | | | |
+| age, gradient boosting | 119 | 65 | 0.654 | 16 / 3 / 1 | +0.068 to +0.177 | -30 to -4 |
+
+The late-bloomer rule reads no performance, so it does not change; the model reads output z,
+which hardly moves it.
+
+By stated age (at the dataset's reference date) and by gender, caught of planted, then false
+flags:
+
+| late bloomer | 11 to 13 | 13 to 15 | 15 to 17 | 17+ | female | male |
+| --- | --- | --- | --- | --- | --- | --- |
+| v1 rule | 33/69, 50 | 50/109, 34 | 38/102, 16 | 0/0, 1 | 5/20, 5 | 116/260, 96 |
+| gradient boosting, no more flags | **25/69**, 15 | 57/109, 24 | 58/102, 11 | 0/0, 0 | 6/20, 5 | 134/260, 45 |
+| the same, what-if | 24/69, 16 | 57/109, 24 | 57/102, 12 | 0/0, 0 | 6/20, 5 | 132/260, 47 |
+
+| age misrepresentation | 11 to 13 | 13 to 15 | 15 to 17 | 17+ | female | male |
+| --- | --- | --- | --- | --- | --- | --- |
+| v2 rule | 36/60, 10 | 46/71, 9 | 9/28, 25 | 3/20, 4 | 2/12, 2 | 92/168, 46 |
+| gradient boosting | 48/60, 7 | 53/71, **16** | 8/28, 5 | 10/20, 1 | 4/12, **4** | 115/168, 25 |
+| v2 rule, what-if | 35/60, 18 | 47/71, 23 | 9/28, 35 | 4/20, 6 | 2/12, 1 | 93/168, 81 |
+| gradient boosting, what-if | 45/60, **25** | 56/71, **33** | 9/28, 6 | 9/20, 1 | 4/12, **5** | 115/168, 60 |
+
+One planted age cheat is under 11 at the reference date; neither catches that case.
+
+Relative age (`ml/evaluation/fairness.py`, pooled): the rules show no difference in false flags
+by birth quarter (late bloomer p = 0.93, age p = 0.31). Gradient boosting does (p = 0.022 and
+0.024), because it cuts false flags much less for children born in October to December. Late
+bloomer: 0.9% to 1.0% of non-cases flagged in the first three quarters, 2.2% in the last (the
+rule: 2.3% to 2.8% in every quarter). Age: 0.3% to 0.6% against 1.4% (the rule: 0.7% to 1.5%).
+No quarter is flagged more often than under the rule; the youngest-born gain least. In the
+what-if world the age difference holds (p = 0.036) and the late-bloomer one is weaker
+(p = 0.087). Read these as a signal to watch, not a finding: the report runs about twenty of
+these tests (five rows, two detectors, two worlds), and at p < 0.05 one or two would come out
+"different" by chance alone. That the same model shows it for both detectors is what makes it
+worth recording.
+
+**What drives the models** (`explain`: permutation importance on the calibration seeds, and the
+logistic regression's weights per standard deviation of each input).
+
+- Logistic regression, late bloomer: recent growth (+1.66) and the lowest height z (-1.48) push
+  towards a flag, and growth *relative to the age group* (velocity z, -1.90) pushes against it
+  once raw growth is known. Together that is the rule's own idea, weighted: fast growth at an
+  age when the age group has slowed down.
+- Logistic regression, age misrepresentation: height for the stated age (+2.49), output (+1.24)
+  and maturity mismatch (+0.75), the v2 rule's two lines of evidence.
+- Gradient boosting leans on stated age in both: it is the most important input for late
+  bloomers (0.22, beside the lowest height z and whole-record growth) and the second for age
+  misrepresentation (0.17, after output). Every z score is already taken within stated age, so
+  what stated age adds is mostly where the generator plants cases: late bloomers only at
+  recorded ages 11.5 to 17 (the rule judges 11 to 18.5), age cheats from true ages 14 to 21
+  shifted down by 1.4 to 3.2 years. A real academy would not have that. The ablation below
+  measures how much of the result it is.
+
+**The stated-age ablation** (asked for in review). Both models refitted without `stated_age`,
+nothing else changed: same settings, seeds and threshold rule, thresholds chosen on the
+calibration seeds (`ml/challengers/learned_thresholds_no_stated_age.json`) and committed and
+pushed before the reported seeds were run once. Gradient boosting at its "no more flags"
+threshold, which is what the result above rests on:
+
+| | caught | false flags | F1 | datasets won / lost / tied | F1 gain | false flags gained |
+| --- | --- | --- | --- | --- | --- | --- |
+| late bloomer, v1 rule | 121 | 101 | 0.482 | | | |
+| late bloomer, boosting with stated age (0.85) | 140 | 50 | 0.596 | 16 / 4 / 0 | +0.056 to +0.169 | -71 to -33 |
+| **late bloomer, boosting without stated age (0.80)** | **135** | **81** | **0.544** | 14 / 6 / 0 | +0.010 to +0.118 | -42 to +1 |
+| age, v2 rule | 94 | 48 | 0.584 | | | |
+| age, boosting with stated age (0.85) | 119 | 29 | 0.726 | 18 / 1 / 1 | +0.095 to +0.190 | -33 to -7 |
+| **age, boosting without stated age (0.75)** | **131** | **73** | **0.682** | 17 / 2 / 1 | +0.051 to +0.153 | **+11 to +38** |
+| *what-if:* late bloomer, boosting without stated age | 141 | 81 | 0.562 | 17 / 3 / 0 | +0.032 to +0.127 | -41 to +0 |
+| *what-if:* age, v2 rule | 95 | 82 | 0.532 | | | |
+| *what-if:* age, boosting without stated age | 130 | 117 | 0.609 | 15 / 4 / 1 | +0.040 to +0.115 | +23 to +47 |
+
+By stated age and gender, caught of planted, then false flags, boosting without stated age:
+
+| | 11 to 13 | 13 to 15 | 15 to 17 | 17+ | female | male |
+| --- | --- | --- | --- | --- | --- | --- |
+| late bloomer (the rule: 33/69, 50 at 11 to 13) | 33/69, 32 | 59/109, 34 | 43/102, 15 | 0/0, 0 | 9/20, 4 | 126/260, 77 |
+| age (the rule: 46/71, 9 at 13 to 15; 9/28, 25 at 15 to 17) | 50/60, 11 | 55/71, 17 | 16/28, 36 | 10/20, 9 | 5/12, **11** | 126/168, 62 |
+
+Logistic regression hardly uses stated age: without it, its rows move by a few cases (late bloomer
+"no more flags" 126 caught with 75 false flags, against 125 and 70; age 77 and 17, unchanged), so
+its result stands as it is.
+
+What the ablation says:
+
+- **Age misrepresentation: the gain was stated age.** Without it, boosting catches more cheats
+  than the rule (131 against 94) but accuses more honest children (73 against 48; the 95%
+  interval, +11 to +38, excludes zero), the opposite of what the plan asks of a replacement. The
+  accusations rise most where stated age had been doing the work: 36 at 15 to 17 against the
+  rule's 25 (5 with stated age), 9 at 17+ against 4, and 11 girls against 2. The fewer false
+  accusations above came from knowing where cheats are planted.
+- **Late bloomers: about half the gain was stated age.** Without it, boosting still catches more
+  than the rule (135 against 121) with fewer false flags (81 against 101), but the interval on
+  the false flags now reaches zero (-42 to +1) and the F1 gain is about half (+0.062 against
+  +0.114). The youngest band, where the full model was worse than the rule, is now level with
+  it (33 of 69 caught, as the rule), so that weakness also came from stated age. The
+  birth-quarter difference disappears (p = 0.71, against 0.022).
+- Without stated age, boosting reads what the rules read (`explain`): for late bloomers the
+  lowest height z, whole-record growth and velocity z; for age misrepresentation output, height
+  for the stated age and growth.
+- So the headline is: **gradient boosting beats the rules partly by learning where the generator
+  plants cases** (for age misrepresentation, entirely). Of the gain above, what survives without
+  stated age is a modest late-bloomer improvement.
+
+**What it means.**
+
+- By the rule in the team plan, a model replaces a rule only if it wins on the reported seeds
+  without more false accusations. Gradient boosting at its "no more flags" threshold does that
+  for both detectors, in both worlds, and the 95% intervals on both differences exclude zero,
+  **but only with stated age**. Without it (the ablation), it fails that rule for age
+  misrepresentation and passes it for late bloomers with a smaller, less certain gain.
+- Logistic regression is a small late-bloomer gain and no age-misrepresentation gain. At "best
+  F1" both models buy recall with many more false flags, which this project does not accept for
+  an accusation.
+- Three findings say the swap should not be automatic, and they concern the children this
+  platform exists for:
+  1. Age misrepresentation at 13 to 15: 16 false accusations against the rule's 9, and in the
+     what-if world 58 against 41 across 11 to 15. The whole reduction is above 15.
+  2. Late bloomers aged 11 to 13: 25 of 69 caught against the rule's 33. The gain is in older
+     late bloomers.
+  3. The youngest-born may gain least from the fewer false flags (above). Girls are accused 4 times
+     against the rule's 2; 12 of the age cheats over 20 datasets are girls, too few to read more
+     into.
+- Recorded result: gradient boosting beats both rules overall, partly by learning where the
+  generator plants cases, and is worse than them for younger children in the places listed.
+  What survives without stated age is a modest late-bloomer gain.
+- **It does not go into the app.** A model that falsely accuses more 13 to 15 year olds of lying
+  about their age than the rule does (16 against 9) is not one this platform deploys, whatever
+  its overall F1. Fixing that is the condition for revisiting it; until then the rules stay,
+  and this section is the measured alternative.
+
+**Limits.**
+
+- Synthetic data. The model learns the generator's world; on real children it could do better or
+  worse. The what-if world tests one assumption (performance following maturity), not all of them.
+- A supervised model needs labelled cases. A deployment has none until reviewers decide flags
+  (see "Reviewers' decisions as training data"), so today it can only be trained on synthetic
+  children.
+- The ablation removes one route to the planting ranges, not every one: an input such as
+  growth velocity also differs with age, so some of where cases are planted may still be
+  learned through it. What survives the ablation is an upper bound on what would carry over to
+  real children, not a measurement of it.
+- Small groups: 20 girls among the late bloomers and 12 among the age cheats; a single dataset's
+  age-band counts are in single digits.
+- The scores are not calibrated probabilities (the classes are weighted), so a flag shows the
+  score and the threshold, never a "chance".
+
+**Reproduce.** The four commands at the top of this section, from the repository root, with
+`ml/requirements.txt` installed. `calibrate` takes about two minutes and `report` and `explain`
+about three each, most of it generating datasets.
+
+The numbers above were produced on Windows (Python 3.12, scikit-learn 1.5.2, xgboost 3.0.5),
+where the commands reproduce every count. On Linux (Python 3.11 with the same library
+versions, as in CI) the logistic regression reproduces exactly, but XGBoost builds slightly
+different trees: its calibration counts differ at 17 (late bloomer) and 15 (age) of the 19
+thresholds, each by a few players, so `report` refuses to run unless given
+`--allow-refit-difference`, and then says so at the top of its output. With it, on the same
+frozen thresholds, the reported counts move by a few players and no conclusion changes:
+gradient boosting "no more flags" catches 139 late bloomers with 48 false flags (140 and 50
+here) and 118 age cheats with 26 false accusations (119 and 29 here), and it is still worse than
+the rules where this section says it is: 14 false accusations at 13 to 15 against the rule's 9,
+26 of 69 late bloomers caught at 11 to 13 against 33, and 5 girls accused against 2.
+`tree_method="exact"` in place of `"hist"` was tried (asked for in review): Linux still builds
+different trees (16 and 14 of the 19 calibration counts differ, against 17 and 15), so the
+committed settings stay. The ablation's rows were produced and are reproduced the same way, on
+Windows; they were not measured on Linux.
+
 ### What this says
 
 Neither method was a wasted experiment, and neither is a free win. The more complex forecaster
 earns its place where the simple one is known to struggle (few children to learn from, late
 spurts), and the unsupervised detector does not beat a well-reasoned rule on the metric that
 matters for an accusation. That matches the literature review's conclusion that evaluation
-design, not model complexity, is the constraint.
+design, not model complexity, is the constraint. Given labels, supervised boosting beats both
+detector rules overall, and the same evaluation design shows how much of that is the generator:
+without stated age the age-fraud gain is gone and the late-bloomer gain is halved.
 
 ## Table tennis rating
 
@@ -2061,6 +2310,7 @@ requires anyway.
 detectors/     late-bloomer, fraud, duplicate + the features they share   done
 evaluation/    metrics, the scoring harness, the relative age audit       done
 challengers/   XGBoost forecaster and isolation forest, scored against v1  done
+               learned.py: supervised late-bloomer and age detectors       done
 run_eval.py    CLI entry point                                            done
 run_age_bands.py  the age rule v1 against v2, by stated age and birth quarter  done
 write_flags.py detector run that writes flags to the database             done
