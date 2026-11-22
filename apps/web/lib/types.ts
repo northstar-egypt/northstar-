@@ -421,6 +421,26 @@ export interface ComparisonMetric {
   /** Set when error bars overlap, so the interface reports rather than ranks. */
   indistinguishable?: boolean;
   note?: string;
+  /** For an estimate: its 80% range and percentile among peers, one per player. */
+  lows?: (number | null)[] | null;
+  highs?: (number | null)[] | null;
+  percentiles?: (number | null)[] | null;
+}
+
+/** Professionals side by side on their basic league seasons (app/services/pro_compare.py). */
+export interface ComparisonSeasons {
+  /** "same season" when every player is compared on one competition and season. */
+  basis: string;
+  caveat: string | null;
+  players: {
+    playerId: string;
+    competition: string | null;
+    season: string | null;
+    clubs: string[];
+    positionGroup: string | null;
+    note: string | null;
+  }[];
+  metrics: ComparisonMetric[];
 }
 
 export interface Comparison {
@@ -429,6 +449,8 @@ export interface Comparison {
   caveat: string | null;
   metrics: ComparisonMetric[];
   growth: { playerId: string; points: { date: string; value: number }[] }[];
+  /** Null when none of the players has a basic league season. */
+  seasons?: ComparisonSeasons | null;
 }
 
 export interface CoverageRow {

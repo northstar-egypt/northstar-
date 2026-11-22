@@ -29,7 +29,7 @@ from app.models.organization import Organization
 from app.models.performance_entry import PerformanceEntry
 from app.models.player import Player
 from app.models.player_organization import PlayerOrganization
-from app.services import cohort, flags, forecast, merge, rating
+from app.services import cohort, flags, forecast, merge, pro_compare, rating
 from app.services.access import (
     Caller,
     consent_complete,
@@ -554,6 +554,7 @@ def build_comparison(
             }
             for player in players
         ],
+        "seasons": pro_compare.league_seasons(db, players),
     }
 
 

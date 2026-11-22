@@ -28,8 +28,8 @@ import {
 } from "@/components/ui";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getComparison, getRadar, search } from "@/lib/api";
-import { cx } from "@/lib/format";
-import type { Comparison, PlayerRadar, SearchResult } from "@/lib/types";
+import { cx, num, ordinal } from "@/lib/format";
+import type { Comparison, ComparisonSeasons, PlayerRadar, SearchResult } from "@/lib/types";
 
 /** The API compares two to four players (routers/comparison.py, MAX_PLAYERS). */
 const MAX_PLAYERS = 4;
@@ -74,6 +74,12 @@ export default function ComparePage() {
       alive = false;
     };
   }, [basis, playerIds]);
+
+  // Whether any player has a measurement or a growth reading to show.
+  const measured =
+    !!data &&
+    (data.metrics.some((m) => m.values.some((v) => v != null)) ||
+      data.growth.some((g) => g.points.length > 0));
 
   if (error) {
     return (
@@ -162,17 +168,23 @@ export default function ComparePage() {
             ) : null}
           </div>
 
-          <Card>
-            <SectionTitle>Growth curves, overlaid</SectionTitle>
-            {data.growth.length > 0 ? (
-              <OverlaidGrowth
-                series={data.growth}
-                labels={data.players.map((p) => p.player.fullName)}
-              />
-            ) : (
-              <Empty>No growth data for these players.</Empty>
-            )}
-          </Card>
+          {data.seasons ? <LeagueSeasons seasons={data.seasons} players={data.players} /> : null}
+
+          {/* Professionals from a source with league seasons only have no measurements: their
+              growth and measurement cards would be all "no data", so they are left out. */}
+          {!data.seasons || measured ? (
+            <Card>
+              <SectionTitle>Growth curves, overlaid</SectionTitle>
+              {data.growth.length > 0 ? (
+                <OverlaidGrowth
+                  series={data.growth}
+                  labels={data.players.map((p) => p.player.fullName)}
+                />
+              ) : (
+                <Empty>No growth data for these players.</Empty>
+              )}
+            </Card>
+          ) : null}
 
           <CompareRadar
             players={data.players.map((p) => ({
@@ -182,6 +194,7 @@ export default function ComparePage() {
             }))}
           />
 
+          {!data.seasons || measured ? (
           <Card>
             <SectionTitle>Side by side</SectionTitle>
             <Table>
@@ -248,10 +261,109 @@ export default function ComparePage() {
               </p>
             ) : null}
           </Card>
+          ) : null}
 
         </>
       )}
     </div>
+  );
+}
+
+/** A count, a rate per 90, or nothing: the league-season rows' formats. */
+function seasonValue(value: number | null | undefined, unit: string): string {
+  if (value == null) return "not shown";
+  return unit === "per 90" ? value.toFixed(2) : num(value);
+}
+
+/**
+ * Professionals side by side on their basic league seasons (apps/api/app/services/pro_compare.py):
+ * the counts the source publishes, rates per 90 from 450 minutes, and the talent estimates with
+ * their 80% range. As in the table above, overlapping ranges are reported, not ranked.
+ */
+function LeagueSeasons({
+  seasons,
+  players,
+}: {
+  seasons: ComparisonSeasons;
+  players: Comparison["players"];
+}) {
+  const notes = Array.from(new Set(seasons.metrics.map((m) => m.note).filter((n): n is string => !!n)));
+  return (
+    <Card>
+      <SectionTitle>League seasons</SectionTitle>
+      <p className="mb-3 text-xs text-slate-500">
+        {seasons.basis === "same season"
+          ? "Compared on the same competition and season."
+          : "Each player on their most recent season."}
+      </p>
+      {seasons.caveat ? (
+        <div className="mb-3">
+          <Banner tone="warn">{seasons.caveat}</Banner>
+        </div>
+      ) : null}
+      <Table>
+        <thead>
+          <tr>
+            <Th>Season</Th>
+            {players.map((p, i) => {
+              const column = seasons.players[i];
+              return (
+                <Th key={p.player.id}>
+                  <bdi>{p.player.fullName}</bdi>
+                  <span className="block text-xs font-normal text-slate-500">
+                    {column?.competition
+                      ? `${column.competition} ${column.season}${column.positionGroup ? `, ${column.positionGroup}` : ""}`
+                      : column?.note ?? "no season"}
+                  </span>
+                  {column?.clubs.length ? (
+                    <span className="block text-xs font-normal text-slate-600">{column.clubs.join(", ")}</span>
+                  ) : null}
+                </Th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {seasons.metrics.map((m) => {
+            const valid = m.values.filter((v): v is number => v != null);
+            const best = valid.length >= 2 ? (m.higherIsBetter ? Math.max(...valid) : Math.min(...valid)) : null;
+            return (
+              <tr key={m.label}>
+                <Td className="whitespace-nowrap">
+                  {m.label}
+                  {m.indistinguishable ? (
+                    <Chip tone="warn" title={m.note}>
+                      overlapping
+                    </Chip>
+                  ) : null}
+                </Td>
+                {m.values.map((v, i) => (
+                  <Td
+                    key={i}
+                    className={cx("tabular-nums", !m.indistinguishable && v != null && v === best && "font-semibold text-slate-100")}
+                  >
+                    {seasonValue(v, m.unit)}
+                    {m.lows?.[i] != null && m.highs?.[i] != null ? (
+                      <span className="block text-xs text-slate-500">
+                        {m.lows[i]!.toFixed(2)} to {m.highs[i]!.toFixed(2)}
+                        {m.percentiles?.[i] != null ? `, ${ordinal(Math.round(m.percentiles[i]!))} among peers` : ""}
+                      </span>
+                    ) : null}
+                  </Td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </Table>
+      {notes.length ? (
+        <ul className="mt-3 flex flex-col gap-1 text-xs text-slate-500">
+          {notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      ) : null}
+    </Card>
   );
 }
 

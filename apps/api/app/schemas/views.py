@@ -594,11 +594,37 @@ class ComparisonMetricOut(CamelModel):
     # than ranks.
     indistinguishable: bool | None = None
     note: str | None = None
+    # For an estimate: its 80% range and percentile among peers, one per player (null where
+    # there is none). Absent for a plain count or measurement.
+    lows: list[float | None] | None = None
+    highs: list[float | None] | None = None
+    percentiles: list[float | None] | None = None
 
 
 class ComparisonGrowthOut(CamelModel):
     player_id: uuid.UUID
     points: list[GrowthPointOut] = []
+
+
+class ComparisonSeasonPlayerOut(CamelModel):
+    """The league season a player is compared on, or a note saying why there is none."""
+
+    player_id: uuid.UUID
+    competition: str | None = None
+    season: str | None = None
+    clubs: list[str] = []
+    position_group: str | None = None
+    note: str | None = None
+
+
+class ComparisonSeasonsOut(CamelModel):
+    """Professionals side by side on their basic league seasons (app/services/pro_compare.py)."""
+
+    # "same season" when every player is compared on one competition and season.
+    basis: str
+    caveat: str | None = None
+    players: list[ComparisonSeasonPlayerOut] = []
+    metrics: list[ComparisonMetricOut] = []
 
 
 class ComparisonOut(CamelModel):
@@ -607,6 +633,8 @@ class ComparisonOut(CamelModel):
     caveat: str | None = None
     metrics: list[ComparisonMetricOut] = []
     growth: list[ComparisonGrowthOut] = []
+    # Null when none of the players has a basic league season.
+    seasons: ComparisonSeasonsOut | None = None
 
 
 class CoverageRowOut(CamelModel):
