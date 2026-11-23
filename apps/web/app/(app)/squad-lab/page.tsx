@@ -683,6 +683,9 @@ function SlotPanel({
 
       {slot.player ? (
         <div className="flex flex-col gap-2 rounded-lg border border-slate-800 p-3">
+          <div className="flex justify-center py-1">
+            <PlayerCard slot={slot} active={false} size="big" />
+          </div>
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col">
               <Link
@@ -1058,7 +1061,7 @@ function ClubBadge({ name }: { name: string | null }) {
   const letters = name ? initials(name) : "–";
   return (
     <span
-      className="relative grid h-[1.05rem] w-[0.95rem] place-items-center"
+      className="relative grid h-[1.3em] w-[1.15em] place-items-center"
       title={name ?? "No club"}
     >
       <svg
@@ -1074,7 +1077,7 @@ function ClubBadge({ name }: { name: string | null }) {
         />
       </svg>
       <span
-        className="relative text-[0.38rem] font-bold leading-none text-slate-100"
+        className="relative text-[0.45em] font-bold leading-none text-slate-100"
         dir="auto"
       >
         {letters}
@@ -1083,83 +1086,143 @@ function ClubBadge({ name }: { name: string | null }) {
   );
 }
 
+/** A short tag for a trait on the card, e.g. "Pass accuracy" to "PA", "Tackling" to "TAC". */
+function traitTag(label: string): string {
+  const words = label.split(/\s+/).filter(Boolean);
+  if (words.length > 1)
+    return words
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 3)
+      .toUpperCase();
+  return label.slice(0, 3).toUpperCase();
+}
+
 /**
- * A player on the pitch: his score for this slot, position, nationality flag, club badge,
- * name and club. Our own card design.
+ * A player card, our own collectible-style design. The photo (or a generic silhouette) fills
+ * the upper card and fades into the frame. Top left: his score for this slot, the position,
+ * flag and club badge. Below: the name band, and on the big card his key trait ranks.
+ *
+ * Every size is in em, so one design serves the pitch ("pitch") and the side panel ("big").
  */
-function PlayerCard({ slot, active }: { slot: LabSlot; active: boolean }) {
+function PlayerCard({
+  slot,
+  active,
+  size = "pitch",
+}: {
+  slot: LabSlot;
+  active: boolean;
+  size?: "pitch" | "big";
+}) {
   const player = slot.player!;
   const nations = player.nationality?.length ? player.nationality : [];
+  const big = size === "big";
+  const stats = big ? slot.traits.slice(0, 3) : [];
+  const fade = "linear-gradient(to bottom, #000 55%, transparent 96%)";
   return (
     <span
       className={cx(
-        "block drop-shadow-[0_6px_10px_rgba(0,0,0,0.6)] transition hover:-translate-y-0.5",
+        "block drop-shadow-[0_6px_10px_rgba(0,0,0,0.6)] transition",
+        big
+          ? "text-[22px]"
+          : "text-[11px] hover:-translate-y-0.5 sm:text-[12px]",
         active && "drop-shadow-[0_0_10px_rgba(56,189,248,0.9)]",
       )}
     >
       <span
-        className={cx("block bg-gradient-to-br p-[2px]", CARD_FRAME[slot.band])}
+        className={cx(
+          "block bg-gradient-to-br p-[0.14em]",
+          CARD_FRAME[slot.band],
+        )}
         style={{ clipPath: CARD_SHAPE }}
       >
         <span
           className={cx(
-            "relative flex h-[6.6rem] w-[4.6rem] flex-col items-center bg-gradient-to-b sm:h-[7.2rem] sm:w-[5.1rem]",
+            "relative block h-[10.6em] w-[7.4em] overflow-hidden bg-gradient-to-b",
             CARD_BODY[slot.band],
           )}
           style={{ clipPath: CARD_SHAPE }}
         >
-          {/* Shine across the top. */}
-          <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent" />
+          {/* The portrait: the hero of the card, fading into the body. */}
+          {player.photo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a private, cookie-protected API image
+            <img
+              src={photoUrl(player.playerId, player.photo)}
+              alt=""
+              className="absolute right-0 top-0 h-[7.3em] w-[5.9em] object-cover object-top"
+              style={{ maskImage: fade, WebkitMaskImage: fade }}
+            />
+          ) : (
+            <Silhouette className="absolute right-[0.2em] top-[1.1em] h-[5.6em] w-[5.6em] text-white/20" />
+          )}
 
-          <span className="absolute left-1.5 top-1 flex flex-col items-center leading-none">
-            <span className="text-xl font-extrabold tabular-nums text-white sm:text-2xl">
+          {/* Shine across the top, and a shade on the left so the numbers stay readable. */}
+          <span className="pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-white/15 to-transparent" />
+          <span className="pointer-events-none absolute inset-y-0 left-0 w-[2.8em] bg-gradient-to-r from-black/45 to-transparent" />
+
+          <span className="absolute left-[0.45em] top-[0.35em] flex flex-col items-center leading-none">
+            <span className="text-[2.2em] font-extrabold tabular-nums text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.7)]">
               {scoreText(slot.score)}
             </span>
-            <span className="mt-0.5 text-[0.6rem] font-bold tracking-wide text-white/85">
+            <span className="mt-[0.1em] text-[0.8em] font-bold tracking-wide text-white/90">
               {slot.role}
             </span>
-            <span className="mt-0.5 flex flex-col items-center gap-0.5">
+            <span className="mt-[0.3em] flex flex-col items-center gap-[0.25em]">
               {nations.slice(0, 2).map((code) => (
                 <FlagIcon
                   key={code}
                   code={code}
-                  className="h-[0.6rem] w-[0.9rem]"
+                  className="h-[0.8em] w-[1.2em]"
                 />
               ))}
               <ClubBadge name={player.club} />
             </span>
           </span>
 
-          {player.photo ? (
-            // eslint-disable-next-line @next/next/no-img-element -- a private, cookie-protected API image
-            <img
-              src={photoUrl(player.playerId, player.photo)}
-              alt=""
-              className="absolute right-1 top-1.5 h-11 w-9 rounded-md object-cover ring-1 ring-white/30 sm:h-12 sm:w-10"
-            />
-          ) : (
-            <Silhouette className="absolute right-0.5 top-2 h-12 w-12 text-white/25 sm:h-14 sm:w-14" />
-          )}
-
-          <span className="absolute inset-x-0 bottom-[0.75rem] flex flex-col items-center px-1">
-            <span className="h-px w-4/5 bg-white/25" />
+          {/* Name band. */}
+          <span className="absolute inset-x-0 top-[6.2em] flex flex-col items-center bg-black/35 px-[0.3em] py-[0.15em]">
             <span
-              className="mt-0.5 w-full truncate text-center text-[0.66rem] font-bold leading-tight text-white"
+              className="w-full truncate text-center text-[0.92em] font-extrabold uppercase leading-tight tracking-wide text-white"
               dir="auto"
             >
               {shortName(player)}
             </span>
-            <span
-              className="w-full truncate text-center text-[0.52rem] leading-tight text-white/60"
-              dir="auto"
-            >
-              {player.club ?? "no club"}
-            </span>
+            {/* The big card has the club in the panel beside it, and its ranks here. */}
+            {big ? null : (
+              <span
+                className="w-full truncate text-center text-[0.6em] leading-tight text-white/65"
+                dir="auto"
+              >
+                {player.club ?? "no club"}
+              </span>
+            )}
           </span>
+
+          {/* Key ranks for this slot (big card only; too small to read on the pitch). */}
+          {stats.length ? (
+            <span className="absolute inset-x-[2em] top-[13.4em] flex justify-between text-[0.6em] leading-none text-white/90">
+              {stats.map((t) => (
+                <span
+                  key={t.trait}
+                  className="flex flex-col items-center gap-[0.2em]"
+                  title={`${t.label}: rank ${t.percentile} of 100`}
+                >
+                  <span className="font-extrabold tabular-nums">
+                    {t.percentile}
+                  </span>
+                  <span className="text-white/70">{traitTag(t.label)}</span>
+                </span>
+              ))}
+            </span>
+          ) : big ? (
+            <span className="absolute inset-x-[1em] top-[16.6em] text-center text-[0.5em] text-white/60">
+              No ranks for this slot
+            </span>
+          ) : null}
         </span>
       </span>
       {slot.fit === "out_of_position" ? (
-        <span className="mx-auto -mt-1 block w-fit rounded bg-amber-400 px-1 text-[0.5rem] font-bold text-slate-950">
+        <span className="mx-auto -mt-[0.3em] block w-fit rounded bg-amber-400 px-[0.3em] text-[0.55em] font-bold text-slate-950">
           out of position
         </span>
       ) : null}
@@ -1219,7 +1282,7 @@ function Bench({
               ) : (
                 <span
                   className={cx(
-                    "grid h-[6.6rem] w-[4.6rem] place-items-center rounded-lg border-2 border-dashed border-slate-700 text-xs text-slate-500 sm:h-[7.2rem] sm:w-[5.1rem]",
+                    "grid h-[7.6rem] w-[5.4rem] place-items-center rounded-lg border-2 border-dashed border-slate-700 text-xs text-slate-500 sm:h-[8.2rem] sm:w-[5.8rem]",
                     active && "border-sky-400 text-sky-300",
                   )}
                 >
