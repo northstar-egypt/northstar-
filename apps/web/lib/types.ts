@@ -1058,6 +1058,8 @@ export interface LabLink {
   band: LabBand;
   basis: Record<string, LabTrait[]>;
   note: string | null;
+  /** A line to the goalkeeper: drawn grey, never scored. */
+  keeper: boolean;
 }
 
 export interface LabScore {

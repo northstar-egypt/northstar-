@@ -35,11 +35,13 @@ def test_every_formation_link_has_a_rule_and_every_trait_exists():
     for name, shape in cfg["formations"].items():
         ids = [s["id"] for s in shape["slots"]]
         assert len(ids) == 11 and len(set(ids)) == 11, name
+        assert len({tuple(sorted(link)) for link in shape["links"]}) == len(shape["links"]), name
         assert all(s["role"] in module.roles for s in shape["slots"]), name
         roles = {s["id"]: s["role"] for s in shape["slots"]}
         for a, b in shape["links"]:
             ga, gb = squad_lab.group_of(roles[a]), squad_lab.group_of(roles[b])
-            assert ga and gb, f"{name}: {a}-{b} links a goalkeeper, who is never scored"
+            if "GK" in (roles[a], roles[b]):
+                continue  # drawn grey, never scored
             assert squad_lab._rule(ga, gb)[0] is not None, f"{name}: no rule for {ga} and {gb}"
     used = {t for rule in cfg["links"] for t in rule["a"] + rule["b"]}
     used |= {t for traits in cfg["roleTraits"].values() for t in traits}
@@ -157,3 +159,7 @@ def test_the_goalkeeper_is_placed_but_never_scored(client, auth, world, db):
     db.flush()
     slot = _slot(_evaluate(client, auth, "coach_a", {"GK": keeper}).json(), "GK")
     assert slot["state"] == "not_scored" and slot["score"] is None and slot["player"]["fullName"] == "Lab Keeper"
+    result = _evaluate(client, auth, "coach_a", {"GK": keeper}).json()
+    keeper_links = [lk for lk in result["links"] if "GK" in (lk["from"], lk["to"])]
+    assert keeper_links and all(lk["score"] is None and lk["band"] == "unknown" for lk in keeper_links)
+    assert result["team"]["chemistry"]["links"] == len(result["links"]) - len(keeper_links)

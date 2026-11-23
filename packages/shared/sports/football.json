@@ -629,7 +629,7 @@
           { "id": "RW", "role": "RW", "x": 84, "y": 76 }
         ],
         "links": [
-          ["LB", "LCB"], ["LCB", "RCB"], ["RCB", "RB"], ["LCB", "CDM"], ["RCB", "CDM"],
+          ["GK", "LCB"], ["GK", "RCB"], ["LB", "LCB"], ["LCB", "RCB"], ["RCB", "RB"], ["LCB", "CDM"], ["RCB", "CDM"],
           ["LB", "LCM"], ["RB", "RCM"], ["LB", "LW"], ["RB", "RW"],
           ["CDM", "LCM"], ["CDM", "RCM"], ["LCM", "LW"], ["RCM", "RW"], ["LCM", "ST"], ["RCM", "ST"],
           ["LW", "ST"], ["RW", "ST"]
@@ -650,7 +650,7 @@
           { "id": "RST", "role": "ST", "x": 62, "y": 81 }
         ],
         "links": [
-          ["LB", "LCB"], ["LCB", "RCB"], ["RCB", "RB"], ["LB", "LM"], ["RB", "RM"],
+          ["GK", "LCB"], ["GK", "RCB"], ["LB", "LCB"], ["LCB", "RCB"], ["RCB", "RB"], ["LB", "LM"], ["RB", "RM"],
           ["LCB", "LCM"], ["RCB", "RCM"], ["LM", "LCM"], ["LCM", "RCM"], ["RCM", "RM"],
           ["LM", "LST"], ["RM", "RST"], ["LCM", "LST"], ["RCM", "RST"], ["LST", "RST"]
         ]
@@ -670,10 +670,100 @@
           { "id": "ST", "role": "ST", "x": 50, "y": 85 }
         ],
         "links": [
-          ["LB", "LCB"], ["LCB", "RCB"], ["RCB", "RB"], ["LCB", "LDM"], ["RCB", "RDM"], ["LDM", "RDM"],
+          ["GK", "LCB"], ["GK", "RCB"], ["LB", "LCB"], ["LCB", "RCB"], ["RCB", "RB"], ["LCB", "LDM"], ["RCB", "RDM"], ["LDM", "RDM"],
           ["LB", "LDM"], ["RB", "RDM"], ["LB", "LW"], ["RB", "RW"],
           ["LDM", "CAM"], ["RDM", "CAM"], ["LW", "CAM"], ["RW", "CAM"],
           ["LW", "ST"], ["CAM", "ST"], ["RW", "ST"]
+        ]
+      },
+      "3-5-2": {
+        "slots": [
+          { "id": "GK", "role": "GK", "x": 50, "y": 7 },
+          { "id": "LCB", "role": "CB", "x": 26, "y": 20 },
+          { "id": "CB", "role": "CB", "x": 50, "y": 17 },
+          { "id": "RCB", "role": "CB", "x": 74, "y": 20 },
+          { "id": "LWB", "role": "LB", "x": 10, "y": 46 },
+          { "id": "RWB", "role": "RB", "x": 90, "y": 46 },
+          { "id": "CDM", "role": "CDM", "x": 50, "y": 37 },
+          { "id": "LCM", "role": "CM", "x": 31, "y": 52 },
+          { "id": "RCM", "role": "CM", "x": 69, "y": 52 },
+          { "id": "LST", "role": "ST", "x": 38, "y": 81 },
+          { "id": "RST", "role": "ST", "x": 62, "y": 81 }
+        ],
+        "links": [
+          ["GK", "LCB"], ["GK", "CB"], ["GK", "RCB"], ["LCB", "CB"], ["CB", "RCB"], ["LCB", "LWB"], ["RCB", "RWB"], ["LCB", "CDM"], ["CB", "CDM"], ["RCB", "CDM"], ["LWB", "LCM"], ["RWB", "RCM"], ["CDM", "LCM"], ["CDM", "RCM"], ["LCM", "LST"], ["RCM", "RST"], ["LST", "RST"]
+        ]
+      },
+      "3-4-3": {
+        "slots": [
+          { "id": "GK", "role": "GK", "x": 50, "y": 7 },
+          { "id": "LCB", "role": "CB", "x": 26, "y": 20 },
+          { "id": "CB", "role": "CB", "x": 50, "y": 17 },
+          { "id": "RCB", "role": "CB", "x": 74, "y": 20 },
+          { "id": "LWB", "role": "LB", "x": 12, "y": 45 },
+          { "id": "LCM", "role": "CM", "x": 38, "y": 44 },
+          { "id": "RCM", "role": "CM", "x": 62, "y": 44 },
+          { "id": "RWB", "role": "RB", "x": 88, "y": 45 },
+          { "id": "LW", "role": "LW", "x": 16, "y": 76 },
+          { "id": "ST", "role": "ST", "x": 50, "y": 84 },
+          { "id": "RW", "role": "RW", "x": 84, "y": 76 }
+        ],
+        "links": [
+          ["GK", "LCB"], ["GK", "CB"], ["GK", "RCB"], ["LCB", "CB"], ["CB", "RCB"], ["LCB", "LWB"], ["RCB", "RWB"], ["LCB", "LCM"], ["RCB", "RCM"], ["LWB", "LCM"], ["LCM", "RCM"], ["RCM", "RWB"], ["LWB", "LW"], ["RWB", "RW"], ["LCM", "LW"], ["RCM", "RW"], ["LCM", "ST"], ["RCM", "ST"], ["LW", "ST"], ["RW", "ST"]
+        ]
+      },
+      "5-3-2": {
+        "slots": [
+          { "id": "GK", "role": "GK", "x": 50, "y": 7 },
+          { "id": "LWB", "role": "LB", "x": 10, "y": 31 },
+          { "id": "LCB", "role": "CB", "x": 30, "y": 20 },
+          { "id": "CB", "role": "CB", "x": 50, "y": 17 },
+          { "id": "RCB", "role": "CB", "x": 70, "y": 20 },
+          { "id": "RWB", "role": "RB", "x": 90, "y": 31 },
+          { "id": "CDM", "role": "CDM", "x": 50, "y": 40 },
+          { "id": "LCM", "role": "CM", "x": 30, "y": 52 },
+          { "id": "RCM", "role": "CM", "x": 70, "y": 52 },
+          { "id": "LST", "role": "ST", "x": 38, "y": 81 },
+          { "id": "RST", "role": "ST", "x": 62, "y": 81 }
+        ],
+        "links": [
+          ["GK", "LCB"], ["GK", "CB"], ["GK", "RCB"], ["LWB", "LCB"], ["LCB", "CB"], ["CB", "RCB"], ["RCB", "RWB"], ["LCB", "CDM"], ["CB", "CDM"], ["RCB", "CDM"], ["LWB", "LCM"], ["RWB", "RCM"], ["CDM", "LCM"], ["CDM", "RCM"], ["LCM", "LST"], ["RCM", "RST"], ["LST", "RST"]
+        ]
+      },
+      "4-1-4-1": {
+        "slots": [
+          { "id": "GK", "role": "GK", "x": 50, "y": 7 },
+          { "id": "LB", "role": "LB", "x": 14, "y": 27 },
+          { "id": "LCB", "role": "CB", "x": 37, "y": 20 },
+          { "id": "RCB", "role": "CB", "x": 63, "y": 20 },
+          { "id": "RB", "role": "RB", "x": 86, "y": 27 },
+          { "id": "CDM", "role": "CDM", "x": 50, "y": 36 },
+          { "id": "LM", "role": "LW", "x": 14, "y": 58 },
+          { "id": "LCM", "role": "CM", "x": 36, "y": 55 },
+          { "id": "RCM", "role": "CM", "x": 64, "y": 55 },
+          { "id": "RM", "role": "RW", "x": 86, "y": 58 },
+          { "id": "ST", "role": "ST", "x": 50, "y": 84 }
+        ],
+        "links": [
+          ["GK", "LCB"], ["GK", "RCB"], ["LB", "LCB"], ["LCB", "RCB"], ["RCB", "RB"], ["LCB", "CDM"], ["RCB", "CDM"], ["LB", "LM"], ["RB", "RM"], ["CDM", "LCM"], ["CDM", "RCM"], ["LM", "LCM"], ["LCM", "RCM"], ["RCM", "RM"], ["LM", "ST"], ["LCM", "ST"], ["RCM", "ST"], ["RM", "ST"]
+        ]
+      },
+      "4-4-2 diamond": {
+        "slots": [
+          { "id": "GK", "role": "GK", "x": 50, "y": 7 },
+          { "id": "LB", "role": "LB", "x": 14, "y": 27 },
+          { "id": "LCB", "role": "CB", "x": 37, "y": 20 },
+          { "id": "RCB", "role": "CB", "x": 63, "y": 20 },
+          { "id": "RB", "role": "RB", "x": 86, "y": 27 },
+          { "id": "CDM", "role": "CDM", "x": 50, "y": 35 },
+          { "id": "LCM", "role": "CM", "x": 29, "y": 50 },
+          { "id": "RCM", "role": "CM", "x": 71, "y": 50 },
+          { "id": "CAM", "role": "CAM", "x": 50, "y": 63 },
+          { "id": "LST", "role": "ST", "x": 39, "y": 83 },
+          { "id": "RST", "role": "ST", "x": 61, "y": 83 }
+        ],
+        "links": [
+          ["GK", "LCB"], ["GK", "RCB"], ["LB", "LCB"], ["LCB", "RCB"], ["RCB", "RB"], ["LCB", "CDM"], ["RCB", "CDM"], ["LB", "LCM"], ["RB", "RCM"], ["CDM", "LCM"], ["CDM", "RCM"], ["LCM", "CAM"], ["RCM", "CAM"], ["CAM", "LST"], ["CAM", "RST"], ["LST", "RST"]
         ]
       }
     }

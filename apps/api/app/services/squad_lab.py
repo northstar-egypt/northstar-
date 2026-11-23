@@ -413,8 +413,12 @@ def _link(pop: _Population, slots: dict, records: dict, a: str, b: str) -> dict:
     sa, sb = slots[a], slots[b]
     ga, gb = group_of(sa["role"]), group_of(sb["role"])
     out = {"from": a, "to": b, "label": None, "why": None, "score": None, "band": "unknown",
-           "basis": {a: [], b: []}, "note": None}
-    rule, flipped = _rule(ga, gb) if ga and gb else (None, False)
+           "basis": {a: [], b: []}, "note": None, "keeper": False}
+    if ga is None or gb is None:
+        out.update(label="Goalkeeper", why="the keeper and his defenders", keeper=True,
+                   note="Not scored: there is no goalkeeping data, so this line is always grey.")
+        return out
+    rule, flipped = _rule(ga, gb)
     if rule is None:
         out["note"] = "No rule for this pair of positions."
         return out
@@ -450,10 +454,12 @@ def _team(slots: dict, links: list[dict]) -> dict:
             "band": band(round(fmean(scored), 1)) if enough else "unknown",
             "note": None if enough else f"Needs at least half of its {len(members)} players scored.",
         })
-    known = [link["score"] for link in links if link["score"] is not None]
-    chem_ok = links and len(known) * 2 >= len(links)
+    # Keeper links are drawn but never scored, so they do not count against chemistry.
+    scorable = [link for link in links if not link.get("keeper")]
+    known = [link["score"] for link in scorable if link["score"] is not None]
+    chem_ok = scorable and len(known) * 2 >= len(scorable)
     chemistry = {
-        "score": round(fmean(known), 1) if chem_ok else None, "known": len(known), "links": len(links),
+        "score": round(fmean(known), 1) if chem_ok else None, "known": len(known), "links": len(scorable),
         "note": None if chem_ok else "Needs at least half of the links scored.",
     }
     chemistry["band"] = band(chemistry["score"])
