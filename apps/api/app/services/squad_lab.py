@@ -320,7 +320,7 @@ def _card(player: Player, clubs: dict, today: date) -> dict:
     return {
         "playerId": str(player.id), "fullName": player.full_name, "knownAs": player.known_as,
         "position": player.position, "tier": player.tier, "ageLabel": age_label(player.date_of_birth, today),
-        "club": clubs.get(player.id), "isMinor": player.is_minor,
+        "club": clubs.get(player.id), "isMinor": player.is_minor, "nationality": list(player.nationality or []),
     }
 
 

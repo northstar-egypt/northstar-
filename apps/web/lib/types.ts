@@ -1017,6 +1017,8 @@ export interface LabPlayer {
   ageLabel: string;
   club: string | null;
   isMinor: boolean;
+  /** ISO country codes; more than one for dual nationals. */
+  nationality: string[];
 }
 
 export interface LabTrait {

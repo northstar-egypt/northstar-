@@ -377,17 +377,14 @@ export default function SquadLabPage() {
                 (dragged.current = { kind: "slot", slotId })
               }
               onDrop={drop}
-              onRemove={(slotId) => {
-                clearSlot(slotId);
-                setSelected({ kind: "slot", id: slotId });
-              }}
             />
           ) : (
             <Skeleton className="aspect-[68/100] w-full" />
           )}
           <p className="text-xs text-slate-500">
-            Click a circle to open the player list for that position, then click
-            or drag a player onto it. Drag one circle onto another to swap them.
+            Click a position to open its player list, then click or drag a
+            player onto it. Drag one card onto another to swap them. To remove
+            a player, click his card and press Remove this player.
             Tap a line to see why it is that colour.
           </p>
         </div>
@@ -422,7 +419,7 @@ export default function SquadLabPage() {
                 Pick your players
               </span>
               <span className="text-sm text-slate-400">
-                Click a circle on the pitch. The players for that position open
+                Click a position on the pitch. The players for that position open
                 here, best fit first.
               </span>
             </Card>
@@ -446,14 +443,12 @@ function PitchBoard({
   onSelect,
   onDragSlot,
   onDrop,
-  onRemove,
 }: {
   result: LabEvaluation;
   selected: Selection;
   onSelect: (s: Selection) => void;
   onDragSlot: (slotId: string) => void;
   onDrop: (slotId: string) => void;
-  onRemove: (slotId: string) => void;
 }) {
   const byId = new Map(result.slots.map((s) => [s.slotId, s]));
   const line = "rgba(148, 163, 184, 0.35)";
@@ -548,59 +543,28 @@ function PitchBoard({
                 onDrop(slot.slotId);
               }}
               onClick={() => onSelect({ kind: "slot", id: slot.slotId })}
-              className="flex w-20 flex-col items-center gap-0.5 focus:outline-none"
+              className="block focus:outline-none"
               aria-label={`${slot.roleName}: ${slot.player ? slot.player.fullName : "empty"}`}
             >
-              <span
-                className={cx(
-                  "relative grid h-11 w-11 place-items-center rounded-full border-2 bg-slate-950/90 text-xs font-semibold text-slate-100 shadow-lg transition",
-                  slot.player
-                    ? BAND_RING[slot.band]
-                    : "border-dashed border-slate-600 text-slate-500",
-                  active &&
-                    "ring-2 ring-sky-400 ring-offset-2 ring-offset-[#0b1f17]",
-                )}
-              >
-                {slot.player ? initials(slot.player.fullName) : "+"}
-                {slot.player ? (
+              {slot.player ? (
+                <PlayerCard slot={slot} active={active} />
+              ) : (
+                <span className="flex flex-col items-center gap-0.5">
                   <span
                     className={cx(
-                      "absolute -right-2 -top-1.5 rounded-full bg-slate-900 px-1 text-[0.6rem] tabular-nums",
-                      BAND_TEXT[slot.band],
+                      "grid h-11 w-11 place-items-center rounded-full border-2 border-dashed border-slate-600 bg-slate-950/80 text-sm text-slate-500",
+                      active &&
+                        "ring-2 ring-sky-400 ring-offset-2 ring-offset-[#0b1f17]",
                     )}
                   >
-                    {scoreText(slot.score)}
+                    +
                   </span>
-                ) : null}
-              </span>
-              <span
-                className="max-w-full truncate rounded bg-slate-950/70 px-1 text-[0.65rem] leading-tight text-slate-200"
-                dir="auto"
-              >
-                {slot.player
-                  ? shortName(slot.player)
-                  : slot.state === "unavailable"
-                    ? "Unavailable"
-                    : slot.role}
-              </span>
-              {slot.player ? (
-                <span className="text-[0.6rem] leading-none text-slate-400">
-                  {slot.role}
-                  {slot.fit === "out_of_position" ? " · out of position" : ""}
+                  <span className="rounded bg-slate-950/70 px-1 text-[0.65rem] text-slate-300">
+                    {slot.state === "unavailable" ? "Unavailable" : slot.role}
+                  </span>
                 </span>
-              ) : null}
+              )}
             </button>
-            {slot.player ? (
-              <button
-                type="button"
-                onClick={() => onRemove(slot.slotId)}
-                className="absolute left-1 top-0 grid h-5 w-5 place-items-center rounded-full bg-rose-600 text-xs font-bold leading-none text-white shadow hover:bg-rose-500"
-                aria-label={`Remove ${slot.player.fullName}`}
-                title="Remove this player"
-              >
-                ×
-              </button>
-            ) : null}
           </div>
         );
       })}
@@ -1011,5 +975,74 @@ function Headline({ result }: { result: LabEvaluation }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ player card */
+
+const CARD_BG: Record<LabBand, string> = {
+  green: "from-emerald-900 via-slate-900 to-slate-950",
+  yellow: "from-amber-900 via-slate-900 to-slate-950",
+  red: "from-rose-900 via-slate-900 to-slate-950",
+  unknown: "from-slate-700 via-slate-900 to-slate-950",
+};
+
+/**
+ * A player on the pitch: his score for this slot, position, initials, name, club and
+ * nationality. No photo: the repo holds no real player images, only initials.
+ */
+function PlayerCard({ slot, active }: { slot: LabSlot; active: boolean }) {
+  const player = slot.player!;
+  const nation = player.nationality?.length
+    ? player.nationality.join("/")
+    : "–";
+  return (
+    <span
+      className={cx(
+        "relative flex w-[4.3rem] flex-col items-center overflow-hidden rounded-lg border-2 bg-gradient-to-b px-1 pb-1 pt-0.5 shadow-lg shadow-black/50 sm:w-[4.9rem]",
+        CARD_BG[slot.band],
+        BAND_RING[slot.band],
+        active && "ring-2 ring-sky-400 ring-offset-2 ring-offset-[#0b1f17]",
+      )}
+    >
+      <span className="flex w-full items-start justify-between">
+        <span className="flex flex-col items-start leading-none">
+          <span
+            className={cx(
+              "text-base font-bold tabular-nums",
+              BAND_TEXT[slot.band],
+            )}
+          >
+            {scoreText(slot.score)}
+          </span>
+          <span className="text-[0.6rem] font-semibold text-slate-200">
+            {slot.role}
+          </span>
+        </span>
+        <span className="rounded bg-slate-950/70 px-0.5 text-[0.55rem] font-semibold text-slate-300">
+          {nation}
+        </span>
+      </span>
+      <span className="-mt-1 grid h-7 w-7 place-items-center rounded-full bg-slate-800 text-[0.65rem] font-semibold text-slate-100">
+        {initials(player.fullName)}
+      </span>
+      <span
+        className="mt-0.5 w-full truncate text-center text-[0.62rem] font-semibold leading-tight text-white"
+        dir="auto"
+      >
+        {shortName(player)}
+      </span>
+      <span
+        className="w-full truncate text-center text-[0.55rem] leading-tight text-slate-400"
+        dir="auto"
+      >
+        {player.club ?? "no club"}
+      </span>
+      {slot.fit === "out_of_position" ? (
+        <span className="mt-0.5 rounded bg-amber-500/20 px-1 text-[0.5rem] font-semibold text-amber-300">
+          out of position
+        </span>
+      ) : null}
+    </span>
   );
 }
