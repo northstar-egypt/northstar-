@@ -159,6 +159,7 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   "/me": ["player"],
   "/search": ["scout", "federation"],
   "/compare": ["coach", "scout", "federation"],
+  "/squad-lab": ["coach", "scout", "federation"],
   "/explore": ["coach", "scout", "federation"],
   "/gaps": ["scout", "federation"],
   "/ask": ["coach", "scout", "federation"],

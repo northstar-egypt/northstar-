@@ -1002,3 +1002,108 @@ export interface StrongestGroup {
     ratedMatches: number;
   }[];
 }
+
+/* ------------------------------------------------------------------ squad lab */
+
+/** A score's colour band. "unknown" is drawn grey: there was nothing to score it from. */
+export type LabBand = "green" | "yellow" | "red" | "unknown";
+
+export interface LabPlayer {
+  playerId: string;
+  fullName: string;
+  knownAs: string | null;
+  position: string | null;
+  tier: string | null;
+  ageLabel: string;
+  club: string | null;
+  isMinor: boolean;
+  /** ISO country codes; more than one for dual nationals. */
+  nationality: string[];
+  /** A version string when the caller may see his photo, else null. */
+  photo: string | null;
+}
+
+export interface LabTrait {
+  trait: string;
+  label: string;
+  /** What the number is in this player's data, e.g. "tackles per 90". */
+  measure: string;
+  value: number;
+  percentile: number;
+  poolSize: number;
+}
+
+export interface LabSlot {
+  slotId: string;
+  role: string;
+  roleName: string;
+  /** Across the pitch, 0 to 100, left to right. */
+  x: number;
+  /** Up the pitch, 0 at the own goal, 100 at the opposition's. */
+  y: number;
+  state: "empty" | "unavailable" | "not_scored" | "no_consent" | "no_data" | "scored";
+  player: LabPlayer | null;
+  fit: "natural" | "out_of_position" | "unknown" | null;
+  score: number | null;
+  band: LabBand;
+  traits: LabTrait[];
+  note: string | null;
+  source?: string;
+  /** Who the bars are ranked against, e.g. "academy players". */
+  rankedAmong?: string;
+}
+
+export interface LabLink {
+  from: string;
+  to: string;
+  label: string | null;
+  why: string | null;
+  score: number | null;
+  band: LabBand;
+  basis: Record<string, LabTrait[]>;
+  note: string | null;
+  /** A line to the goalkeeper: drawn grey, never scored. */
+  keeper: boolean;
+}
+
+export interface LabScore {
+  score: number | null;
+  band: LabBand;
+  note: string | null;
+}
+
+export interface LabEvaluation {
+  formation: string;
+  formations: string[];
+  slots: LabSlot[];
+  /** Substitutes "B1" to "B7". Their x and y are null: they are not on the pitch. */
+  bench: LabSlot[];
+  links: LabLink[];
+  team: {
+    /** Average slot score of the outfield players, out of 100. */
+    rating: LabScore & { scored: number; slots: number };
+    lines: (LabScore & { key: string; label: string; slots: number; scored: number })[];
+    chemistry: LabScore & { known: number; links: number };
+    balance: LabScore & { weakest: string | null };
+    filled: number;
+    slots: number;
+    outOfPosition: number;
+  };
+  caveats: string[];
+  about: string;
+  maySave: boolean;
+}
+
+export interface LabCandidate extends LabPlayer {
+  score: number | null;
+  band: LabBand;
+  naturalPosition: boolean;
+}
+
+export interface SavedSquad {
+  id: string;
+  name: string;
+  formation: string;
+  slots: Record<string, string>;
+  updatedAt: string | null;
+}
