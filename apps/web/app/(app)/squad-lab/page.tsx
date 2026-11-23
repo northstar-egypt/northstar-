@@ -367,6 +367,7 @@ export default function SquadLabPage() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex flex-col gap-3">
+          {result ? <Headline result={result} /> : null}
           {result ? (
             <PitchBoard
               result={result}
@@ -956,5 +957,59 @@ function TeamPanel({ result }: { result: LabEvaluation }) {
         ))}
       </div>
     </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ headline */
+
+/** The two big numbers above the pitch: team rating and chemistry, each out of 100. */
+function Headline({ result }: { result: LabEvaluation }) {
+  const { rating, chemistry } = result.team;
+  const items = [
+    {
+      label: "Team rating",
+      score: rating,
+      hint:
+        rating.score === null
+          ? rating.note
+          : `average of ${rating.scored} outfield players`,
+    },
+    {
+      label: "Chemistry",
+      score: chemistry,
+      hint:
+        chemistry.score === null
+          ? chemistry.note
+          : `${chemistry.known} of ${chemistry.links} links`,
+    },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className={cx(
+            "flex items-center gap-3 rounded-xl border-2 bg-slate-950/80 px-4 py-3",
+            BAND_RING[item.score.band],
+          )}
+        >
+          <span
+            className={cx(
+              "text-4xl font-bold tabular-nums leading-none",
+              BAND_TEXT[item.score.band],
+            )}
+          >
+            {scoreText(item.score.score)}
+            <span className="text-base font-medium text-slate-500">/100</span>
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="text-sm font-semibold text-slate-100">
+              {item.label}
+            </span>
+            <span className="text-xs text-slate-400">{item.hint}</span>
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }

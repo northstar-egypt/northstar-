@@ -145,6 +145,7 @@ def test_a_better_finisher_scores_higher_and_an_empty_neighbour_leaves_the_link_
     (link,) = [lk for lk in result["links"] if {lk["from"], lk["to"]} == {"LW", "ST"}]
     assert link["score"] is None and link["band"] == "unknown"
     assert result["team"]["chemistry"]["score"] is None
+    assert result["team"]["rating"]["score"] is None  # 1 of 10 outfield players is not enough
 
 
 def test_no_analytics_consent_means_no_score(client, auth, world, db):

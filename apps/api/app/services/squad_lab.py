@@ -470,9 +470,19 @@ def _team(slots: dict, links: list[dict]) -> dict:
     else:
         balance = {"score": None, "band": "unknown", "weakest": None,
                    "note": "Needs every line scored."}
+    # Team rating: the average of the outfield players' slot scores, once at least half of the
+    # outfield slots are scored. The keeper is never scored, so he is not counted.
+    outfield = [s for s in slots.values() if group_of(s["role"]) is not None]
+    rated = [s["score"] for s in outfield if s["score"] is not None]
+    rating_ok = outfield and len(rated) * 2 >= len(outfield)
+    rating = {
+        "score": round(fmean(rated), 1) if rating_ok else None, "scored": len(rated), "slots": len(outfield),
+        "note": None if rating_ok else f"Needs at least half of the {len(outfield)} outfield players scored.",
+    }
+    rating["band"] = band(rating["score"])
     filled = sum(1 for s in slots.values() if s["player"] is not None)
     out_of_position = sum(1 for s in slots.values() if s["fit"] == "out_of_position")
-    return {"lines": lines, "chemistry": chemistry, "balance": balance,
+    return {"rating": rating, "lines": lines, "chemistry": chemistry, "balance": balance,
             "filled": filled, "slots": len(slots), "outOfPosition": out_of_position}
 
 

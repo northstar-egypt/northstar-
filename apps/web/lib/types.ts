@@ -1074,6 +1074,8 @@ export interface LabEvaluation {
   slots: LabSlot[];
   links: LabLink[];
   team: {
+    /** Average slot score of the outfield players, out of 100. */
+    rating: LabScore & { scored: number; slots: number };
     lines: (LabScore & { key: string; label: string; slots: number; scored: number })[];
     chemistry: LabScore & { known: number; links: number };
     balance: LabScore & { weakest: string | null };
