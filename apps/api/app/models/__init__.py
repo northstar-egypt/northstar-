@@ -19,6 +19,7 @@ from app.models.performance_entry import PerformanceEntry
 from app.models.player import Player
 from app.models.player_organization import PlayerOrganization
 from app.models.shortlist_entry import ShortlistEntry
+from app.models.squad import Squad
 from app.models.team_season_stat import TeamSeasonStat
 from app.models.user import User
 
@@ -35,6 +36,7 @@ __all__ = [
     "Player",
     "PlayerOrganization",
     "ShortlistEntry",
+    "Squad",
     "TeamSeasonStat",
     "User",
 ]

@@ -14,6 +14,7 @@ const LINKS: { href: string; label: string }[] = [
   { href: "/oversight", label: "Home" },
   { href: "/search", label: "Search" },
   { href: "/compare", label: "Compare" },
+  { href: "/squad-lab", label: "Squad Lab" },
   { href: "/explore", label: "Explore" },
   { href: "/gaps", label: "Team gaps" },
   { href: "/ask", label: "Ask" },

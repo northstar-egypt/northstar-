@@ -28,6 +28,7 @@ from app.routers import (
     scout,
     search,
     sports,
+    squad_lab,
 )
 from app.services import assistant as assistant_service
 from app.services import forecast, summary
@@ -73,6 +74,7 @@ app.include_router(results.router)
 app.include_router(oversight.router)
 app.include_router(integrity.router)
 app.include_router(sports.router)
+app.include_router(squad_lab.router)
 # Development only, refused unless environment=development: the demo accounts the login
 # screen offers. See app/routers/dev.py.
 app.include_router(dev.router)

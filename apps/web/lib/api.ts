@@ -53,6 +53,9 @@ import type {
   ClubGaps,
   GapOptions,
   NationalGaps,
+  LabCandidate,
+  LabEvaluation,
+  SavedSquad,
 } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -682,4 +685,41 @@ export async function undoMerge(mergedId: string, reason: string): Promise<void>
     method: "POST",
     body: JSON.stringify({ reason }),
   });
+}
+
+/* ------------------------------------------------------------------ squad lab */
+
+export type LabSlots = Record<string, string | null>;
+
+export async function evaluateLineup(formation: string, slots: LabSlots): Promise<LabEvaluation> {
+  return request<LabEvaluation>("/squad-lab/evaluate", {
+    method: "POST",
+    body: JSON.stringify({ formation, slots }),
+  });
+}
+
+export async function getLabCandidates(role: string, q: string, exclude: string[]): Promise<LabCandidate[]> {
+  const params = new URLSearchParams({ role, q, exclude: exclude.join(",") });
+  const body = await request<{ players: LabCandidate[] }>(`/squad-lab/candidates?${params}`);
+  return body.players;
+}
+
+export async function getSavedSquads(): Promise<{ maySave: boolean; squads: SavedSquad[] }> {
+  return request("/squad-lab/squads");
+}
+
+export async function saveSquad(
+  name: string,
+  formation: string,
+  slots: LabSlots,
+  id?: string,
+): Promise<SavedSquad> {
+  return request<SavedSquad>(id ? `/squad-lab/squads/${id}` : "/squad-lab/squads", {
+    method: id ? "PUT" : "POST",
+    body: JSON.stringify({ name, formation, slots }),
+  });
+}
+
+export async function deleteSquad(id: string): Promise<void> {
+  return request<void>(`/squad-lab/squads/${id}`, { method: "DELETE" });
 }

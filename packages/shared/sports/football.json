@@ -520,5 +520,162 @@
         "rateLabel": "scored", "minAttempts": 10
       }
     }
+  },
+  "squadLab": {
+    "about": "Squad Lab: pick a formation and players, see how well neighbours fit. A rule of thumb built from each player's own numbers, each number ranked against players of the same tier who play the position of the slot. Not a trained model; nothing here is graded in ml/README.md.",
+    "minMinutes": { "football.match.v1": 270, "football.season_aggregate.v2": 450 },
+    "minPool": 5,
+    "matchWindowDays": 365,
+    "bands": { "green": 60, "yellow": 40 },
+    "traits": {
+      "finishing": { "label": "Finishing", "sources": {
+        "football.match.v1": { "label": "goals per 90", "numerator": ["goals"], "per90": true },
+        "football.season_aggregate.v2": { "label": "npxG per 90", "numerator": ["npxg"], "per90": true } } },
+      "shooting": { "label": "Shooting", "sources": {
+        "football.match.v1": { "label": "shots per 90", "numerator": ["shots"], "per90": true },
+        "football.season_aggregate.v2": { "label": "shots per 90", "numerator": ["shots"], "per90": true } } },
+      "assists": { "label": "Assists", "sources": {
+        "football.match.v1": { "label": "assists per 90", "numerator": ["assists"], "per90": true },
+        "football.season_aggregate.v2": { "label": "assists per 90", "numerator": ["assists"], "per90": true } } },
+      "key_passes": { "label": "Chance creation", "sources": {
+        "football.match.v1": { "label": "key passes per 90", "numerator": ["key_passes"], "per90": true },
+        "football.season_aggregate.v2": { "label": "key passes per 90", "numerator": ["key_passes"], "per90": true } } },
+      "xa": { "label": "Chance quality", "sources": {
+        "football.season_aggregate.v2": { "label": "xA per 90", "numerator": ["xa"], "per90": true } } },
+      "crosses": { "label": "Crossing", "sources": {
+        "football.season_aggregate.v2": { "label": "crosses per 90", "numerator": ["crosses"], "per90": true } } },
+      "dribbles": { "label": "Dribbling", "sources": {
+        "football.season_aggregate.v2": { "label": "dribbles won per 90", "numerator": ["dribbles_completed"], "per90": true } } },
+      "passing_volume": { "label": "Involvement", "sources": {
+        "football.match.v1": { "label": "passes per 90", "numerator": ["passes_attempted"], "per90": true },
+        "football.season_aggregate.v2": { "label": "passes per 90", "numerator": ["passes_attempted"], "per90": true } } },
+      "pass_accuracy": { "label": "Passing accuracy", "sources": {
+        "football.match.v1": { "label": "pass completion", "numerator": ["passes_completed"], "denominator": ["passes_attempted"] },
+        "football.season_aggregate.v2": { "label": "pass completion", "numerator": ["passes_completed"], "denominator": ["passes_attempted"] } } },
+      "tackling": { "label": "Tackling", "sources": {
+        "football.match.v1": { "label": "tackles per 90", "numerator": ["tackles"], "per90": true },
+        "football.season_aggregate.v2": { "label": "tackles per 90", "numerator": ["tackles"], "per90": true } } },
+      "interceptions": { "label": "Reading the game", "sources": {
+        "football.season_aggregate.v2": { "label": "interceptions per 90", "numerator": ["interceptions"], "per90": true } } },
+      "clearances": { "label": "Clearing danger", "sources": {
+        "football.season_aggregate.v2": { "label": "clearances per 90", "numerator": ["clearances"], "per90": true } } },
+      "aerials": { "label": "In the air", "sources": {
+        "football.season_aggregate.v2": { "label": "aerial duels won", "numerator": ["aerial_duels_won"], "denominator": ["aerial_duels"] } } },
+      "duels": { "label": "Duels", "sources": {
+        "football.season_aggregate.v2": { "label": "duels won", "numerator": ["duels_won"], "denominator": ["duels"] } } },
+      "work_rate": { "label": "Work rate", "sources": {
+        "football.match.v1": { "label": "distance per 90", "numerator": ["distance_km"], "per90": true } } }
+    },
+    "roleTraits": {
+      "centre_backs": ["tackling", "interceptions", "clearances", "aerials", "duels", "pass_accuracy"],
+      "full_backs": ["tackling", "interceptions", "crosses", "key_passes", "duels", "work_rate"],
+      "holding_midfielders": ["tackling", "interceptions", "passing_volume", "pass_accuracy", "duels"],
+      "central_midfielders": ["passing_volume", "pass_accuracy", "key_passes", "xa", "assists"],
+      "wingers": ["finishing", "key_passes", "dribbles", "crosses", "assists", "xa"],
+      "strikers": ["finishing", "shooting", "assists", "aerials"]
+    },
+    "lines": {
+      "defence": { "label": "Defence", "groups": ["centre_backs", "full_backs"] },
+      "midfield": { "label": "Midfield", "groups": ["holding_midfielders", "central_midfielders"] },
+      "attack": { "label": "Attack", "groups": ["wingers", "strikers"] }
+    },
+    "links": [
+      { "between": ["centre_backs", "centre_backs"], "label": "Centre-back pair", "why": "both win the ball, read danger and are safe on it",
+        "a": ["tackling", "interceptions", "clearances", "aerials", "pass_accuracy"], "b": ["tackling", "interceptions", "clearances", "aerials", "pass_accuracy"] },
+      { "between": ["centre_backs", "full_backs"], "label": "Back line", "why": "both defend their side of the line",
+        "a": ["tackling", "interceptions", "duels"], "b": ["tackling", "interceptions", "duels"] },
+      { "between": ["centre_backs", "holding_midfielders"], "label": "Shield", "why": "the holder protects the defence, the centre back plays the ball out to him",
+        "a": ["pass_accuracy", "interceptions"], "b": ["tackling", "interceptions", "pass_accuracy"] },
+      { "between": ["centre_backs", "central_midfielders"], "label": "Build-up", "why": "the centre back passes into midfield, the midfielder keeps it",
+        "a": ["pass_accuracy", "passing_volume"], "b": ["passing_volume", "pass_accuracy"] },
+      { "between": ["full_backs", "wingers"], "label": "Flank", "why": "the full back supports and crosses, the winger beats his man",
+        "a": ["crosses", "key_passes", "work_rate", "tackling"], "b": ["dribbles", "key_passes", "crosses", "tackling"] },
+      { "between": ["full_backs", "central_midfielders"], "label": "Wide build-up", "why": "short passing between the full back and the midfielder",
+        "a": ["pass_accuracy", "work_rate"], "b": ["passing_volume", "pass_accuracy"] },
+      { "between": ["full_backs", "holding_midfielders"], "label": "Cover", "why": "the holder covers when the full back goes forward",
+        "a": ["work_rate", "pass_accuracy"], "b": ["tackling", "interceptions"] },
+      { "between": ["holding_midfielders", "holding_midfielders"], "label": "Double pivot", "why": "both win the ball back and keep possession",
+        "a": ["tackling", "interceptions", "pass_accuracy", "passing_volume"], "b": ["tackling", "interceptions", "pass_accuracy", "passing_volume"] },
+      { "between": ["holding_midfielders", "central_midfielders"], "label": "Midfield", "why": "the holder wins it, the midfielder moves it on",
+        "a": ["tackling", "interceptions", "pass_accuracy"], "b": ["passing_volume", "pass_accuracy", "key_passes"] },
+      { "between": ["central_midfielders", "central_midfielders"], "label": "Midfield pair", "why": "both keep the ball and find a pass",
+        "a": ["passing_volume", "pass_accuracy", "key_passes"], "b": ["passing_volume", "pass_accuracy", "key_passes"] },
+      { "between": ["central_midfielders", "wingers"], "label": "Supply to the wing", "why": "the midfielder finds the winger, the winger makes something of it",
+        "a": ["key_passes", "passing_volume", "xa"], "b": ["dribbles", "finishing", "key_passes"] },
+      { "between": ["central_midfielders", "strikers"], "label": "Supply to the striker", "why": "the midfielder creates chances, the striker takes them",
+        "a": ["key_passes", "xa", "assists"], "b": ["finishing", "shooting"] },
+      { "between": ["holding_midfielders", "wingers"], "label": "Switch", "why": "the holder moves the ball wide, the winger takes it on",
+        "a": ["passing_volume", "pass_accuracy"], "b": ["dribbles", "key_passes"] },
+      { "between": ["wingers", "strikers"], "label": "Supply line", "why": "the winger crosses and creates, the striker finishes and attacks the ball in the air",
+        "a": ["crosses", "key_passes", "xa", "assists"], "b": ["finishing", "aerials", "shooting"] },
+      { "between": ["wingers", "wingers"], "label": "Width", "why": "both stretch the pitch and create",
+        "a": ["dribbles", "key_passes", "crosses"], "b": ["dribbles", "key_passes", "crosses"] },
+      { "between": ["strikers", "strikers"], "label": "Strike partnership", "why": "both threaten goal and set each other up",
+        "a": ["finishing", "shooting", "assists"], "b": ["finishing", "shooting", "assists"] }
+    ],
+    "formations": {
+      "4-3-3": {
+        "slots": [
+          { "id": "GK", "role": "GK", "x": 50, "y": 7 },
+          { "id": "LB", "role": "LB", "x": 14, "y": 27 },
+          { "id": "LCB", "role": "CB", "x": 37, "y": 20 },
+          { "id": "RCB", "role": "CB", "x": 63, "y": 20 },
+          { "id": "RB", "role": "RB", "x": 86, "y": 27 },
+          { "id": "CDM", "role": "CDM", "x": 50, "y": 38 },
+          { "id": "LCM", "role": "CM", "x": 29, "y": 52 },
+          { "id": "RCM", "role": "CM", "x": 71, "y": 52 },
+          { "id": "LW", "role": "LW", "x": 16, "y": 76 },
+          { "id": "ST", "role": "ST", "x": 50, "y": 84 },
+          { "id": "RW", "role": "RW", "x": 84, "y": 76 }
+        ],
+        "links": [
+          ["LB", "LCB"], ["LCB", "RCB"], ["RCB", "RB"], ["LCB", "CDM"], ["RCB", "CDM"],
+          ["LB", "LCM"], ["RB", "RCM"], ["LB", "LW"], ["RB", "RW"],
+          ["CDM", "LCM"], ["CDM", "RCM"], ["LCM", "LW"], ["RCM", "RW"], ["LCM", "ST"], ["RCM", "ST"],
+          ["LW", "ST"], ["RW", "ST"]
+        ]
+      },
+      "4-4-2": {
+        "slots": [
+          { "id": "GK", "role": "GK", "x": 50, "y": 7 },
+          { "id": "LB", "role": "LB", "x": 14, "y": 26 },
+          { "id": "LCB", "role": "CB", "x": 37, "y": 20 },
+          { "id": "RCB", "role": "CB", "x": 63, "y": 20 },
+          { "id": "RB", "role": "RB", "x": 86, "y": 26 },
+          { "id": "LM", "role": "LW", "x": 14, "y": 55 },
+          { "id": "LCM", "role": "CM", "x": 38, "y": 48 },
+          { "id": "RCM", "role": "CM", "x": 62, "y": 48 },
+          { "id": "RM", "role": "RW", "x": 86, "y": 55 },
+          { "id": "LST", "role": "ST", "x": 38, "y": 81 },
+          { "id": "RST", "role": "ST", "x": 62, "y": 81 }
+        ],
+        "links": [
+          ["LB", "LCB"], ["LCB", "RCB"], ["RCB", "RB"], ["LB", "LM"], ["RB", "RM"],
+          ["LCB", "LCM"], ["RCB", "RCM"], ["LM", "LCM"], ["LCM", "RCM"], ["RCM", "RM"],
+          ["LM", "LST"], ["RM", "RST"], ["LCM", "LST"], ["RCM", "RST"], ["LST", "RST"]
+        ]
+      },
+      "4-2-3-1": {
+        "slots": [
+          { "id": "GK", "role": "GK", "x": 50, "y": 7 },
+          { "id": "LB", "role": "LB", "x": 14, "y": 26 },
+          { "id": "LCB", "role": "CB", "x": 37, "y": 20 },
+          { "id": "RCB", "role": "CB", "x": 63, "y": 20 },
+          { "id": "RB", "role": "RB", "x": 86, "y": 26 },
+          { "id": "LDM", "role": "CDM", "x": 38, "y": 40 },
+          { "id": "RDM", "role": "CDM", "x": 62, "y": 40 },
+          { "id": "LW", "role": "LW", "x": 16, "y": 68 },
+          { "id": "CAM", "role": "CAM", "x": 50, "y": 62 },
+          { "id": "RW", "role": "RW", "x": 84, "y": 68 },
+          { "id": "ST", "role": "ST", "x": 50, "y": 85 }
+        ],
+        "links": [
+          ["LB", "LCB"], ["LCB", "RCB"], ["RCB", "RB"], ["LCB", "LDM"], ["RCB", "RDM"], ["LDM", "RDM"],
+          ["LB", "LDM"], ["RB", "RDM"], ["LB", "LW"], ["RB", "RW"],
+          ["LDM", "CAM"], ["RDM", "CAM"], ["LW", "CAM"], ["RW", "CAM"],
+          ["LW", "ST"], ["CAM", "ST"], ["RW", "ST"]
+        ]
+      }
+    }
   }
 }
