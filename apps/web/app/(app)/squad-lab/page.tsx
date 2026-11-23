@@ -314,8 +314,8 @@ export default function SquadLabPage() {
             <Skeleton className="aspect-[68/100] w-full" />
           )}
           <p className="text-xs text-slate-500">
-            Drag a player from the list onto a slot, or drag one slot onto another to swap. On a phone, tap a
-            slot, then tap a player. Tap a line to see why it is that colour.
+            Click a circle to open the player list for that position, then click or drag a player onto it. Drag one
+            circle onto another to swap them. Tap a line to see why it is that colour.
           </p>
         </div>
 
@@ -332,6 +332,14 @@ export default function SquadLabPage() {
           ) : null}
           {selectedLink && result ? (
             <LinkPanel link={selectedLink} slots={slotById} onClose={() => setSelected(null)} />
+          ) : null}
+          {!selected ? (
+            <Card className="flex flex-col gap-1 border-sky-900/70">
+              <span className="text-sm font-semibold text-slate-100">Pick your players</span>
+              <span className="text-sm text-slate-400">
+                Click a circle on the pitch. The players for that position open here, best fit first.
+              </span>
+            </Card>
           ) : null}
           {result ? <TeamPanel result={result} /> : <Skeleton className="h-64 w-full" />}
         </div>
