@@ -164,3 +164,18 @@ def test_the_goalkeeper_is_placed_but_never_scored(client, auth, world, db):
     keeper_links = [lk for lk in result["links"] if "GK" in (lk["from"], lk["to"])]
     assert keeper_links and all(lk["score"] is None and lk["band"] == "unknown" for lk in keeper_links)
     assert result["team"]["chemistry"]["links"] == len(result["links"]) - len(keeper_links)
+
+
+def test_the_bench_is_scored_for_his_own_position_and_never_counts_for_the_team(client, auth, world, db):
+    org = world["orgs"]["a"]
+    strikers = [_youth(db, org, f"Bench Striker {i}", position="ST", shots=i) for i in range(1, 8)]
+    db.flush()
+    alone = _evaluate(client, auth, "coach_a", {}).json()
+    result = client.post("/squad-lab/evaluate", headers=auth("coach_a"), json={
+        "formation": "4-3-3", "slots": {"B1": str(strikers[-1].id)}}).json()
+    (sub,) = [b for b in result["bench"] if b["slotId"] == "B1"]
+    assert sub["player"]["fullName"] == "Bench Striker 7" and sub["state"] == "scored" and sub["role"] == "ST"
+    assert result["team"] == alone["team"]
+    assert len(result["bench"]) == len(squad_lab.BENCH)
+    names = {p["fullName"] for p in client.get("/squad-lab/candidates?role=ANY", headers=auth("coach_a")).json()["players"]}
+    assert "Bench Striker 7" in names

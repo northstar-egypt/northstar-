@@ -103,8 +103,14 @@ function scoreText(score: number | null): string {
 }
 
 /** Carry players across a formation change: same slot id first, then any free slot in order. */
+/** Bench slots are "B1" to "B7" (apps/api/app/services/squad_lab.py, BENCH). */
+const isBench = (slotId: string) => /^B\d+$/.test(slotId);
+
 function carryOver(slots: LabSlots, from: LabSlot[], to: string[]): LabSlots {
-  const next: LabSlots = {};
+  // The bench does not depend on the formation: substitutes stay where they are.
+  const next: LabSlots = Object.fromEntries(
+    Object.entries(slots).filter(([id]) => isBench(id)),
+  );
   const leftover: string[] = [];
   for (const slot of from) {
     const pid = slots[slot.slotId];
@@ -164,7 +170,13 @@ export default function SquadLabPage() {
     [slots],
   );
   const slotById = useMemo(
-    () => new Map((result?.slots ?? []).map((s) => [s.slotId, s])),
+    () =>
+      new Map(
+        [...(result?.slots ?? []), ...(result?.bench ?? [])].map((s) => [
+          s.slotId,
+          s,
+        ]),
+      ),
     [result],
   );
 
@@ -382,6 +394,17 @@ export default function SquadLabPage() {
           ) : (
             <Skeleton className="aspect-[68/100] w-full" />
           )}
+          {result ? (
+            <Bench
+              bench={result.bench}
+              selected={selected}
+              onSelect={setSelected}
+              onDragSlot={(slotId) =>
+                (dragged.current = { kind: "slot", slotId })
+              }
+              onDrop={drop}
+            />
+          ) : null}
           <p className="text-xs text-slate-500">
             Click a position to open its player list, then click or drag a
             player onto it. Drag one card onto another to swap them. To remove a
@@ -618,11 +641,13 @@ function SlotPanel({
   const [list, setList] = useState<LabCandidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const excludeKey = exclude.join(",");
+  // A substitute can be anyone; a position on the pitch lists its own players first.
+  const pickRole = isBench(slot.slotId) ? "ANY" : slot.role;
 
   useEffect(() => {
     let alive = true;
     const timer = setTimeout(() => {
-      getLabCandidates(slot.role, q, excludeKey ? excludeKey.split(",") : [])
+      getLabCandidates(pickRole, q, excludeKey ? excludeKey.split(",") : [])
         .then((r) => alive && (setList(r), setError(null)))
         .catch((err) => alive && setError(err.message));
     }, 250);
@@ -630,7 +655,7 @@ function SlotPanel({
       alive = false;
       clearTimeout(timer);
     };
-  }, [slot.role, q, excludeKey]);
+  }, [pickRole, q, excludeKey]);
 
   return (
     <Card className="flex flex-col gap-4">
@@ -1111,5 +1136,72 @@ function PlayerCard({ slot, active }: { slot: LabSlot; active: boolean }) {
         </span>
       ) : null}
     </span>
+  );
+}
+
+/* ------------------------------------------------------------------ bench */
+
+/** Substitutes under the pitch. Scored for their own position; not part of the team score. */
+function Bench({
+  bench,
+  selected,
+  onSelect,
+  onDragSlot,
+  onDrop,
+}: {
+  bench: LabSlot[];
+  selected: Selection;
+  onSelect: (s: Selection) => void;
+  onDragSlot: (slotId: string) => void;
+  onDrop: (slotId: string) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <span className="text-sm font-semibold text-slate-100">Bench</span>
+        <span className="text-xs text-slate-500">
+          Substitutes, scored for their own position. Not counted in the team
+          score.
+        </span>
+      </div>
+      <div className="flex flex-wrap justify-center gap-2">
+        {bench.map((slot) => {
+          const active =
+            selected?.kind === "slot" && selected.id === slot.slotId;
+          return (
+            <button
+              key={slot.slotId}
+              type="button"
+              draggable={!!slot.player}
+              onDragStart={(e) => {
+                e.dataTransfer.setData("text/plain", slot.slotId);
+                onDragSlot(slot.slotId);
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                onDrop(slot.slotId);
+              }}
+              onClick={() => onSelect({ kind: "slot", id: slot.slotId })}
+              className="block focus:outline-none"
+              aria-label={`Substitute ${slot.slotId}: ${slot.player ? slot.player.fullName : "empty"}`}
+            >
+              {slot.player ? (
+                <PlayerCard slot={slot} active={active} />
+              ) : (
+                <span
+                  className={cx(
+                    "grid h-[6.6rem] w-[4.6rem] place-items-center rounded-lg border-2 border-dashed border-slate-700 text-xs text-slate-500 sm:h-[7.2rem] sm:w-[5.1rem]",
+                    active && "border-sky-400 text-sky-300",
+                  )}
+                >
+                  + SUB
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

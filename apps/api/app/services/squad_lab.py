@@ -68,6 +68,8 @@ SPORT = "football"
 MATCH = "football.match.v1"
 SEASON = "football.season_aggregate.v2"
 NAME_MAX = 80
+# Substitutes: shown under the pitch, scored for their own position, never counted in the team.
+BENCH = [f"B{i}" for i in range(1, 8)]
 CANDIDATE_LIMIT = 40
 
 GK_NOTE = "Goalkeepers are not scored: there is no goalkeeping data."
@@ -291,7 +293,7 @@ def formation(name: str) -> dict:
 
 def check_slots(formation_name: str, slots: dict[str, str | None]) -> dict[str, uuid.UUID]:
     """Validate a slot map and return it with parsed ids and empty slots dropped."""
-    known = {slot["id"] for slot in formation(formation_name)["slots"]}
+    known = {slot["id"] for slot in formation(formation_name)["slots"]} | set(BENCH)
     out: dict[str, uuid.UUID] = {}
     for slot_id, player_id in slots.items():
         if slot_id not in known:
@@ -333,53 +335,68 @@ def evaluate(db: Session, caller: Caller, formation_name: str, slots: dict[str, 
     pop = population(db)
     today = date.today()
 
-    out_slots: dict[str, dict] = {}
-    records: dict[str, Record | None] = {}
-    for slot in shape["slots"]:
-        sid, role = slot["id"], slot["role"]
-        sgroup = group_of(role)
-        entry = {"slotId": sid, "role": role, "roleName": cfg["roleNames"].get(role, role),
-                 "x": slot["x"], "y": slot["y"], "state": "empty", "player": None, "fit": None,
-                 "score": None, "band": "unknown", "traits": [], "note": None}
-        out_slots[sid] = entry
-        records[sid] = None
-        if sid not in chosen:
-            continue
-        player = people.get(chosen[sid])
+    def fill(entry: dict, slot_role: str | None) -> Record | None:
+        """Put the chosen player in `entry` and score him for `slot_role`; his record if scored."""
+        player = people.get(chosen[entry["slotId"]])
         if player is None:
             entry.update(state="unavailable", note=UNAVAILABLE)
-            continue
+            return None
         entry["player"] = _card(player, clubs, today)
+        role = slot_role or player.position
+        sgroup = group_of(role)
         natural = group_of(player.position)
         entry["fit"] = ("unknown" if player.position is None else
                         "natural" if (natural == sgroup or player.position == role) else "out_of_position")
         if sgroup is None:
-            entry.update(state="not_scored", note=GK_NOTE)
-            continue
+            entry.update(state="not_scored", note=GK_NOTE if role == "GK" else "Position not recorded.")
+            return None
         record = pop.records.get(player.id)
         if record is None:
             if not has_consent(db, player.id, ConsentPurpose.ANALYTICS.value):
                 entry.update(state="no_consent", note=NO_CONSENT)
             else:
                 entry.update(state="no_data", note=_no_data_note())
-            continue
-        records[sid] = record
+            return None
         scores = trait_scores(pop, record, sgroup, cfg["roleTraits"][sgroup])
         if not scores:
             entry.update(state="no_data", note="None of this position's numbers are in this player's record.")
-            continue
+            return None
         score = _mean(scores)
         entry.update(state="scored", score=score, band=band(score), traits=scores,
                      source="match records" if record.schema == MATCH else "latest league season",
                      rankedAmong=_ranked_among(record))
         if len(scores) <= 2:
             entry["note"] = f"Based on {len(scores)} number{'s' if len(scores) > 1 else ''} only."
+        return record
+
+    def blank(sid: str, role: str | None, x: float | None, y: float | None) -> dict:
+        return {"slotId": sid, "role": role, "roleName": cfg["roleNames"].get(role, role) if role else "substitute",
+                "x": x, "y": y, "state": "empty", "player": None, "fit": None,
+                "score": None, "band": "unknown", "traits": [], "note": None}
+
+    out_slots: dict[str, dict] = {}
+    records: dict[str, Record | None] = {}
+    for slot in shape["slots"]:
+        sid = slot["id"]
+        out_slots[sid] = blank(sid, slot["role"], slot["x"], slot["y"])
+        records[sid] = fill(out_slots[sid], slot["role"]) if sid in chosen else None
+
+    # The bench: each substitute is scored for his own position, and none of it reaches the team.
+    bench = []
+    for sid in BENCH:
+        entry = blank(sid, None, None, None)
+        if sid in chosen:
+            fill(entry, None)
+            if entry["player"]:
+                entry["role"] = entry["player"]["position"]
+        bench.append(entry)
 
     links = [_link(pop, out_slots, records, a, b) for a, b in shape["links"]]
     return {
         "formation": formation_name,
         "formations": list(cfg["formations"]),
         "slots": list(out_slots.values()),
+        "bench": bench,
         "links": links,
         "team": _team(out_slots, links),
         "caveats": _caveats(out_slots),
@@ -512,7 +529,8 @@ def candidates(db: Session, caller: Caller, role: str, query: str = "", exclude:
                limit: int = CANDIDATE_LIMIT) -> dict:
     """Players the caller may see, best for this slot first. Unscored players come last."""
     cfg = config()
-    if role not in cfg["roleNames"]:
+    anyone = role == "ANY"  # a bench slot: every player, scored for his own position
+    if not anyone and role not in cfg["roleNames"]:
         raise SquadLabError(f"Unknown position {role!r}.")
     sgroup = group_of(role)
     stmt = visible_players(caller).where(Player.primary_sport == SPORT)
@@ -529,10 +547,11 @@ def candidates(db: Session, caller: Caller, role: str, query: str = "", exclude:
         if str(player.id) in skip:
             continue
         record = pop.records.get(player.id)
+        group = group_of(player.position) if anyone else sgroup
         score = None
-        if record is not None and sgroup is not None:
-            score = _mean(trait_scores(pop, record, sgroup, cfg["roleTraits"][sgroup]))
-        natural = group_of(player.position) == sgroup or player.position == role
+        if record is not None and group is not None:
+            score = _mean(trait_scores(pop, record, group, cfg["roleTraits"][group]))
+        natural = anyone or group_of(player.position) == sgroup or player.position == role
         ranked.append((player, score, natural))
     # Natural position first, then the slot score, then the name: a manager filling a slot
     # wants the players who play there before the ones who could.

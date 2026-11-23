@@ -1074,6 +1074,8 @@ export interface LabEvaluation {
   formation: string;
   formations: string[];
   slots: LabSlot[];
+  /** Substitutes "B1" to "B7". Their x and y are null: they are not on the pitch. */
+  bench: LabSlot[];
   links: LabLink[];
   team: {
     /** Average slot score of the outfield players, out of 100. */

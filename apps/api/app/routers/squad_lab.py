@@ -42,7 +42,7 @@ def require_saving(caller: Caller = Depends(require_lab)) -> Caller:
 
 class LineupIn(CamelModel):
     formation: str = Field(max_length=20)
-    slots: dict[str, str | None] = Field(default_factory=dict, max_length=11)
+    slots: dict[str, str | None] = Field(default_factory=dict, max_length=18)
 
 
 class SquadIn(LineupIn):
