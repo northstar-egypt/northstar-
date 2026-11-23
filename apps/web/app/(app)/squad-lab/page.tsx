@@ -35,6 +35,7 @@ import {
   getSavedSquads,
   saveSquad,
 } from "@/lib/api";
+import { FlagIcon } from "@/components/flags";
 import { useAuth } from "@/lib/auth";
 import { cx } from "@/lib/format";
 import type {
@@ -383,9 +384,9 @@ export default function SquadLabPage() {
           )}
           <p className="text-xs text-slate-500">
             Click a position to open its player list, then click or drag a
-            player onto it. Drag one card onto another to swap them. To remove
-            a player, click his card and press Remove this player.
-            Tap a line to see why it is that colour.
+            player onto it. Drag one card onto another to swap them. To remove a
+            player, click his card and press Remove this player. Tap a line to
+            see why it is that colour.
           </p>
         </div>
 
@@ -419,8 +420,8 @@ export default function SquadLabPage() {
                 Pick your players
               </span>
               <span className="text-sm text-slate-400">
-                Click a position on the pitch. The players for that position open
-                here, best fit first.
+                Click a position on the pitch. The players for that position
+                open here, best fit first.
               </span>
             </Card>
           ) : null}
@@ -980,66 +981,132 @@ function Headline({ result }: { result: LabEvaluation }) {
 
 /* ------------------------------------------------------------------ player card */
 
-const CARD_BG: Record<LabBand, string> = {
-  green: "from-emerald-900 via-slate-900 to-slate-950",
-  yellow: "from-amber-900 via-slate-900 to-slate-950",
-  red: "from-rose-900 via-slate-900 to-slate-950",
-  unknown: "from-slate-700 via-slate-900 to-slate-950",
+/** The card's frame, by how well the player fits the slot. */
+const CARD_FRAME: Record<LabBand, string> = {
+  green: "from-emerald-200 via-emerald-500 to-emerald-800",
+  yellow: "from-amber-100 via-amber-400 to-amber-700",
+  red: "from-rose-200 via-rose-500 to-rose-800",
+  unknown: "from-slate-300 via-slate-500 to-slate-700",
 };
 
+const CARD_BODY: Record<LabBand, string> = {
+  green: "from-emerald-800 via-emerald-950 to-slate-950",
+  yellow: "from-amber-700 via-amber-950 to-slate-950",
+  red: "from-rose-800 via-rose-950 to-slate-950",
+  unknown: "from-slate-600 via-slate-800 to-slate-950",
+};
+
+// A shield with a cut-off bottom, the shape of the card.
+const CARD_SHAPE = "polygon(0 0, 100% 0, 100% 86%, 50% 100%, 0 86%)";
+
+/** A generic head-and-shoulders figure. The repo holds no real player photos. */
+function Silhouette({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 40 36" className={className} aria-hidden>
+      <circle cx="20" cy="11" r="8" fill="currentColor" />
+      <path d="M3 36c0-9.5 7.6-15 17-15s17 5.5 17 15z" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** A plain shield with the club's initials. Our own drawing, never a club's real badge. */
+function ClubBadge({ name }: { name: string | null }) {
+  const letters = name ? initials(name) : "–";
+  return (
+    <span
+      className="relative grid h-[1.05rem] w-[0.95rem] place-items-center"
+      title={name ?? "No club"}
+    >
+      <svg
+        viewBox="0 0 20 22"
+        className="absolute inset-0 h-full w-full"
+        aria-hidden
+      >
+        <path
+          d="M10 1l8 3v7c0 5-3.6 8.6-8 10-4.4-1.4-8-5-8-10V4z"
+          fill="#0f172a"
+          stroke="#cbd5e1"
+          strokeWidth="1.4"
+        />
+      </svg>
+      <span
+        className="relative text-[0.38rem] font-bold leading-none text-slate-100"
+        dir="auto"
+      >
+        {letters}
+      </span>
+    </span>
+  );
+}
+
 /**
- * A player on the pitch: his score for this slot, position, initials, name, club and
- * nationality. No photo: the repo holds no real player images, only initials.
+ * A player on the pitch: his score for this slot, position, nationality flag, club badge,
+ * name and club. Our own card design.
  */
 function PlayerCard({ slot, active }: { slot: LabSlot; active: boolean }) {
   const player = slot.player!;
-  const nation = player.nationality?.length
-    ? player.nationality.join("/")
-    : "–";
+  const nations = player.nationality?.length ? player.nationality : [];
   return (
     <span
       className={cx(
-        "relative flex w-[4.3rem] flex-col items-center overflow-hidden rounded-lg border-2 bg-gradient-to-b px-1 pb-1 pt-0.5 shadow-lg shadow-black/50 sm:w-[4.9rem]",
-        CARD_BG[slot.band],
-        BAND_RING[slot.band],
-        active && "ring-2 ring-sky-400 ring-offset-2 ring-offset-[#0b1f17]",
+        "block drop-shadow-[0_6px_10px_rgba(0,0,0,0.6)] transition hover:-translate-y-0.5",
+        active && "drop-shadow-[0_0_10px_rgba(56,189,248,0.9)]",
       )}
     >
-      <span className="flex w-full items-start justify-between">
-        <span className="flex flex-col items-start leading-none">
-          <span
-            className={cx(
-              "text-base font-bold tabular-nums",
-              BAND_TEXT[slot.band],
-            )}
-          >
-            {scoreText(slot.score)}
+      <span
+        className={cx("block bg-gradient-to-br p-[2px]", CARD_FRAME[slot.band])}
+        style={{ clipPath: CARD_SHAPE }}
+      >
+        <span
+          className={cx(
+            "relative flex h-[6.6rem] w-[4.6rem] flex-col items-center bg-gradient-to-b sm:h-[7.2rem] sm:w-[5.1rem]",
+            CARD_BODY[slot.band],
+          )}
+          style={{ clipPath: CARD_SHAPE }}
+        >
+          {/* Shine across the top. */}
+          <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent" />
+
+          <span className="absolute left-1.5 top-1 flex flex-col items-center leading-none">
+            <span className="text-xl font-extrabold tabular-nums text-white sm:text-2xl">
+              {scoreText(slot.score)}
+            </span>
+            <span className="mt-0.5 text-[0.6rem] font-bold tracking-wide text-white/85">
+              {slot.role}
+            </span>
+            <span className="mt-0.5 flex flex-col items-center gap-0.5">
+              {nations.slice(0, 2).map((code) => (
+                <FlagIcon
+                  key={code}
+                  code={code}
+                  className="h-[0.6rem] w-[0.9rem]"
+                />
+              ))}
+              <ClubBadge name={player.club} />
+            </span>
           </span>
-          <span className="text-[0.6rem] font-semibold text-slate-200">
-            {slot.role}
+
+          <Silhouette className="absolute right-0.5 top-2 h-12 w-12 text-white/25 sm:h-14 sm:w-14" />
+
+          <span className="absolute inset-x-0 bottom-[0.75rem] flex flex-col items-center px-1">
+            <span className="h-px w-4/5 bg-white/25" />
+            <span
+              className="mt-0.5 w-full truncate text-center text-[0.66rem] font-bold leading-tight text-white"
+              dir="auto"
+            >
+              {shortName(player)}
+            </span>
+            <span
+              className="w-full truncate text-center text-[0.52rem] leading-tight text-white/60"
+              dir="auto"
+            >
+              {player.club ?? "no club"}
+            </span>
           </span>
         </span>
-        <span className="rounded bg-slate-950/70 px-0.5 text-[0.55rem] font-semibold text-slate-300">
-          {nation}
-        </span>
-      </span>
-      <span className="-mt-1 grid h-7 w-7 place-items-center rounded-full bg-slate-800 text-[0.65rem] font-semibold text-slate-100">
-        {initials(player.fullName)}
-      </span>
-      <span
-        className="mt-0.5 w-full truncate text-center text-[0.62rem] font-semibold leading-tight text-white"
-        dir="auto"
-      >
-        {shortName(player)}
-      </span>
-      <span
-        className="w-full truncate text-center text-[0.55rem] leading-tight text-slate-400"
-        dir="auto"
-      >
-        {player.club ?? "no club"}
       </span>
       {slot.fit === "out_of_position" ? (
-        <span className="mt-0.5 rounded bg-amber-500/20 px-1 text-[0.5rem] font-semibold text-amber-300">
+        <span className="mx-auto -mt-1 block w-fit rounded bg-amber-400 px-1 text-[0.5rem] font-bold text-slate-950">
           out of position
         </span>
       ) : null}
