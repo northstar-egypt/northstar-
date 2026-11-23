@@ -29,7 +29,10 @@ import {
 } from "@/components/ui";
 import {
   type LabSlots,
+  deletePhoto,
   deleteSquad,
+  photoUrl,
+  uploadPhoto,
   evaluateLineup,
   getLabCandidates,
   getSavedSquads,
@@ -38,6 +41,7 @@ import {
 import { FlagIcon } from "@/components/flags";
 import { useAuth } from "@/lib/auth";
 import { cx } from "@/lib/format";
+import type { LabPlayer } from "@/lib/types";
 import type {
   LabBand,
   LabCandidate,
@@ -135,6 +139,8 @@ export default function SquadLabPage() {
 
   // Saved squads (managers only).
   const [maySave, setMaySave] = useState(false);
+  // Bumped after a photo changes, to fetch the cards again.
+  const [refresh, setRefresh] = useState(0);
   const [saved, setSaved] = useState<SavedSquad[]>([]);
   const [squadId, setSquadId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -153,7 +159,7 @@ export default function SquadLabPage() {
     return () => {
       alive = false;
     };
-  }, [formation, slots]);
+  }, [formation, slots, refresh]);
 
   const loadSaved = useCallback(() => {
     getSavedSquads()
@@ -428,6 +434,8 @@ export default function SquadLabPage() {
               }
               onClear={() => clearSlot(selectedSlot.slotId)}
               onClose={() => setSelected(null)}
+              canEditPhotos={maySave}
+              onPhotoChanged={() => setRefresh((n) => n + 1)}
             />
           ) : null}
           {selectedLink && result ? (
@@ -629,7 +637,11 @@ function SlotPanel({
   onDragPlayer,
   onClear,
   onClose,
+  canEditPhotos,
+  onPhotoChanged,
 }: {
+  canEditPhotos: boolean;
+  onPhotoChanged: () => void;
   slot: LabSlot;
   exclude: string[];
   onPick: (c: LabCandidate) => void;
@@ -716,6 +728,13 @@ function SlotPanel({
             </p>
           ) : null}
           <TraitList traits={slot.traits} />
+          {canEditPhotos ? (
+            <PhotoEditor
+              key={slot.player.playerId}
+              player={slot.player}
+              onChanged={onPhotoChanged}
+            />
+          ) : null}
           <Button
             size="sm"
             variant="danger"
@@ -1111,7 +1130,16 @@ function PlayerCard({ slot, active }: { slot: LabSlot; active: boolean }) {
             </span>
           </span>
 
-          <Silhouette className="absolute right-0.5 top-2 h-12 w-12 text-white/25 sm:h-14 sm:w-14" />
+          {player.photo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a private, cookie-protected API image
+            <img
+              src={photoUrl(player.playerId, player.photo)}
+              alt=""
+              className="absolute right-1 top-1.5 h-11 w-9 rounded-md object-cover ring-1 ring-white/30 sm:h-12 sm:w-10"
+            />
+          ) : (
+            <Silhouette className="absolute right-0.5 top-2 h-12 w-12 text-white/25 sm:h-14 sm:w-14" />
+          )}
 
           <span className="absolute inset-x-0 bottom-[0.75rem] flex flex-col items-center px-1">
             <span className="h-px w-4/5 bg-white/25" />
@@ -1202,6 +1230,118 @@ function Bench({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ photos */
+
+/**
+ * Add, change or remove a player's photo. Managers only. A child needs his guardian's photo
+ * consent first, entered here; his photo is then seen only by his own club's managers.
+ */
+function PhotoEditor({
+  player,
+  onChanged,
+}: {
+  player: LabPlayer;
+  onChanged: () => void;
+}) {
+  const [guardian, setGuardian] = useState("");
+  const [agreed, setAgreed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const needsGuardian = player.isMinor && !player.photo;
+
+  const upload = async (file: File) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await uploadPhoto(
+        player.playerId,
+        file,
+        needsGuardian ? { guardian, agreed } : undefined,
+      );
+      setMessage("Photo saved.");
+      onChanged();
+    } catch (err) {
+      setMessage((err as Error).message);
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await deletePhoto(player.playerId);
+      setMessage("Photo removed.");
+      onChanged();
+    } catch (err) {
+      setMessage((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-950/40 p-2.5">
+      <span className="text-xs font-medium text-slate-300">Photo</span>
+      {needsGuardian ? (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs text-amber-300">
+            He is a child. Ask his guardian first. His photo will only be seen
+            by your club&apos;s managers, never by scouts.
+          </p>
+          <input
+            className={inputClass}
+            value={guardian}
+            maxLength={120}
+            placeholder="Guardian's full name"
+            onChange={(e) => setGuardian(e.target.value)}
+          />
+          <label className="flex items-center gap-2 text-xs text-slate-300">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+            />
+            The guardian agreed to a photo of this player.
+          </label>
+        </div>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <input
+          ref={input}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void upload(file);
+          }}
+        />
+        <Button
+          size="sm"
+          disabled={busy || (needsGuardian && !(agreed && guardian.trim()))}
+          onClick={() => input.current?.click()}
+        >
+          {player.photo ? "Change photo" : "Add photo"}
+        </Button>
+        {player.photo ? (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={remove}>
+            Remove photo
+          </Button>
+        ) : null}
+      </div>
+      <span className="text-[0.7rem] text-slate-500">
+        JPEG, PNG or WebP, up to 2 MB.
+      </span>
+      {message ? (
+        <span className="text-xs text-slate-400">{message}</span>
+      ) : null}
     </div>
   );
 }

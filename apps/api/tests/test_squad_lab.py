@@ -179,3 +179,56 @@ def test_the_bench_is_scored_for_his_own_position_and_never_counts_for_the_team(
     assert len(result["bench"]) == len(squad_lab.BENCH)
     names = {p["fullName"] for p in client.get("/squad-lab/candidates?role=ANY", headers=auth("coach_a")).json()["players"]}
     assert "Bench Striker 7" in names
+
+
+# ---------------------------------------------------------------- photos
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+
+
+def _upload(client, auth, who, player, data=PNG, query=""):
+    return client.put(f"/squad-lab/players/{player.id}/photo{query}", content=data,
+                      headers={**auth(who), "Content-Type": "application/octet-stream"})
+
+
+def test_a_manager_adds_a_photo_of_an_adult_and_others_who_may_see_him_see_it(client, auth, world):
+    adult = world["players"]["adult_a"]
+    assert _upload(client, auth, "coach_a", adult).status_code == 200
+    for who in ("coach_a", "scout", "federation"):
+        got = client.get(f"/squad-lab/players/{adult.id}/photo", headers=auth(who))
+        assert got.status_code == 200 and got.content == PNG and got.headers["content-type"] == "image/png"
+    slot = _slot(_evaluate(client, auth, "scout", {"ST": adult}).json(), "ST")
+    assert slot["player"]["photo"]
+    assert client.delete(f"/squad-lab/players/{adult.id}/photo", headers=auth("coach_a")).status_code == 204
+    assert client.get(f"/squad-lab/players/{adult.id}/photo", headers=auth("coach_a")).status_code == 404
+
+
+def test_only_the_players_own_managers_upload_and_only_real_images(client, auth, world):
+    adult = world["players"]["adult_a"]
+    assert _upload(client, auth, "coach_b", adult).status_code == 404
+    assert _upload(client, auth, "scout", adult).status_code == 400
+    assert _upload(client, auth, "coach_a", adult, data=b"<svg onload=alert(1)>").status_code == 400
+    assert _upload(client, auth, "coach_a", adult, data=b"").status_code == 400
+    big = PNG + b"\x00" * (squad_lab.PHOTO_MAX_BYTES + 1)
+    assert _upload(client, auth, "coach_a", adult, data=big).status_code == 400
+
+
+def test_a_childs_photo_needs_guardian_consent_and_only_his_club_sees_it(client, auth, world, db):
+    from app.models.consent import Consent
+
+    child = world["players"]["minor_ok_a"]
+    refused = _upload(client, auth, "coach_a", child)
+    assert refused.status_code == 400 and "guardian" in refused.json()["detail"]
+    assert _upload(client, auth, "coach_a", child, query="?guardian=Test%20Guardian&agreed=true").status_code == 200
+
+    assert client.get(f"/squad-lab/players/{child.id}/photo", headers=auth("coach_a")).status_code == 200
+    assert _slot(_evaluate(client, auth, "coach_a", {"ST": child}).json(), "ST")["player"]["photo"]
+    # A scout may see the child (scouting consent) but never his photo.
+    assert client.get(f"/squad-lab/players/{child.id}/photo", headers=auth("scout")).status_code == 404
+    assert _slot(_evaluate(client, auth, "scout", {"ST": child}).json(), "ST")["player"]["photo"] is None
+
+    # The guardian withdraws photo consent: the photo stops showing at once.
+    for row in db.query(Consent).filter(Consent.player_id == child.id, Consent.purpose == "photo"):
+        row.granted = False
+    db.flush()
+    assert client.get(f"/squad-lab/players/{child.id}/photo", headers=auth("coach_a")).status_code == 404

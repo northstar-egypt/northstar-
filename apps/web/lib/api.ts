@@ -723,3 +723,28 @@ export async function saveSquad(
 export async function deleteSquad(id: string): Promise<void> {
   return request<void>(`/squad-lab/squads/${id}`, { method: "DELETE" });
 }
+
+/** The URL of a player's photo; `version` changes when the photo does, so caches refresh. */
+export function photoUrl(playerId: string, version: string): string {
+  return `${API_URL}/squad-lab/players/${playerId}/photo?v=${encodeURIComponent(version)}`;
+}
+
+/** Upload a photo as the raw request body. A child also needs his guardian's photo consent. */
+export async function uploadPhoto(
+  playerId: string,
+  file: File,
+  guardian?: { guardian: string; agreed: boolean },
+): Promise<{ photo: string }> {
+  const query = guardian
+    ? `?${new URLSearchParams({ guardian: guardian.guardian, agreed: String(guardian.agreed) })}`
+    : "";
+  return request<{ photo: string }>(`/squad-lab/players/${playerId}/photo${query}`, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": "application/octet-stream" },
+  });
+}
+
+export async function deletePhoto(playerId: string): Promise<void> {
+  return request<void>(`/squad-lab/players/${playerId}/photo`, { method: "DELETE" });
+}

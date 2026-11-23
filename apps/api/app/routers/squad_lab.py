@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi import status as http_status
 from pydantic import Field
 from sqlalchemy.orm import Session
@@ -122,5 +122,58 @@ def delete_squad(squad_id: uuid.UUID, db: Session = Depends(get_db), caller: Cal
         squad_lab.delete_squad(db, caller, squad_id)
     except squad_lab.NotFound:
         raise HTTPException(status_code=404, detail="No such squad.") from None
+    db.commit()
+    return Response(status_code=http_status.HTTP_204_NO_CONTENT)
+
+
+PHOTO_HEADERS = {"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"}
+
+
+@router.get("/players/{player_id}/photo")
+def player_photo(player_id: uuid.UUID, db: Session = Depends(get_db), caller: Caller = Depends(require_lab)) -> Response:
+    """A player's photo. A child's only for his own club's managers, with photo consent."""
+    try:
+        data, kind = squad_lab.get_photo(db, caller, player_id)
+    except squad_lab.NotFound:
+        raise HTTPException(status_code=404, detail="No photo.") from None
+    return Response(content=data, media_type=kind, headers=PHOTO_HEADERS)
+
+
+@router.put("/players/{player_id}/photo")
+async def upload_photo(
+    player_id: uuid.UUID,
+    request: Request,
+    guardian: str = Query(default="", max_length=120, description="For a child: the guardian who agreed."),
+    agreed: bool = Query(default=False, description="For a child: the guardian agreed to a photo."),
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(require_lab),
+) -> dict:
+    """Store a photo sent as the raw request body (an image file). Managers of his club only.
+
+    A child's photo also needs his guardian's photo consent, recorded here the first time.
+    """
+    data = b""
+    async for chunk in request.stream():
+        data += chunk
+        if len(data) > squad_lab.PHOTO_MAX_BYTES:
+            break
+    try:
+        version = squad_lab.set_photo(db, caller, player_id, data, guardian, agreed)
+    except squad_lab.PhotoRefused as exc:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
+    except squad_lab.NotFound:
+        raise HTTPException(status_code=404, detail="No such player.") from None
+    db.commit()
+    return {"photo": version}
+
+
+@router.delete("/players/{player_id}/photo", status_code=http_status.HTTP_204_NO_CONTENT)
+def remove_photo(player_id: uuid.UUID, db: Session = Depends(get_db), caller: Caller = Depends(require_lab)) -> Response:
+    try:
+        squad_lab.delete_photo(db, caller, player_id)
+    except squad_lab.PhotoRefused as exc:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(exc)) from None
+    except squad_lab.NotFound:
+        raise HTTPException(status_code=404, detail="No photo.") from None
     db.commit()
     return Response(status_code=http_status.HTTP_204_NO_CONTENT)

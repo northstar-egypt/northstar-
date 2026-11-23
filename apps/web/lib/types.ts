@@ -1019,6 +1019,8 @@ export interface LabPlayer {
   isMinor: boolean;
   /** ISO country codes; more than one for dual nationals. */
   nationality: string[];
+  /** A version string when the caller may see his photo, else null. */
+  photo: string | null;
 }
 
 export interface LabTrait {

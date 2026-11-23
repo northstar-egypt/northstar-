@@ -51,7 +51,10 @@ from sqlalchemy.orm import Session
 from app import sports
 from app.models.enums import ConsentPurpose, PlayerStatus
 from app.models.performance_entry import PerformanceEntry
+from app.models.audit_log import AuditLog
+from app.models.consent import Consent
 from app.models.player import Player
+from app.models.player_photo import PlayerPhoto
 from app.models.squad import Squad
 from app.services.access import (
     Caller,
@@ -318,8 +321,30 @@ def _visible(db: Session, caller: Caller, ids: list[uuid.UUID]) -> dict[uuid.UUI
     return {p.id: p for p in found if may_view(db, caller, p)[0]}
 
 
-def _card(player: Player, clubs: dict, today: date) -> dict:
+def _photos(db: Session, caller: Caller, ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
+    """A version string per player whose photo the caller may see (so a new photo is not cached).
+
+    A child's photo is only for his own club's managers, and only while his guardian's photo
+    consent is in effect. See `photo_visible`.
+    """
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(PlayerPhoto.player_id, PlayerPhoto.updated_at, Player.is_minor)
+        .join(Player, Player.id == PlayerPhoto.player_id)
+        .where(PlayerPhoto.player_id.in_(ids))
+    ).all()
+    minors = [pid for pid, _, minor in rows if minor]
+    consented = set(db.execute(
+        consent_subquery(PHOTO_CONSENT).where(Consent.player_id.in_(minors))
+    ).scalars()) if minors else set()
+    return {pid: str(int(updated.timestamp())) for pid, updated, minor in rows
+            if not minor or (caller.is_coach and pid in consented)}
+
+
+def _card(player: Player, clubs: dict, today: date, photos: dict | None = None) -> dict:
     return {
+        "photo": (photos or {}).get(player.id),
         "playerId": str(player.id), "fullName": player.full_name, "knownAs": player.known_as,
         "position": player.position, "tier": player.tier, "ageLabel": age_label(player.date_of_birth, today),
         "club": clubs.get(player.id), "isMinor": player.is_minor, "nationality": list(player.nationality or []),
@@ -332,6 +357,7 @@ def evaluate(db: Session, caller: Caller, formation_name: str, slots: dict[str, 
     chosen = check_slots(formation_name, slots)
     people = _visible(db, caller, list(chosen.values()))
     clubs = organization_names(db, list(people))
+    photos = _photos(db, caller, list(people))
     pop = population(db)
     today = date.today()
 
@@ -341,7 +367,7 @@ def evaluate(db: Session, caller: Caller, formation_name: str, slots: dict[str, 
         if player is None:
             entry.update(state="unavailable", note=UNAVAILABLE)
             return None
-        entry["player"] = _card(player, clubs, today)
+        entry["player"] = _card(player, clubs, today, photos)
         role = slot_role or player.position
         sgroup = group_of(role)
         natural = group_of(player.position)
@@ -567,7 +593,8 @@ def candidates(db: Session, caller: Caller, role: str, query: str = "", exclude:
             continue
         picked.append((player, score, natural))
     clubs = organization_names(db, [p.id for p, _, _ in picked])
-    out = [{**_card(player, clubs, today), "score": score, "band": band(score), "naturalPosition": natural}
+    photos = _photos(db, caller, [p.id for p, _, _ in picked])
+    out = [{**_card(player, clubs, today, photos), "score": score, "band": band(score), "naturalPosition": natural}
            for player, score, natural in picked]
     return {"role": role, "players": out}
 
@@ -634,3 +661,105 @@ def save_squad(db: Session, caller: Caller, name: str, formation_name: str, slot
 def delete_squad(db: Session, caller: Caller, squad_id: uuid.UUID) -> None:
     db.delete(_owned(db, caller, squad_id))
     db.flush()
+
+
+# ---------------------------------------------------------------------------
+# Player photos
+#
+# Adults: a club's managers upload them; anyone who may see the player sees the photo.
+# Children: the guardian's sign-up form does not cover photos, so a manager must record the
+# guardian's separate photo consent (a Consent row, purpose "photo") when uploading. A child's
+# photo is then shown only to his own club's managers, never to scouts or federation staff,
+# and stops showing the day that consent is withdrawn or runs out.
+# ---------------------------------------------------------------------------
+
+PHOTO_CONSENT = "photo"
+PHOTO_MAX_BYTES = 2 * 1024 * 1024
+NEEDS_GUARDIAN = ("This player is a child. Ask his guardian first, then enter the guardian's name and tick "
+                  "that they agreed to a photo.")
+
+
+class PhotoRefused(ValueError):
+    """A photo that may not be stored. The message is safe to show."""
+
+
+def photo_type(data: bytes) -> str | None:
+    """The image type from the file's first bytes, never from what the browser claims."""
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if len(data) > 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def _photo_player(db: Session, caller: Caller, player_id: uuid.UUID) -> Player:
+    player = db.get(Player, player_id)
+    if player is None or not may_view(db, caller, player)[0]:
+        raise NotFound
+    return player
+
+
+def photo_visible(db: Session, caller: Caller, player: Player) -> bool:
+    """Whether the caller may see this player's photo (they may already see the player)."""
+    if not player.is_minor:
+        return True
+    return caller.is_coach and has_consent(db, player.id, PHOTO_CONSENT)
+
+
+def set_photo(db: Session, caller: Caller, player_id: uuid.UUID, data: bytes,
+              guardian_name: str = "", guardian_agreed: bool = False) -> str:
+    """Store or replace a player's photo. Only his own club's managers."""
+    if not may_save(caller):
+        raise PhotoRefused("Only a club's managers can add photos.")
+    player = _photo_player(db, caller, player_id)
+    if not data:
+        raise PhotoRefused("The file is empty.")
+    if len(data) > PHOTO_MAX_BYTES:
+        raise PhotoRefused("The photo is too big. The limit is 2 MB.")
+    kind = photo_type(data)
+    if kind is None:
+        raise PhotoRefused("Only JPEG, PNG or WebP photos are accepted.")
+    consent_recorded = False
+    if player.is_minor and not has_consent(db, player.id, PHOTO_CONSENT):
+        guardian_name = guardian_name.strip()[:120]
+        if not (guardian_agreed and guardian_name):
+            raise PhotoRefused(NEEDS_GUARDIAN)
+        db.add(Consent(player_id=player.id, purpose=PHOTO_CONSENT, granted=True, granted_by="guardian",
+                       guardian_name=guardian_name, valid_from=date.today(), valid_until=None,
+                       document_ref=f"recorded in Squad Lab by user {caller.user_id}"))
+        consent_recorded = True
+    row = db.get(PlayerPhoto, player.id)
+    if row is None:
+        row = PlayerPhoto(player_id=player.id)
+        db.add(row)
+    row.uploaded_by, row.content_type, row.data = caller.user_id, kind, data
+    db.add(AuditLog(actor_user_id=caller.user_id, action="player_photo.set", entity_type="player",
+                    entity_id=player.id, event_metadata={"bytes": len(data), "content_type": kind,
+                                                         "minor": player.is_minor,
+                                                         "photo_consent_recorded": consent_recorded}))
+    db.flush()
+    db.refresh(row)
+    return str(int(row.updated_at.timestamp()))
+
+
+def delete_photo(db: Session, caller: Caller, player_id: uuid.UUID) -> None:
+    if not may_save(caller):
+        raise PhotoRefused("Only a club's managers can remove photos.")
+    player = _photo_player(db, caller, player_id)
+    row = db.get(PlayerPhoto, player.id)
+    if row is None:
+        raise NotFound
+    db.delete(row)
+    db.add(AuditLog(actor_user_id=caller.user_id, action="player_photo.delete", entity_type="player",
+                    entity_id=player.id, event_metadata={}))
+    db.flush()
+
+
+def get_photo(db: Session, caller: Caller, player_id: uuid.UUID) -> tuple[bytes, str]:
+    player = _photo_player(db, caller, player_id)
+    row = db.get(PlayerPhoto, player.id)
+    if row is None or not photo_visible(db, caller, player):
+        raise NotFound
+    return row.data, row.content_type
