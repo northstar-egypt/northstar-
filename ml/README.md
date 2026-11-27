@@ -879,6 +879,78 @@ rates rather than a percentage change.
 - **Not yet a flag.** A breakout shows on the profile's league seasons card, not on the
   integrity board or in the "What the models are saying" banner.
 
+## Age curves, professionals
+
+```bash
+python -m ml.run_age_curve_eval --cache-dir D:/northstar-data/footystats            # curves and the test
+python -m ml.run_age_curve_eval --cache-dir D:/northstar-data/footystats --markdown # the table below
+python -m ml.figure_age_curves --cache-dir D:/northstar-data/footystats             # docs/figures/age-curves.svg
+```
+
+**Question.** How do a professional's playing time and output change with age, for each position
+group, and does knowing the age help predict next season better than assuming nothing changes?
+A scout can read a 21-year-old's season against what is normal for his age.
+
+**Method.** Data: the seven Premier League seasons FootyStats' test key unlocks (2018/19 to
+2024/25, season ids 1625, 2012, 4759, 6135, 7704, 9660, 12325; never Liga MX), from the
+download cache described in `data/pipelines/footystats/README.md`. The cache stays outside the
+repository because it is about real people.
+
+- *Age.* FootyStats' `age` field is the age on the day of the download, so it is never used (in
+  the 2018/19 file a player born in 1992 is listed as 33). Each season's age is worked out from
+  `birthday` on 1 September of the season's first year, in whole years.
+- *Measures.* Share of the season's minutes (minutes over 38 x 90), goals per 90 and assists per 90.
+  Per 90 measures only from seasons of 900 or more minutes. Goalkeepers get the minutes curve only.
+- *The curve (delta method).* For every player in two consecutive seasons, the change in the
+  measure from age a to a + 1. The changes at each age are averaged, weighted by the smaller of
+  the two seasons' minutes, and added up from the youngest age. Only players who stay in the
+  league enter a change, which is what keeps players who declined and left from dragging the
+  late ages down. It is done separately for each position group (the group FootyStats lists the
+  player in the first of the two seasons). An age with fewer than 30 pairs is not drawn, and the
+  curve is drawn over one unbroken run of ages. The curve is anchored at the simple average of
+  its youngest age so both can share one axis; the anchor never enters a prediction.
+- *Uncertainty.* Players are resampled with replacement 1,000 times and the 10th to 90th
+  percentile drawn as the 80% band. It is the uncertainty of the change since the youngest age,
+  so it has no width there.
+- *The simple average by age* is drawn beside the curve. It rises after 30 only because the
+  players who declined have left the league.
+- *The test.* Written before the first run. Curves are built only from season pairs ending in
+  2022/23 or earlier. For the pairs 2022/23 to 2023/24 and 2023/24 to 2024/25, next season is
+  predicted as "this season plus the curve's change at this age" and scored by mean absolute
+  error against two baselines: "the same as this season" and "the average of the player's
+  position group in this season". A player is scored only if his age has a drawn change and (per
+  90 measures) both seasons have 900 or more minutes, and all three predictions are scored on the
+  same rows. Nothing was tuned: the 30 pairs, 900 minutes, 1,000 resamples and 80% band are the
+  task's own settings.
+
+**Result.** TODO: paste the output of the `--markdown` command here, with the date of the run and
+the number of players, and the players left out (no birthday, coaches, never played, ages with
+fewer than 30 pairs), as printed. No number is written here until it has been produced from the
+real cache; the code was checked on invented players only (`ml/tests/test_age_curves.py`).
+
+| Position | Measure | Scored | Players | Curve MAE | Same as this season | Position average | Curve minus same | Curve minus average |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+
+The figure is `docs/figures/age-curves.svg` (curve and 80% band, with the simple average beside it).
+
+**What it means.** To be written from the result, including where the curve does not beat
+"the same as this season". A curve that loses to a baseline is a result, and is reported.
+
+**Limits.**
+- One league, seven seasons. A player is in the data only while he plays in the Premier League,
+  so the curve describes players who stay, not every player of that age.
+- Ages with few pairs are noisy and are not drawn; the oldest and youngest ages rest on the
+  fewest players and have the widest bands.
+- The same player can appear in several pairs and in both test pairs, so rows are not
+  independent. The intervals resample players, not rows, for that reason.
+- Mixing in another league (Liga MX is in the test key) would mix different age profiles, so it
+  is left out. Nothing here says the Egyptian league has the same curve.
+- A mid-season transfer inside the league is one row for the season, so no player is counted twice.
+
+**How to reproduce.** `python -m ml.run_age_curve_eval --cache-dir <your FootyStats cache>`
+(about a minute). Tests: `pytest -q ml/tests/test_age_curves.py`.
+
 ## Team gap analysis
 
 ```bash
@@ -2077,6 +2149,8 @@ identity/      one person, one record across sources (Fellegi-Sunter), run_ident
 pro/          pro tier: breakouts, finishing vs xG, trends, team gaps;
               run_pro_eval.py and run_gap_eval.py grade them;
               report.py, the scouting report, run_report_eval.py checks it   done
+pro/age_curves.py  per-position age curves for professionals (delta method), the prediction
+              test, run_age_curve_eval.py runs it, figure_age_curves.py draws it   done
 assistant/     Ollama prompt + retrieval grounding                        TODO
 artifacts/     trained models (gitignored)
 ```
