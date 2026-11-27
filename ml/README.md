@@ -948,8 +948,8 @@ The figure is `docs/figures/age-curves.svg` (curve and 80% band, with the simple
   is left out. Nothing here says the Egyptian league has the same curve.
 - A mid-season transfer inside the league is one row for the season, so no player is counted twice.
 
-**How to reproduce.** `python -m ml.run_age_curve_eval --cache-dir <your FootyStats cache>`
-(about a minute). Tests: `pytest -q ml/tests/test_age_curves.py`.
+**How to reproduce.** `python -m ml.run_age_curve_eval --cache-dir <your FootyStats cache>`.
+Tests: `pytest -q ml/tests/test_age_curves.py`.
 
 ## Team gap analysis
 
